@@ -152,27 +152,64 @@ function addItem(x, y, w, h, vy, life, type) {
 // 몬스터 피격 처리 로직
 function hitE(e, dmg, facing, isCrit, extraDmg = 0) {
     if (e.dead) return;
+    // 투명 구간 중엔 피해 무효
+    if (e.type === "phantom" && e.visible === false) {
+        addText(e.x + e.w/2, e.y - 10, "MISS", "#888", 25, 12);
+        return;
+    }
     
-    let finalDmg = dmg + Math.floor(dmg * extraDmg);
+    const extraDmgAmt = Math.floor(dmg * extraDmg);
+    // 저스트 회피 데미지 보너스 적용
+    const jdBonus = (typeof Game !== 'undefined' && Game.justDodgeDmgBonus > 1.0) ? Game.justDodgeDmgBonus : 1.0;
+    if (jdBonus > 1.0) { Game.justDodgeDmgBonus = 1.0; } // 1회 소모
+    const finalDmg = Math.floor((dmg + extraDmgAmt) * jdBonus);
     e.hp -= finalDmg; 
     e.flash = 6;
     
-    // 💡 [패치] 몬스터 넉백 및 에어본 처리 (타격감 상승)
+    // 리게인 회복 (공격 명중 시)
+    if (typeof recoverRegain === 'function') recoverRegain(Math.ceil(finalDmg * 0.3));
+
+    // 혈흔 데칼
+    if (typeof addBloodDecal === 'function') addBloodDecal(e.x + e.w / 2, e.y + e.h - 4);
+
+    // 패링/강하공격 시 체간 데미지 (포이즈 히트)
+    // isCrit = 패링/강하공격 플래그로도 사용
+    if (isCrit && typeof applyPoiseHit === 'function' && !e.dead) {
+        applyPoiseHit(e, e.isBoss ? 30 : 20);
+    }
+
+    // 스턴 중인 적 공격 → 처형 판정
+    if (e.stun && typeof executeEnemy === 'function') {
+        executeEnemy(e);
+        return;
+    }
+
     if (!e.isBoss) { 
         e.kbT = 10; 
         e.vx = facing * (e.isElite ? 2 : 4); 
-        e.vy = -3; // 살짝 공중에 뜸
+        e.vy = -3;
     }
     
     // 데미지 텍스트 띄우기
     addText(
         e.x + e.w / 2, 
         e.y - 10, 
-        finalDmg.toString(), 
+        dmg.toString(), 
         isCrit ? "#ffcc00" : "#ffffff", 
         40, 
         isCrit ? 24 : 16
     );
+    // 추가 데미지는 우측하단에 작게 회색으로 별도 표기
+    if (extraDmgAmt > 0) {
+        addText(
+            e.x + e.w / 2 + 10,
+            e.y - 2,
+            "+" + extraDmgAmt,
+            "#aaaaaa",
+            35,
+            11
+        );
+    }
     
     // 출혈(파티클) 효과
     for (let i = 0; i < 10; i++) {
@@ -192,8 +229,27 @@ function hitE(e, dmg, facing, isCrit, extraDmg = 0) {
 
     // 사망 처리
     if (e.hp <= 0) { 
-        e.dead = true; 
-        e.hp = 0; 
+        e.hp = 0;
+        // Splitter: 사망 직전 분열 처리 (updateEnemies의 dead 블록보다 먼저 실행)
+        if (e.type === "splitter" && !e.splitDone) {
+            e.splitDone = true;
+            for (let si = -1; si <= 1; si += 2) {
+                const se = getObj(Game.enemies);
+                se.x = e.x + si * 15; se.y = e.y;
+                se.w = 12; se.h = 16; se.vx = si * 2.5; se.vy = -4;
+                se.hp = Math.floor(e.maxHp * 0.3); se.maxHp = se.hp;
+                se.atk = Math.floor(e.atk * 0.7);
+                se.type = "melee"; se.isBoss = false; se.isElite = false;
+                se.facing = si; se.fr = 0; se.frT = 0; se.flash = 0;
+                se.dead = false; se.kbT = 8; se.warnT = 0; se.warnData = null;
+                se.atkAnim = 0; se.world = e.world; se.isGuarding = false; se.guardT = 0;
+                se.sI = 120; se.sT = 60; se.pDir = si; se.pT = 0; se.onGround = false;
+                se.id = (typeof _enemyIdCounter !== 'undefined') ? _enemyIdCounter++ : Math.random();
+                se.splitDone = true;
+            }
+            addText(e.x + e.w / 2, e.y - 15, "SPLIT!", "#ff8800", 50, 14);
+        }
+        e.dead = true;
     }
 }
 
@@ -208,6 +264,7 @@ function takeDmg(dmg, eObj, unblockable=false) {
         if (typeof playSfx === 'function') playSfx('parry');
         Game.pMp = Math.min(Game.pMaxMp, Game.pMp + Game.pParryMp);
         addText(p.x, p.y - 20, "PARRY!", "#ffff00", 50, 16);
+        Game.slowMoT = 18; // 패링 슬로모션 약 0.3초
         
         // 플레이어 넉백 및 에어본, 무적 시간 추가
         p.vy = -3;
@@ -249,20 +306,34 @@ function takeDmg(dmg, eObj, unblockable=false) {
     else {
         dmg = Math.floor(dmg * Game.pDmgReduction);
         if (dmg < 1) dmg = 1;
+
+        // 저스트 회피 윈도우 안 → 마녀의 시간 발동
+        if (p.justDodgeReady && typeof triggerJustDodge === 'function') {
+            triggerJustDodge();
+            p.justDodgeReady = false;
+            return; // 피해 무효
+        }
         
-        // 강한 넉백 및 에어본
         p.kbT = 20; 
         p.vx = (eObj ? (p.x < eObj.x ? -1 : 1) : -p.facing) * 5; 
         p.vy = -4; 
         
         Game.hitStop = 15; Game.camShake = 20; 
         if (typeof playSfx === 'function') playSfx('dmg');
-        addText(p.x, p.y - 20, `-${dmg}`, "#ff0000", 40, 22);
+
+        // 리게인 시스템: 즉시 깎지 않고 회색 체력으로 버퍼
+        if (typeof applyRegain === 'function') {
+            applyRegain(dmg);
+            addText(p.x, p.y - 20, `-${dmg}`, "#ff6600", 40, 20);
+        } else {
+            addText(p.x, p.y - 20, `-${dmg}`, "#ff0000", 40, 22);
+        }
         for(let i=0; i<20; i++) addPart(p.x+7, p.y+9, "#ff0000", 25, 4);
 
         // 피격 시 콤보 초기화
         Game.comboCount = 0;
         Game.comboTimer = 0;
+        return; // 리게인 시스템이 hp 차감 처리
     }
 
     // 가시 갑옷 반사 데미지
