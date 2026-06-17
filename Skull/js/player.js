@@ -3,12 +3,13 @@
 // 메인 게임 로직 및 업데이트 루프 (Main Logic & Loop)
 // ==========================================
 
+// 이동 발판(vx) 이동 및 낙하 발판(drop) 타이머 처리
 function updateEnvironment() {
-    Game.platforms.forEach(t => { 
-        if (t.vx) { 
-            t.x += t.vx; 
-            if (t.x < t.boundL || t.x > t.boundR) t.vx *= -1; 
-        } 
+    Game.platforms.forEach(t => {
+        if (t.vx) {
+            t.x += t.vx;
+            if (t.x < t.boundL || t.x > t.boundR) t.vx *= -1;
+        }
         if (t.drop) {
             if (Game.player && Game.player.onGround && Game.player.riding === t && Game.gs !== "dead") { 
                 t.fallActive = true; 
@@ -21,12 +22,24 @@ function updateEnvironment() {
     });
 }
 
+// 플레이어 입력·이동·공격·사망 등 매 프레임 전체 처리
 function updatePlayer() {
     const p = Game.player;
     if (Game.gs === "dead" || Game.gs === "gameover") {
         if (Game.deadTimer > 0) { Game.deadTimer--; }
-        p.vy += GRAV; p.y += p.vy; 
-        return; 
+        p.vy += GRAV; p.y += p.vy;
+        return;
+    }
+    // 화톳불 휴식 중: 이동 잠금
+    if ((Game._bonfireRestT || 0) > 0) {
+        Game._bonfireRestT--;
+        p.vx = 0;
+        if (p.atkT > 0) p.atkT--;
+        if (Game.invT > 0) Game.invT--;
+        p.vy = Math.min(p.vy + GRAV, 9);
+        p.y += p.vy;
+        if (typeof resolveAABB === 'function') resolveAABB(p);
+        return;
     }
 
     p.frT++; if (p.frT > 7) { p.fr = (p.fr + 1) % 4; p.frT = 0; }
@@ -50,11 +63,9 @@ function updatePlayer() {
     if (Game.camShake > 0) Game.camShake--;
     if (Game.comboTimer > 0) { Game.comboTimer--; if (Game.comboTimer <= 0) Game.comboCount = 0; }
     if ((Game.pGunReload || 0) > 0) {
-        // 💡 기존의 단순 1씩 감소(Game.pGunReload--)를 지우고, 공속에 비례해 빠르게 감소시킴
         const currentAtkSpd = (Game.pBaseAtkSpd || 1.0) * (Game.pAtkSpdMul || 1.0);
         Game.pGunReload -= currentAtkSpd; 
         
-        // 재장전 완료: 탄약 자동 복구
         if (Game.pGunReload <= 0) {
             Game.pGunReload = 0;
             if (Game.pClass === 4) {
@@ -62,8 +73,18 @@ function updatePlayer() {
             }
         }
     }
-    // 숨쉬기 타이머 (idle 애니메이션용)
-    Game._breathT = ((Game._breathT || 0) + 1) % 120;
+    Game._breathT = ((Game._breathT || 0) + 1) % 180;
+    if ((Game._bloodSkillCooldown || 0) > 0) Game._bloodSkillCooldown--;
+    if ((Game._berserkRageT || 0) > 0) { Game._berserkRageT--; if (Game._berserkRageT <= 0) Game._berserkRageStacks = 0; }
+    // 혈귀 패시브: 피격 혈기 스택 타이머 감소 → 만료 시 스택 1 감소
+    if (Game.pClass === 6 && (Game._bloodFuryTimer || 0) > 0) {
+        Game._bloodFuryTimer--;
+        if (Game._bloodFuryTimer <= 0 && (Game._bloodFuryStacks || 0) > 0) {
+            Game._bloodFuryStacks--;
+            if (Game._bloodFuryStacks > 0) Game._bloodFuryTimer = 360;
+        }
+    }
+
     if (Game.runStats && Game.comboCount > (Game.runStats.maxCombo || 0)) Game.runStats.maxCombo = Game.comboCount;
 
     if (p.onGround && p.riding && p.riding.vx) p.x += p.riding.vx;
@@ -74,80 +95,96 @@ function updatePlayer() {
         if (typeof consumeStamina === 'function') consumeStamina((typeof STAMINA_GUARD !== 'undefined') ? STAMINA_GUARD : 18);
     }
     if (p.parryT > 0) p.parryT--;
-    // 방패병: 패링 판정 시간 3배 연장
-    if (Game.pClass === 5 && p.justDodgeT > 0 && p.justDodgeT < 6) p.justDodgeT = 18; 
     p.guarding = guardNow;
 
     if (dn("KeyZ") && p.dashCD <= 0 && !p.guarding && p.kbT <= 0 && p.atkT === 0) {
         const dashCost = typeof STAMINA_DASH !== 'undefined' ? STAMINA_DASH : 35;
         const hasStamina = typeof consumeStamina !== 'function' || consumeStamina(dashCost);
         if (!hasStamina) {
-            // 스태미나 부족 — 대시 완전 불가, 문구 쿨타임 60프레임(1초)
             if (!p._staminaWarnT || p._staminaWarnT <= 0) {
-                addText(p.x, p.y - 20, "STAMINA!", "#ff6600", 50, 11);
+                addText(p.x, p.y - 20, "스태미너 부족!", "#ff6600", 50, 11);
                 p._staminaWarnT = 60;
             }
         } else {
-        p.dashT = 15 + Game.pDashInv;
-        p.dashCD = Math.floor(75 * Game.pDashCDMul);
-        p.vy = 0; p.plunging = false; playSfx('dash');
-        // 저스트 회피 윈도우 열기
-        p.justDodgeT = typeof JUST_DODGE_WINDOW !== 'undefined' ? JUST_DODGE_WINDOW : 6;
-        } // hasStamina 블록 종료
-        p.justDodgeReady = true;
+            p.dashT = 15 + Game.pDashInv;
+            p.dashCD = Math.floor(75 * Game.pDashCDMul);
+            p.vy = 0; p.plunging = false; if(typeof playSfx === 'function') playSfx('dash');
+        }
     }
     
     if (p.dashT > 0) {
-        p.dashT--; p.vx = p.facing * 5.3 * Game.pMoveSpdMul; p.vy = 0; addPart(p.x + 7, p.y + 9, "#ffffff", 10, 3);
-        // 대시 종료 프레임에 착지 무적 부여 — dashT가 0이 되는 순간 invT 세팅
+        p.dashT--; p.vx = p.facing * 5.3 * Game.pMoveSpdMul; p.vy = 0;
         if (p.dashT === 0 && Game.invT === 0) {
-            Game.invT = 20; // 대시 후 약 0.33초 무적 — 착지 직후 즉시 피격 방지
+            Game.invT = 20; 
         }
     } else if (p.kbT > 0) {
         p.kbT--; p.vx *= 0.9;
     } else {
         let mx = 0; 
         if (!p.guarding && !p.plunging) { 
-            // 💡 A, D 키 이동 삭제, 오직 좌우 방향키만 허용
             if (dn("ArrowLeft")) mx = -1; 
             if (dn("ArrowRight")) mx = 1; 
         }
-        if (mx !== 0) p.facing = mx; p.vx = mx * 2.4 * Game.pMoveSpdMul; 
+        // 이동속도 상한: 도적 200%, 나머지 160%
+        const _maxSpd = Game.pClass === 1 ? 2.0 : 1.6;
+        const _spdCap = Math.min(_maxSpd, Game.pMoveSpdMul);
+        if (mx !== 0) p.facing = mx; p.vx = mx * 2.4 * _spdCap;
     }
     if (p.dashCD > 0) p.dashCD--;
     if (p.dashGauge < 100) {
-        p.dashGauge += 0.8; // 초당 회복량 조절
-        if (p.dashGauge > 100) p.dashGauge = 100; // 100을 넘지 않도록 제한
+        p.dashGauge += 0.8; 
+        if (p.dashGauge > 100) p.dashGauge = 100; 
     }
     if (p._staminaWarnT > 0) p._staminaWarnT--;
 
     if (p.onGround) {
-        p.airDashUsed = false; // 착지하면 공중 대쉬 충전
+        p.airDashUsed = false;
         p.jumpCount = 0;
-        p.plungeCount = 0; 
+        p.plungeCount = 0;
+        p.hasPlunged = false;
     }
-    
-    // 💡 스페이스바 점프 삭제. 오직 X키로만 점프 가능
-    const jpNow = dn("KeyX") || dn("ArrowUp"); // ↑ 방향키도 점프
-    // 공격 중에도 점프 가능 — 액션 게임 기본 조작감
+
+    // 상호작용 후 1초간 점프/상호작용 입력 차단 (입력 블리드 방지)
+    if (Game._interactLock > 0) Game._interactLock--;
+
+    // 이벤트/문 근처에서 ↑키는 점프 대신 상호작용으로 처리
+    const _nearEv = Game.eventObjects && Game.eventObjects.some(ev =>
+        !ev.used && ev.type !== 'npc' && Math.abs((p.x + p.w/2) - (ev.x + ev.w/2)) < 55 && Math.abs(p.y - ev.y) < 70);
+    const _nearOpenDoor = !!(Game.doors && Game.doors.some(d => d.open && typeof overlap === 'function' && overlap(p, { x: d.x, y: d.y, w: d.w, h: d.h })));
+    const _locked = (Game._interactLock || 0) > 0;
+    const jpNow = (dn("KeyX") && !_nearEv && !_locked) || (dn("ArrowUp") && !_nearEv && !_nearOpenDoor && !_locked);
     if (jpNow && !p.jpOld && !p.guarding && p.kbT <= 0 && !p.plunging) {
-        if (p.onGround) {
-            // 땅에서만 첫 점프 — 대시 중 점프 리셋 제거 (무한 점프 버그 방지)
-            p.vy = -7.5 * Game.pJmpMul; p.jumpCount = 1;
-            playSfx('jump');
-            for (let i = 0; i < 4; i++) addPart(p.x + 7, p.y + 18, "#6060ff", 12);
+        // 점프력 상한: 도적 170%, 나머지 140%
+        const _maxJmp = Game.pClass === 1 ? 1.7 : 1.4;
+        const _jmpCap = Math.min(_maxJmp, Game.pJmpMul);
+        // 대시 중 점프: 대시 즉시 종료 후 점프 (vx 관성 유지)
+        if (p.dashT > 0) {
+            p.dashT = 0;
+            p.jumpCount = 1;
+            p.vy = -7.5 * _jmpCap;
+            if(typeof playSfx === 'function') playSfx('jump');
+            const _JC = ["#ffffff","#aa00ff","#00ccff","#cc0000","#888888","#ffe080","#ff8800","#44ff88","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
+            const jCol1 = _JC[Game.pClass] || "#6060ff";
+            for (let i = 0; i < 5; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, jCol1, 12);
+        } else if (p.onGround) {
+            p.vy = -7.5 * _jmpCap; p.jumpCount = 1;
+            if(typeof playSfx === 'function') playSfx('jump');
+            const _JC2 = ["#ffffff","#aa00ff","#00ccff","#cc0000","#888888","#ffe080","#ff8800","#44ff88","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
+            const jCol1 = _JC2[Game.pClass] || "#6060ff";
+            for (let i = 0; i < 5; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, jCol1, 12);
         } else if (p.jumpCount < 2) {
-            // 공중 2단 점프 — 대시 취소 없이 정직하게
-            p.vy = -6.5 * Game.pJmpMul; p.jumpCount = 2;
-            playSfx('jump');
-            for (let i = 0; i < 6; i++) addPart(p.x + 7, p.y + 18, "#ff60ff", 15);
+            p.vy = -6.5 * _jmpCap; p.jumpCount = 2;
+            if(typeof playSfx === 'function') playSfx('jump');
+            const _JC3 = ["#ffffff","#ee00ff","#88eeff","#ff2200","#aaaaaa","#ffee44","#ffaa33","#22ffaa","#ff3355","#cceeff","#cc22ff","#66aaff","#ff8833","#22ddff","#aa33ff","#ffee22","#776699","#66ff22","#6688aa"];
+            const jCol2 = _JC3[Game.pClass] || "#ff60ff";
+            for (let i = 0; i < 8; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, jCol2, 18, 4);
         }
     }
     p.jpOld = jpNow;
-    p.gOld  = dn("KeyV"); // 가드 이전 프레임 상태 — 튜토리얼 체크용
+    p.gOld  = dn("KeyV"); 
 
-    if (!p.onGround && dn("ArrowDown") && dn("KeyC") && !p.plunging && p.atkT === 0 && p.dashT <= 0) {
-       let canPlunge = true;
+    if (!p.onGround && dn("ArrowDown") && dn("KeyC") && !p.plunging && p.atkT === 0 && p.dashT <= 0 && !p.hasPlunged) {
+        let canPlunge = true;
 
         if (Game.pClass === 4 && ((Game.pGunReload || 0) > 0 || (Game.pGunAmmo !== undefined && Game.pGunAmmo <= 0))) {
             canPlunge = false;
@@ -163,91 +200,133 @@ function updatePlayer() {
                     addText(p.x, p.y - 20, "스태미너 부족!", "#ff6600", 50, 11);
                     p._staminaWarnT = 60;
                 }
-                canPlunge = false; // 스태미나 부족 시 발동 취소
+                canPlunge = false;
             }
         }
-        if (Game.pClass === 4) {
-            // 발키리: 재장전 중이면 완전 무시 (소프트락 방지)
-            if ((Game.pGunReload || 0) <= 0) {
-                if (typeof consumeStamina === 'function') consumeStamina(35);
+
+        if (canPlunge) {
+            p.plunging = true;
+            
+            if (Game.pClass === 4) {
+                p.hasPlunged = true;
                 if (Game.pGunAmmo === undefined) Game.pGunAmmo = 8;
                 const shots = Game.pGunAmmo;
-                if (shots <= 0) {
-                    // 탄약 없음 — 강하 불가 (재장전 대기)
-                } else {
-                    p.vy = -5; p.y -= 2;
-                    for (let qi = 0; qi < shots; qi++) {
-                        setTimeout(() => {
-                            if (!Game.player || Game.player.dead) return;
-                            const pp = Game.player;
-                            const currentDmg2 = Game.pBaseDmg * (Game.pBaseDmgMul||1) * (Game.pFinalDmgMul||1);
-                            const yOff = (pp.h/2) - qi * 5;
-                            spawnBullet(pp.x + pp.w/2, pp.y + yOff, pp.facing * 10, 9, 40, 5, 0, Math.floor(currentDmg2));
-                            playSfx('mob_laser');
-                        }, qi * 60);
-                    }
-                    Game.pGunAmmo = 0;
-                    Game.pGunReload = 90;
-                    if (!Game._reloadTextShown) {
-                        addText(p.x, p.y-22, "재장전 중...", "#aaaaaa", 90, 12);
-                        Game._reloadTextShown = true;
-                        setTimeout(() => { Game._reloadTextShown = false; }, 1500);
-                    }
-                    p.atkT = Math.max(shots * 60 / 16, 20);
+                // 시퀀스 ID: 착지 후 남은 setTimeout이 vy=-5를 걸어 key-lock 유발하는 버그 방지
+                p._plungeSeq = (p._plungeSeq || 0) + 1;
+                const seq = p._plungeSeq;
+                p.vy = -3; p.vx = p.facing * -1.5; // 첫 반동: 위로 튀어오름
+                for (let qi = 0; qi < shots; qi++) {
+                    setTimeout(() => {
+                        if (!Game.player || Game.player.dead) return;
+                        if (Game.player._plungeSeq !== seq) return; // 구형 시퀀스 무시
+                        const pp = Game.player;
+                        if (pp.onGround) return; // 착지 후 콜백 무시
+                        // 발사 반동: 매 발마다 위로 살짝 뜨고 뒤로 밀림
+                        pp.vy = -5;
+                        pp.vx = pp.facing * -1.5;
+                        const currentDmg2 = Math.floor(Game.pBaseDmg * (Game.pBaseDmgMul||1) * (Game.pFinalDmgMul||1) * 1.6);
+                        const yOff = (pp.h/2) - qi * 4;
+                        if(typeof spawnBullet === 'function') spawnBullet(pp.x + pp.w/2, pp.y + yOff, pp.facing * 10, 9, 40, 5, 0, currentDmg2, "#ffffff");
+                        if(typeof playSfx === 'function') playSfx('gun_shot');
+                    }, qi * 60);
                 }
-            }
-        } else if (Game.pClass === 2) {
-            if (typeof consumeStamina === 'function') consumeStamina(35);
-            if ((p.plungeCount || 0) < 3) {
+                Game.pGunAmmo = 0;
+                Game.pGunReload = 90;
+                if (!Game._reloadTextShown) {
+                    addText(p.x, p.y-22, "재장전 중...", "#aaaaaa", 90, 12);
+                    Game._reloadTextShown = true;
+                    setTimeout(() => { Game._reloadTextShown = false; }, 1500);
+                }
+                p.atkT = 8; // hasPlunged가 재강하를 차단 — atkT는 착지 경직만 (30→8로 단축해 패링/공격/스킬 봉쇄 해제)
+
+            } else if (Game.pClass === 2) {
+                p.plunging = false; // 오타 수정 완료
                 p.plungeCount = (p.plungeCount || 0) + 1;
                 p.atkT = Math.floor(20 / ((Game.pBaseAtkSpd || 1) * (Game.pAtkSpdMul || 1)));
                 p.vy = -5;
-                playSfx('atk');
+                if (p.plungeCount >= 3) p.hasPlunged = true; 
+
+                if(typeof playSfx === 'function') playSfx('atk');
                 Game.camShake = 5;
                 let currentBaseDmg2 = Game.pBaseDmg * (Game.pBaseDmgMul || 1.0);
                 const isCritAir = Math.random() < (Game.pCritChance || 0.2);
                 const pdmg2 = Math.floor(currentBaseDmg2 * 1.4 * (isCritAir ? (Game.pCritDmg||1.5) : 1) * (Game.pFinalDmgMul||1));
-                spawnBullet(p.x + p.w/2, p.y + p.h/2, p.facing * 8, 0, 40, 6, 0, pdmg2);
-                spawnBullet(p.x + 7, p.y + 18, 0, 10, 30, 8, 0, pdmg2);
+                
+                // 전방 사격 삭제 후 아래 방향 3연발 
+                if(typeof spawnBullet === 'function') {
+                    spawnBullet(p.x + 7, p.y + 18, 0, 10, 30, 8, 0, pdmg2, "#ffffff");
+                    spawnBullet(p.x + 7, p.y + 18, -2, 9, 30, 8, 0, pdmg2, "#ffffff");
+                    spawnBullet(p.x + 7, p.y + 18, 2, 9, 30, 8, 0, pdmg2, "#ffffff");
+                }
                 Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 3);
-            }
-        } else {
-            if (typeof consumeStamina === 'function') consumeStamina(35);
-            p.plunging = true;
-            if (Game.pClass === 1) {
-                p.vy = 14; p.vx = p.facing * 6;
+
+            } else if (Game.pClass === 7) {
+                // 조커: 강하 대신 후방 회피 + 1초 무적
+                p.plunging = false;
+                p.hasPlunged = true;
+                p.vx = -p.facing * 10;
+                p.vy = -2;
+                Game.invT = 60;
+                for (let _i = 0; _i < 12; _i++) if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#f07400", 14, 3);
+            } else if (Game.pClass === 6) {
+                // 혈귀: 가장 가까운 적에게 돌진
+                p.hasPlunged = true;
+                let _nearE = null; let _minD = Infinity;
+                Game.enemies.forEach(e => {
+                    if (!e.active || e.dead) return;
+                    const _d = Math.hypot((e.x+e.w/2)-(p.x+p.w/2), (e.y+e.h/2)-(p.y+p.h/2));
+                    if (_d < _minD) { _minD = _d; _nearE = e; }
+                });
+                if (_nearE && _minD < 400) {
+                    const _dx = (_nearE.x+_nearE.w/2) - (p.x+p.w/2);
+                    const _dy = (_nearE.y+_nearE.h/2) - (p.y+p.h/2);
+                    const _dist = Math.hypot(_dx, _dy) || 1;
+                    p.vx = (_dx/_dist) * 16; p.vy = (_dy/_dist) * 16;
+                    p.facing = _dx > 0 ? 1 : -1;
+                } else {
+                    p.vy = 12; p.vx = 0;
+                }
             } else {
-                p.vy = 12; p.vx = 0;
+                p.hasPlunged = true;
+                if (Game.pClass === 1) {
+                    p.vy = 14; p.vx = p.facing * 6;
+                } else {
+                    p.vy = 12; p.vx = 0;
+                }
             }
         }
     }
     
     if (p.plunging) {
         if (Game.pClass === 1) {
-            p.vy = 14; p.vx = p.facing * 6; addPart(p.x+7, p.y+9, "#ff0055", 5);
+            p.vy = 14; p.vx = p.facing * 6; if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#ff0055", 5);
         } else if (Game.pClass === 4) {
-            // 발키리는 공중 총알로 처리 — plunging 안 함 (도달 불가)
             p.plunging = false;
         } else if (Game.pClass === 3) {
-            // 버서커: 빠르고 무거운 수직 하강
-            p.vy = 14; p.vx = 0; addPart(p.x+7, p.y+9, "#cc0000", 5);
+            p.vy = 14; p.vx = 0; if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#cc0000", 5);
         } else if (Game.pClass === 5) {
-            // 방패병: 수직 내려찍기
-            p.vy = 13; p.vx = 0; addPart(p.x+7, p.y+9, "#ffdd00", 5);
+            p.vy = 13; p.vx = 0; if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#ffdd00", 5);
+        } else if (Game.pClass === 6) {
+            // 혈귀: 초기 돌진 속도 유지 (덮어쓰지 않음)
+            if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#cc2244", 5);
+        } else if (Game.pClass === 7) {
+            p.plunging = false;
         } else {
-            p.vy = 12; p.vx = 0; addPart(p.x+7, p.y+9, "#ffaa00", 5);
+            p.vy = 12; p.vx = 0; if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#ffaa00", 5);
         }
-    } else if (p.dashT <= 0 && Game.pClass === 4 && p.plunging && p.atkT > 0 && !p.onGround) {
-        p.vy = 0;
     } else if (p.dashT <= 0 && Game.pClass !== 2) {
         p.vy = Math.min(p.vy + GRAV, 9); 
     } else if (p.dashT <= 0 && Game.pClass === 2) {
         p.vy = Math.min(p.vy + GRAV * 0.8, 8);
     }
-    // 대쉬 잔상 파티클
+    
     if (p.dashT > 0) {
-        const trailCol = Game.pClass === 0 ? "#ff2200" : (Game.pClass === 1 ? "#aa00ff" : "#00ccff");
-        for (let i = 0; i < 3; i++) addPart(p.x + Math.random() * p.w, p.y + Math.random() * p.h, trailCol, 10, 3);
+        const dashCols = ["#ffffff","#cc00ff","#00ccff","#ff2200","#aaaaaa","#ffe040","#ff8800","#44ff88","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
+        const trailCol = dashCols[Game.pClass] || "#ffffff";
+        const partSz = Game.pClass === 3 ? 5 : 3;
+        const partCnt = Game.pClass === 3 ? 5 : 3;
+        for (let i = 0; i < partCnt; i++) if(typeof addPart === 'function') addPart(p.x + Math.random() * p.w, p.y + Math.random() * p.h, trailCol, 12, partSz);
+
     }
 
     p.x += p.vx;
@@ -256,74 +335,70 @@ function updatePlayer() {
     if (typeof resolveAABB === 'function') resolveAABB(p);
     
     if (p.plunging && p.onGround) {
-        p.plunging = false; p.atkT = 20; Game.hitStop = 10; playSfx('plunge_land');
-        // 직업별 색깔
+        p.plunging = false; p.atkT = 20; Game.hitStop = 10; 
+        if(typeof playSfx === 'function') playSfx('plunge_land');
+        p.hasPlunged = false; 
+        
         const plungeCol = Game.pClass === 0 ? "#ff4400"
             : (Game.pClass === 1 ? "#cc44ff"
-            : (Game.pClass === 3 ? "#880000"   // 버서커: 진한 붉은색
-            : (Game.pClass === 4 ? "#ffcc00"   // 발키리: 노란색
-            : (Game.pClass === 5 ? "#ffe040"   // 방패병: 밝은 노란색
-            : "#00ccff"))));
+            : (Game.pClass === 3 ? "#880000"
+            : (Game.pClass === 4 ? "#ffcc00"
+            : (Game.pClass === 5 ? "#ffe040"
+            : (Game.pClass === 6 ? "#720b0b"
+            : (Game.pClass === 7 ? "#f07400"
+            : "#00ccff"))))));
         Game.camShake = Game.pClass === 3 ? 40 : (Game.pClass === 5 ? 28 : 20);
-        // 충격파 링도 직업별 색상
-        const plungeRingCol = Game.pClass === 3 ? "#aa0000"  // 버서커: 진한 붉은색
-            : (Game.pClass === 5 ? "#ffee44"              // 방패병: 밝은 노란색
+        const plungeRingCol = Game.pClass === 3 ? "#aa0000"  
+            : (Game.pClass === 5 ? "#ffee44"              
             : plungeCol);
-        for (let i = 0; i < 30; i++) addPart(p.x + 7, p.y + 18, plungeCol, 25, 4);
-        spawnLaser(p.x - 30, p.y + 14, 60, 6, 8, plungeRingCol, 0, true);
+        for (let i = 0; i < 30; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, plungeCol, 25, 4);
+        if(typeof spawnLaser === 'function') spawnLaser(p.x - 30, p.y + 14, 60, 6, 8, plungeRingCol, 0, true);
         
         let currentBaseDmg = Game.pBaseDmg * (Game.pBaseDmgMul || 1.0);
-        // 강하 착지: 크리/콤보/저체력/최종배율 전부 반영
         const isCritPlunge = Math.random() < (Game.pCritChance || 0.2);
-        // 다운어택 폭주 제거 — 체간 30 확정 + 1.6배 적정 배율로 정상화
         let pdmg = Math.floor(currentBaseDmg * 1.6 * (Game.pFinalDmgMul || 1)
             * (isCritPlunge ? (Game.pCritDmg || 1.5) : 1)
             * (p.hp / Game.pMaxHp < 0.3 ? (Game.pLowHpDmg || 1.5) : 1));
         pdmg += Math.floor(Game.comboCount / 10) * (Game.pComboDmg || 5);
         if (pdmg < 1) pdmg = 1;
-        // 강하 착지 시 체간 30 확정 부여 — isCrit 종속 아님
+        
         Game.enemies.forEach(e => {
             if (e.active && !e.dead && Math.abs(e.x - p.x) < 80 && Math.abs(e.y - p.y) < 80) {
                 if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 15);
             }
         });
-        // 강하 착지 범위 내 적에게 실제 데미지 적용
+        
         let plungeHitAny = false;
         Game.enemies.forEach(e => {
             if (e.active && !e.dead && Math.abs(e.x - p.x) < 80 && Math.abs(e.y - p.y) < 80) {
                 plungeHitAny = true;
             }
         });
-        // 강하 착지가 적에게 닿았을 때: MP 회복 + 콤보 카운터 증가
+        
         if (plungeHitAny) {
             Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 5);
-            // 강하도 콤보에 기여 — 1타로 계산 (콤보 타이머 리셋)
             Game.comboCount = (Game.comboCount || 0) + 1;
             Game.comboTimer = 150 + (Game.pComboDur || 0);
             if (Game.runStats) Game.runStats.maxCombo = Math.max(Game.runStats.maxCombo || 0, Game.comboCount);
         }
 
         if (Game.pClass === 1) {
-            // 도적: 전방 2발
-            spawnBullet(p.x + 7, p.y + 5, p.facing * 10, 0, 10, 15, 2, pdmg);
-            spawnBullet(p.x + 7, p.y + 5, p.facing * 12, 0, 10, 15, 2, pdmg);
+            if(typeof spawnBullet === 'function') spawnBullet(p.x + 7, p.y + 5, p.facing * 10, 0, 10, 15, 2, pdmg);
+            if(typeof spawnBullet === 'function') spawnBullet(p.x + 7, p.y + 5, p.facing * 12, 0, 10, 15, 2, pdmg);
         } else if (Game.pClass === 4) {
-            // 발키리 강하: 마법사처럼 공중에서 대각선 아래 방향으로 총알 연속 발사
-            // 공중에 머무르며 아래로 탄 4발
             for (let qi = 0; qi < 4; qi++) {
                 setTimeout(() => {
                     if (!Game.player) return;
                     const pp = Game.player;
-                    // 총알마다 발사 높이 점진 상승 (qi 증가할수록 위에서 발사)
                     const yOff = (pp.h / 2) - qi * 5;
-                    spawnBullet(pp.x + pp.w/2, pp.y + yOff, pp.facing * 10, 9, 35, 5, 0, pdmg);
-                    playSfx('mob_laser');
-                    for (let j=0;j<3;j++) addPart(pp.x+pp.w/2+pp.facing*8, pp.y+yOff, "#ffcc00", 10, 3);
+                    if(typeof spawnBullet === 'function') spawnBullet(pp.x + pp.w/2, pp.y + yOff, pp.facing * 10, 9, 35, 5, 0, pdmg, "#ffffff");
+                    if(typeof playSfx === 'function') playSfx('gun_shot');
+                    for (let j=0;j<3;j++) if(typeof addPart === 'function') addPart(pp.x+pp.w/2+pp.facing*8, pp.y+yOff, j<2?"#cccccc":"#ffffff", 10, 3);
                 }, qi * 80);
             }
         } else {
-            spawnBullet(p.x - 10, p.y + 5, -8, 0, 15, 18, 2, pdmg);
-            spawnBullet(p.x + 10, p.y + 5, 8, 0, 15, 18, 2, pdmg);
+            if(typeof spawnBullet === 'function') spawnBullet(p.x - 10, p.y + 5, -8, 0, 15, 18, 2, pdmg);
+            if(typeof spawnBullet === 'function') spawnBullet(p.x + 10, p.y + 5, 8, 0, 15, 18, 2, pdmg);
         }
     }
 
@@ -338,20 +413,17 @@ function updatePlayer() {
         let safePlatform = Game.platforms.find(t => t.float && !t.drop && !t.vx) || Game.platforms.find(t => t.float && !t.drop) || Game.platforms[0];
         if (safePlatform) {
             p.x = safePlatform.x + safePlatform.w / 2 - p.w / 2;
-            // 공중에 스폰해서 즉시 재낙사 방지 — 발판 위로 좀 띄워줌
             p.y = safePlatform.y - p.h - 20;
         } else {
             p.x = 80; p.y = -50;
         }
-        // 낙사 직후 속도 완전 초기화 — 관성 때문에 또 떨어지는 꼴 방지
         p.vx = 0; p.vy = 0; 
     }
 
     if (p.atkT > 0) p.atkT--; if (p.atkAnim > 0) p.atkAnim--; if (Game.invT > 0) Game.invT--;
-    // Witch Time 윈도우 감소
-    if ((p.justDodgeT || 0) > 0) { p.justDodgeT--; if (p.justDodgeT <= 0) p.justDodgeReady = false; }
 }
 
+// 평타(C)·스킬(Shift)·강하공격(↓+C) 입력 처리 및 히트박스 판정
 function updatePlayerCombat() {
     const p = Game.player;
     if (p.dead) return;
@@ -361,21 +433,33 @@ function updatePlayerCombat() {
 
     const _npcTalking = Game.eventObjects && Game.eventObjects.some(ev => ev.type === 'npc' && ev.talking);
     if (dn("KeyC") && !dn("ArrowDown") && p.atkT === 0 && !p.guarding && p.kbT <= 0 && p.dashT <= 0 && !p.plunging && !_npcTalking) {
-        // 스태미나 부족하면 공격 자체를 막음 — 무한 콤보 방지
-        // 평타 스태미나 소모 없음 — 공속 빠를수록 의미없어지는 문제 해결
-        playSfx('atk');
+        const _valkReloading = Game.pClass === 4 && (Game.pGunReload || 0) > 0;
+        if (!_valkReloading && typeof playSfx === 'function') playSfx('atk');
+        else if (_valkReloading && typeof playSfx === 'function') playSfx('reload_click');
         let maxCombo = (Game.pClass === 1) ? 5 : 3;
         p.combo = (p.combo % maxCombo) + 1; 
         const isLastHit = p.combo === maxCombo;
         
-        p.atkT = Math.max(1, Math.floor((isLastHit ? 35 : 16) / currentAtkSpd));
-        p.atkAnim = Math.max(1, Math.floor((isLastHit ? 20 : 12) / currentAtkSpd));
+        if (Game.pClass === 4) {
+            p.atkT = Math.max(1, Math.floor(14 / currentAtkSpd));
+            p.atkAnim = 12; p.atkAnimMax = 12;
+        } else if (Game.pClass === 7) {
+            p.atkT = Math.max(7, Math.floor((isLastHit ? 35 : 16) / currentAtkSpd));
+            p.atkAnim = Math.max(5, Math.floor((isLastHit ? 20 : 12) / currentAtkSpd));
+            p.atkAnimMax = p.atkAnim;
+        } else {
+            p.atkT = Math.max(7, Math.floor((isLastHit ? 35 : 16) / currentAtkSpd));
+            p.atkAnim = Math.max(5, Math.floor((isLastHit ? 20 : 12) / currentAtkSpd));
+            p.atkAnimMax = p.atkAnim;
+        }
         
         p.comboT = 50;
         if (!p.onGround) p.vy = Math.min(p.vy, 1);
 
-        const rangeX = (isLastHit ? 45 : 30) + Game.pRangeBonus; 
-        const rangeY = (isLastHit ? 55 : 40) + Game.pRangeBonus * 0.5; 
+        // 마법사/발키리/조커는 투사체 사거리만 적용 (무기 길이 시각적 변화 없음)
+        const _projOnly = (Game.pClass === 2 || Game.pClass === 4 || Game.pClass === 7);
+        const rangeX = (isLastHit ? 45 : 30) + (_projOnly ? 0 : Game.pRangeBonus);
+        const rangeY = (isLastHit ? 55 : 40) + (_projOnly ? 0 : Game.pRangeBonus * 0.5);
         const cx = p.x + 7 + p.facing * (rangeX / 2 + 5); const cy = p.y + 9;
 
         let baseRoll = Math.floor((isLastHit ? currentBaseDmg * 2.2 : currentBaseDmg) * (0.8 + Math.random() * 0.4));
@@ -385,8 +469,14 @@ function updatePlayerCombat() {
             comboBon += Math.min(150, Math.floor(Game.comboCount / 5) * 15);
         }
         
-        let dmg = Math.floor(baseRoll + comboBon); 
-        if (p.hp / p.maxHp < 0.3) dmg = Math.floor(dmg * Game.pLowHpDmg); 
+        let dmg = Math.floor(baseRoll + comboBon);
+        // 성기사 패시브: 방어력 1당 공격력 +0.5
+        if (Game.pClass === 5) dmg += Math.floor((Game.pBaseDef || 0) * 0.5);
+        // 버서커 광기 패시브: 처치마다 쌓인 분노 스택으로 추가 피해
+        if (Game.pClass === 3 && (Game._berserkRageStacks || 0) > 0) dmg = Math.floor(dmg * (1 + Game._berserkRageStacks * 0.10));
+        // 혈귀 혈기 패시브: 피격마다 쌓인 혈기 스택으로 추가 피해 (+12%/스택)
+        if (Game.pClass === 6 && (Game._bloodFuryStacks || 0) > 0) dmg = Math.floor(dmg * (1 + Game._bloodFuryStacks * 0.12));
+        if (p.hp / Game.pMaxHp < 0.3) dmg = Math.floor(dmg * Game.pLowHpDmg);
 
         let isCrit = false;
         if (Math.random() < Game.pCritChance) { dmg = Math.floor(dmg * Game.pCritDmg); isCrit = true; }
@@ -394,155 +484,158 @@ function updatePlayerCombat() {
         if (dmg < 1) dmg = 1;
 
         if (Game.pClass === 2) {
-            // 마법사: 하늘색 마법탄
-            spawnBullet(cx, cy, p.facing * 8, 0, 40, 6, 0, dmg);
+            const mageRange = 40 + (Game.pRangeBonus || 0);
+            if(typeof spawnBullet === 'function') spawnBullet(cx, cy, p.facing * 8, 0, mageRange, 6, 0, dmg);
             if (isLastHit) {
-                spawnBullet(cx, cy - 10, p.facing * 8, -2, 40, 6, 0, dmg);
-                spawnBullet(cx, cy + 10, p.facing * 8, 2, 40, 6, 0, dmg);
+                if(typeof spawnBullet === 'function') {
+                    spawnBullet(cx, cy - 10, p.facing * 8, -2, mageRange, 6, 0, dmg);
+                    spawnBullet(cx, cy + 10, p.facing * 8, 2, mageRange, 6, 0, dmg);
+                }
                 Game.camShake = 5;
             }
-            Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 3);
-            Game.comboCount++; Game.comboTimer = 150 + Game.pComboDur;
         } else if (Game.pClass === 4) {
-            // 발키리: 총 원거리 공격
             if ((Game.pGunReload || 0) > 0) {
-                // 재장전 중 — 공격 불가 (문구는 render_ui에서만 표시)
+                if (typeof playSfx === 'function') playSfx('reload_click');
             } else {
                 if (Game.pGunAmmo === undefined) Game.pGunAmmo = 8;
-                // 탄약 소진 시 자동 재장전
                 if (Game.pGunAmmo <= 0) {
-                    Game.pGunReload = 90;
-                    Game.pGunAmmo = 8;
-                    // 재장전 문구 — 쿨타임 방지
-                    if (!Game._reloadTextShown) {
-                        addText(p.x, p.y - 22, "재장전 중...", "#aaaaaa", 90, 12);
+                    // 탄약 소진 — 재장전 시작 (ammo는 완료 시 복구)
+                    if ((Game.pGunReload || 0) <= 0) {
+                        Game.pGunReload = Math.max(30, Math.floor(90/((Game.pBaseAtkSpd||1)*(Game.pAtkSpdMul||1))));
+                        Game.pGunReloadMax = Game.pGunReload;
                         Game._reloadTextShown = true;
-                        setTimeout(() => { Game._reloadTextShown = false; }, 1500);
                     }
                 } else {
-                    // 사각형 총알 파티클
-                    const gunRange = 40 + Math.floor((Game.pRangeBonus||0)*0.8);
-                    spawnBullet(cx, cy-2, p.facing*14, -0.1, gunRange, 5, 0, dmg);
+                    const gunRange = 40 + (Game.pRangeBonus || 0);
+                    if(typeof spawnBullet === 'function') spawnBullet(cx, cy-2, p.facing*14, -0.1, gunRange, 5, 0, dmg, "#ffffff");
                     Game.pGunAmmo--;
-                    playSfx('mob_laser');
+                    if(typeof playSfx === 'function') playSfx('gun_shot');
                     Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 1);
-                    // 콤보는 총알이 적에 명중할 때만 (bullets 충돌에서 처리) — 여기서 중복 제거
-                    // 탄약 소진 시 즉시 자동 재장전 트리거
                     if (Game.pGunAmmo <= 0) {
-                        Game.pGunReload = 90;
-                        Game.pGunAmmo = 8;
-                        if (!Game._reloadTextShown) {
-                            addText(p.x, p.y - 22, "재장전 중...", "#aaaaaa", 90, 12);
-                            Game._reloadTextShown = true;
-                            setTimeout(() => { Game._reloadTextShown = false; }, 1500);
-                        }
+                        Game.pGunReload = Math.max(30, Math.floor(90/((Game.pBaseAtkSpd||1)*(Game.pAtkSpdMul||1))));
+                        Game.pGunReloadMax = Game.pGunReload;
+                        Game._reloadTextShown = true;
                     }
                 }
             }
+        } else if (Game.pClass === 7) {
+            // 조커: 카드 투척 — 빨강(강타)/검정(기본)/파랑(MP 회복)
+            const _cards = [
+                { col: "#ff4444", dmgMul: 1.6, mpGain: 1 },
+                { col: "#222222", dmgMul: 1.0, mpGain: 2 },
+                { col: "#4488ff", dmgMul: 0.75, mpGain: 4 },
+            ];
+            const _card = _cards[Math.floor(Math.random() * 3)];
+            const _cardDmg = Math.floor(dmg * _card.dmgMul);
+            const _cRange = 70 + (Game.pRangeBonus || 0);
+            const _vy0 = (Math.random() - 0.5) * 1.5;
+            // 플레이어 앞쪽 끝에서 발사 — 근거리 적도 즉시 판정
+            const _spawnX = p.x + (p.facing > 0 ? p.w + 2 : -2);
+            const _cardY = p.y + 4;
+            const _b = typeof spawnBullet === 'function' && spawnBullet(_spawnX, _cardY, p.facing * 13, _vy0, _cRange, 10, 0, _cardDmg, _card.col);
+            if (_b) { _b.isCard = true; _b.cardCol = _card.col; }
+            Game.pMp = Math.min(Game.pMaxMp, Game.pMp + _card.mpGain);
+            for (let _i = 0; _i < 5; _i++) if(typeof addPart === 'function') addPart(_spawnX, _cardY + (Math.random()-0.5)*10, "#f07400", 10, 2);
+
         } else {
             let hitTarget = false;
             Game.enemies.forEach((e) => {
                 if (!e.active || e.dead) return;
                 if (Math.abs(e.x + e.w / 2 - cx) < rangeX / 2 + e.w / 2 && Math.abs(e.y + e.h / 2 - cy) < rangeY / 2 + e.h / 2) {
                     if (e.isBoss && (e.y + e.h) < Game.player.y) return;
-                    // 강하공격은 처형 없음 — 기본공격 전용
                     if(typeof hitE === 'function') hitE(e, dmg, p.facing, isCrit, Game.pExtraDmg);
-                    // 평타도 체간 소량 감소 — 계속 맞으면 결국 스턴 유도
                     const poiseDmgNormal = isCrit ? 12 : 6;
                     if (typeof applyPoiseHit === 'function') applyPoiseHit(e, poiseDmgNormal);
                     hitTarget = true;
                 }
             });
 
-            if (isLastHit) Game.camShake = 8; 
-            if (hitTarget) { 
-                Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 2); 
+            if (isLastHit) Game.camShake = 8;
+            if (hitTarget) {
+                Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 2);
                 if (isLastHit) Game.hitStop = 6;
                 Game.comboCount++;
                 Game.comboTimer = 150 + Game.pComboDur;
-                // 콤보 마일스톤 연출
-                if (Game.comboCount === 10) { playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "10 콤보!", "#dddddd", 50, 18); }
-                else if (Game.comboCount === 30) { playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "30 콤보!!", "#ff6600", 60, 22); }
-                else if (Game.comboCount === 50) { playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "50 콤보!!!", "#ff0000", 70, 26); }
+                if (Game.comboCount === 10) { if(typeof playSfx === 'function') playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "10 콤보!", "#dddddd", 50, 18); }
+                else if (Game.comboCount === 30) { if(typeof playSfx === 'function') playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "30 콤보!!", "#ff6600", 60, 22); }
+                else if (Game.comboCount === 50) { if(typeof playSfx === 'function') playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "50 콤보!!!", "#ff0000", 70, 26); }
             } 
-            for (let i = 0; i < (isLastHit ? 15 : 6); i++) { addPart(cx + (Math.random() - 0.5) * 20, cy + (Math.random() - 0.5) * 20, isLastHit ? "#ff2222" : "#ffffff", 15, 3); }
+            const _pCC = ["#ffffff","#cc44ff","#00ccff","#d11414","#aaaaaa","#ffcc00","#720b0b","#f07400"][Game.pClass] || "#ffffff";
+            for (let i = 0; i < (isLastHit ? 15 : 6); i++) { if(typeof addPart === 'function') addPart(cx + (Math.random() - 0.5) * 20, cy + (Math.random() - 0.5) * 20, _pCC, 15, 3); }
         }
     }
 
-    // ── 액티브 스킬 (Shift) — MP 30 소모, 직업별 스킬 ──
-    if (dn("ShiftLeft", "ShiftRight") && !p.guarding && p.kbT <= 0 && p.dashT <= 0 && !p.plunging && p.atkT === 0) {
+    if ((dn("ShiftLeft", "ShiftRight") || Game._doubleCast) && !p.guarding && p.kbT <= 0 && p.dashT <= 0 && !p.plunging && p.atkT === 0) {
+        const _isDC = !!Game._doubleCast;
+        if (_isDC) Game._doubleCast = false;
         const skillMpCost = 15;
-        if (Game.pMp < skillMpCost) {
+        const _bloodClass = Game.pClass === 6; // 혈귀는 HP 소모, MP 불필요
+        if (!_isDC && !_bloodClass && Game.pMp < skillMpCost) {
             if (!Game._skillWarnT || Game._skillWarnT <= 0) {
                 addText(p.x, p.y - 30, "마나 부족!", "#8888ff", 40, 13);
                 Game._skillWarnT = 45;
             }
         } else {
-            Game.pMp -= skillMpCost;
-            p.atkT = Game.pClass === 3 ? 40 : (Game.pClass === 5 ? 30 : 20);
-            p.invT = Math.max(p.invT || 0, (p.atkT + 60));
-            playSfx('skill');
+            if (!_isDC && !_bloodClass) Game.pMp -= skillMpCost;
+            // 스킬 누적 카운터
+            Game.totalSkillUses = (Game.totalSkillUses || 0) + 1;
+            localStorage.setItem("skull_skillUses", Game.totalSkillUses);
+            if (typeof _checkUnlocks === 'function') _checkUnlocks();
+            p.atkT = Game.pClass === 3 ? 40 : (Game.pClass === 5 ? 30 : (Game.pClass === 6 ? 25 : 20));
+            // 스킬 시전 중 무적 (시전시간 + 60프레임 = 1초~1.5초)
+            Game.invT = Math.max(Game.invT || 0, p.atkT + 60);
+            if(typeof playSfx === 'function') playSfx('skill');
             let skillDmg = Math.floor(currentBaseDmg * 5 * Game.pSkillDmgMul * Game.pFinalDmgMul);
             const laserW = 280 + (Game.pRangeBonus || 0);
             const laserX = p.facing > 0 ? p.x + p.w : p.x - laserW;
             const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
 
             if (Game.pClass === 0) {
-                // 파워스트라이크: 텔레포트 돌진 — 화면 끝까지 순간이동, 경로상 적 전체 타격
-                const teleRange = 600; // 텔레포트 거리
+                const teleRange = 600; 
                 const startX  = p.x;
-                // 경로 상 적 먼저 타격 (텔레포트 전에 계산)
                 const hitList = [];
                 Game.enemies.forEach(e => {
                     if (!e.active || e.dead) return;
                     const edx = (e.x + e.w/2) - (p.x + p.w/2);
                     if (Math.sign(edx) === p.facing
                         && Math.abs(edx) < teleRange
-                        && Math.abs((e.y+e.h/2) - (p.y+p.h/2)) < 45) {
+                        && Math.abs((e.y+e.h/2) - (p.y+p.h/2)) < 70) {
                         hitList.push(e);
                     }
                 });
-                // 텔레포트: 가장 먼 피격 적 뒤로 이동 (or 최대 거리)
                 if (hitList.length > 0) {
                     const farthest = hitList.reduce((a, b) =>
                         Math.abs((b.x+b.w/2)-(p.x+p.w/2)) > Math.abs((a.x+a.w/2)-(p.x+p.w/2)) ? b : a);
-                    p.x = farthest.x + p.facing * 30; // 적 바로 뒤
+                    p.x = farthest.x + p.facing * 30; 
                 } else {
                     p.x = Math.max(0, Math.min(Game.levelW - p.w, p.x + p.facing * teleRange));
                 }
                 p.vx = 0; p.atkT = 20;
-                // 순간이동 후 타격 + 이펙트
                 hitList.forEach(e => {
                     if (typeof hitE === 'function') hitE(e, skillDmg, p.facing, false);
                     if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 25);
-                    for (let j=0;j<8;j++) addPart(e.x+e.w/2, e.y+e.h/2, j<5?"#ff2200":"#ff6600", 22, 4);
+                    for (let j=0;j<8;j++) if(typeof addPart === 'function') addPart(e.x+e.w/2, e.y+e.h/2, j<5?"#ff2200":"#ff6600", 22, 4);
                 });
-                // 텔레포트 잔상 파티클 (이동 경로 전체)
                 const dist = Math.abs(p.x - startX);
                 for (let i = 0; i < 18; i++) {
                     const tx = startX + p.facing * (dist * i / 18);
-                    addPart(tx + (Math.random()-0.5)*8, cy + (Math.random()-0.5)*16, "#ff4400", 18, 3);
+                    if(typeof addPart === 'function') addPart(tx + (Math.random()-0.5)*8, cy + (Math.random()-0.5)*16, "#ff4400", 18, 3);
                 }
-                for (let i = 0; i < 30; i++) addPart(p.x+p.w/2, cy, i<20?"#ff2200":"#881100", 30, i<15?5:3);
+                for (let i = 0; i < 50; i++) if(typeof addPart === 'function') addPart(p.x+p.w/2, cy, i<30?"#ff2200":i<45?"#ff6600":"#ffffff", 35, i<25?6:3);
                 addText(p.x, p.y - 35, "파워스트라이크", "#ffffff", 50, 20);
-                p.invT = 60;
-                Game.skillFlashCol = "rgba(180,0,0,0.3)"; Game.skillFlashT = 16; Game.camShake = 25;
+                Game.skillFlashCol = "rgba(180,0,0,0.3)"; Game.skillFlashT = 16; Game.camShake = 12;
 
             } else if (Game.pClass === 1) {
-                // 새비지블로우: 6연타 무차별 베기 + 마지막 돌진
-                const sRange1 = 60 + (Game.pRangeBonus || 0);
+                const sRange1 = 90 + (Game.pRangeBonus || 0);
 
-                // 1. 스킬 시작 연출 및 무적 선 부여
                 addText(p.x, p.y-35, "새비지블로우", "#cc00ff", 50, 20);
-                p.invT = 60;
+                for (let i = 0; i < 20; i++) if(typeof addPart === 'function') addPart(cx + p.facing*(10+Math.random()*40), cy+(Math.random()-0.5)*20, i<12?"#cc00ff":"#6600cc", 22, 3);
                 Game.skillFlashCol = "rgba(80,0,150,0.25)"; Game.skillFlashT = 18;
 
-                // 2. 제자리 6연타 난도질
                 for (let i = 0; i < 6; i++) {
                     setTimeout(() => {
                         if (!Game.player || Game.player.dead) return;
                         const pp = Game.player;
-                        // 무기 휘두르기 모션 세팅
                         pp.atkAnim = 10; pp.combo = (i % 2) + 1;
                         Game.enemies.forEach(e => {
                             if (!e.active || e.dead) return;
@@ -551,21 +644,19 @@ function updatePlayerCombat() {
                                 if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*0.22), pp.facing, false);
                             }
                         });
-                        for (let j=0;j<6;j++) addPart(pp.x+pp.w/2+pp.facing*25, pp.y+pp.h/2+(Math.random()-0.5)*20, "#aa00ff", 12, 3);
-                        playSfx('atk');
+                        for (let j=0;j<6;j++) if(typeof addPart === 'function') addPart(pp.x+pp.w/2+pp.facing*25, pp.y+pp.h/2+(Math.random()-0.5)*20, "#aa00ff", 12, 3);
+                        if(typeof playSfx === 'function') playSfx('atk');
                     }, i * 65);
                 }
 
-                // 3. 마지막 6타 끝난 직후: 블링크(돌진) 및 마무리 참격
                 setTimeout(() => {
                     if (!Game.player || Game.player.dead) return;
                     const pp = Game.player;
                     const blinkRange = 200;
                     const blinkStartX = pp.x;
-                    const cy = pp.y + pp.h / 2; // 이펙트용 y좌표 중앙값
+                    const cy = pp.y + pp.h / 2; 
                     const blinkHitList = [];
 
-                    // 돌진 거리 계산
                     Game.enemies.forEach(e => {
                         if (!e.active || e.dead) return;
                         const edx = (e.x+e.w/2)-(pp.x+pp.w/2);
@@ -573,7 +664,6 @@ function updatePlayerCombat() {
                             blinkHitList.push(e);
                     });
 
-                    // 블링크 이동
                     if (blinkHitList.length > 0) {
                         const farthest = blinkHitList.reduce((a,b) =>
                             Math.abs((b.x+b.w/2)-(pp.x+pp.w/2))>Math.abs((a.x+a.w/2)-(pp.x+pp.w/2))?b:a);
@@ -585,146 +675,193 @@ function updatePlayerCombat() {
                     pp.vx = pp.facing * 10; pp.dashT = 8;
                     const blinkDist = Math.abs(pp.x-blinkStartX);
                     
-                    // 돌진 잔상 이펙트
                     for (let i=0;i<10;i++) {
                         const tx = blinkStartX + pp.facing*(blinkDist*i/10);
-                        addPart(tx+(Math.random()-0.5)*6, cy+(Math.random()-0.5)*12, "#aa00ff", 14, 2);
+                        if(typeof addPart === 'function') addPart(tx+(Math.random()-0.5)*6, cy+(Math.random()-0.5)*12, "#aa00ff", 14, 2);
                     }
 
-                    // 돌진 마무리 참격 데미지
+                    // 점멸 도착 후: 방향 무관하게 근거리 적 타격 (텔레포트로 옆에 붙었으므로)
                     Game.enemies.forEach(e => {
                         if (!e.active || e.dead) return;
-                        const edx = (e.x+e.w/2)-(pp.x+pp.w/2);
-                        if (Math.sign(edx) === pp.facing && Math.abs(edx) < sRange1+40 && Math.abs((e.y+e.h/2)-(pp.y+pp.h/2)) < 40) {
+                        const edx = Math.abs((e.x+e.w/2)-(pp.x+pp.w/2));
+                        if (edx < sRange1+60 && Math.abs((e.y+e.h/2)-(pp.y+pp.h/2)) < 55) {
                             if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*0.7), pp.facing, false);
                             if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 30);
                         }
                     });
-                    for (let j = 0; j < 25; j++) addPart(pp.x+pp.w/2+pp.facing*30, pp.y+pp.h/2, j<15?"#cc00ff":"#550088", 28, 4);
+                    for (let j = 0; j < 25; j++) if(typeof addPart === 'function') addPart(pp.x+pp.w/2+pp.facing*30, pp.y+pp.h/2, j<15?"#cc00ff":"#550088", 28, 4);
                     Game.camShake = 15;
                 }, 6 * 65);
-                const blinkRange = 200;
-                const blinkStartX = p.x;
-                const blinkHitList = [];
-                Game.enemies.forEach(e => {
-                    if (!e.active || e.dead) return;
-                    const edx = (e.x+e.w/2)-(p.x+p.w/2);
-                    if (Math.sign(edx)===p.facing && Math.abs(edx)<blinkRange && Math.abs((e.y+e.h/2)-(p.y+p.h/2))<40)
-                        blinkHitList.push(e);
-                });
-                if (blinkHitList.length > 0) {
-                    const farthest = blinkHitList.reduce((a,b) =>
-                        Math.abs((b.x+b.w/2)-(p.x+p.w/2))>Math.abs((a.x+a.w/2)-(p.x+p.w/2))?b:a);
-                    p.x = farthest.x + p.facing * 20;
-                } else {
-                    p.x = Math.max(0, Math.min(Game.levelW-p.w, p.x+p.facing*blinkRange));
-                }
-                p.vx = 0;
-                const blinkDist = Math.abs(p.x-blinkStartX);
-                for (let i=0;i<10;i++) {
-                    const tx = blinkStartX + p.facing*(blinkDist*i/10);
-                    addPart(tx+(Math.random()-0.5)*6, cy+(Math.random()-0.5)*12, "#aa00ff", 14, 2);
-                }
-                addText(p.x, p.y-35, "새비지블로우", "#cc00ff", 50, 20);
-                p.invT = 60;
-                Game.skillFlashCol = "rgba(80,0,150,0.25)"; Game.skillFlashT = 18;
 
             } else if (Game.pClass === 2) {
-                // Night Hollow: 기본 투사체(r=6)의 5배 크기 구체, 5초 지속, 0.5초마다 최대 10회
-                const nhBullet = spawnBullet(cx, cy, p.facing*0.8, 0, 300, 30, 4, Math.floor(skillDmg*0.55));
-                for (let i=0;i<40;i++) addPart(cx+p.facing*20, cy, i<25?"#0088cc":"#005588", 35, i<20?6:3);
-                addText(p.x, p.y-35, "Night Hollow", "#0099cc", 65, 22);
-                Game.skillFlashCol = "rgba(0,100,170,0.3)"; Game.skillFlashT = 18; Game.camShake = 12;
+                // 아크틱 할로우: 1발, 느리게 전진하는 수속성 블랙홀 (sk=5)
+                const voltDmg = Math.floor(skillDmg * 0.5);
+                const vx_ = p.x + p.w/2, vy_ = p.y + p.h/2;
+                if(typeof spawnBullet === 'function') spawnBullet(vx_, vy_, p.facing*0.6, 0, 480, 48, 5, voltDmg);
+                for (let i=0;i<30;i++) if(typeof addPart === 'function') addPart(vx_+p.facing*15, vy_+(Math.random()-0.5)*18, i<10?"#001133":i<22?"#003366":"#0055aa", 50, i<15?7:4);
+                for (let i=0;i<30;i++) if(typeof addPart === 'function') addPart(cx+p.facing*15, cy+(Math.random()-0.5)*20, i<12?"#001133":i<22?"#003366":"#0077bb", 50, i<16?8:4);
+                addText(p.x, p.y-35, "아크틱 할로우", "#44aaff", 65, 22);
+                Game.skillFlashCol = "rgba(0,60,140,0.45)"; Game.skillFlashT = 22; Game.camShake = 8;
 
             } else if (Game.pClass === 3) {
-                // 인레이지: 도약 → 내려찍기 모션 → 착지 광역 폭발
-                // 단계1: 도약
                 p.vy = -14; p.vx = 0; p.onGround = false;
-                Game._berserkSlam = true; // 내려찍기 플래그
+                Game._berserkSlam = true;
+                Game._berserkSlamDmg = Math.floor(skillDmg * 1.8);
 
-                // 단계2: 200ms 후 강제 하강
                 setTimeout(() => {
                     if (!Game.player || Game.player.dead) return;
-                    Game.player.vy = 18; // 강하게 내려찍기
+                    Game.player.vy = 20;
                     Game.player.vx = 0;
-                    // 하강 중 파티클
-                    for (let i=0;i<8;i++) {
-                        setTimeout(() => {
-                            if (!Game.player) return;
-                            for (let j=0;j<4;j++) addPart(Game.player.x+Game.player.w/2+(Math.random()-0.5)*10, Game.player.y+Game.player.h, "#cc0000", 15, 4);
-                        }, i*30);
-                    }
+                    Game._berserkSlamReady = true; // 착지 감지 대기
                 }, 220);
-
-                // 단계3: 착지 판정 (350ms 후 — 땅에 닿을 때)
-                setTimeout(() => {
-                    if (!Game.player) return;
-                    const pp = Game.player;
-                    Game._berserkSlam = false;
-                    // 착지 광역 — 범위 넓게 (±180px)
-                    Game.enemies.forEach(e => {
-                        if (!e.active || e.dead) return;
-                        if (Math.abs((e.x+e.w/2)-(pp.x+pp.w/2)) < 180 && Math.abs((e.y+e.h/2)-(pp.y+pp.h/2)) < 80) {
-                            if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*1.8), pp.facing, false);
-                            if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 50);
-                            for (let j=0;j<8;j++) addPart(e.x+e.w/2, e.y+e.h/2, j<5?"#cc0000":"#ff4400", 25, 5);
-                        }
-                    });
-                    // 충격파 파티클
-                    for (let i=0;i<80;i++) {
-                        const ang = Math.random() * Math.PI * 2;
-                        const dist = Math.random() * 90;
-                        addPart(pp.x+pp.w/2+Math.cos(ang)*dist, pp.y+pp.h, i<50?"#cc0000":"#550000", 60, i<35?7:4);
-                    }
-                    // 충격파 링 (빔으로 표현)
-                    spawnLaser(pp.x-90, pp.y+pp.h-4, 180, 8, 12, "#880000", 0, true);
-                    Game.camShake = 70; playSfx('boss_atk');
-                }, 450);
 
                 addText(p.x, p.y - 35, "인레이지", "#ff0000", 50, 22);
                 Game.skillFlashCol = "rgba(150,0,0,0.35)"; Game.skillFlashT = 20;
 
             } else if (Game.pClass === 4) {
-                // 서먼 크루: 5초 동안 선원 2명 소환
                 Game.crewMinions = Game.crewMinions || [];
                 for (let s = -1; s <= 1; s += 2) {
                     const cm = {
                         active: true, x: p.x + s * 30, y: p.y,
+                        sideOffset: s * 40,  // 플레이어 기준 고정 오프셋
                         hp: Math.floor(currentBaseDmg * 0.6 * 20),
                         atk: Math.floor(currentBaseDmg * 0.6),
-                        life: 600, // 10초(600프레임)
+                        life: 600, 
                         atkT: 0, facing: p.facing
                     };
                     Game.crewMinions.push(cm);
                 }
-                for (let i = 0; i < 20; i++) addPart(cx, cy, "#666", 25, 4);
-                addText(p.x, p.y - 35, "서먼 크루", "#888888", 50, 20);
-                Game.skillFlashCol = "rgba(80,80,80,0.25)"; Game.skillFlashT = 15; Game.camShake = 10;
+                for (let i = 0; i < 35; i++) if(typeof addPart === 'function') addPart(cx+(Math.random()-0.5)*50, cy+(Math.random()-0.5)*30, i<15?"#aaaaaa":i<28?"#666666":"#ffffff", 30, i<20?5:3);
+                addText(p.x, p.y - 35, "서먼 크루", "#aaaaaa", 50, 20);
+                Game.skillFlashCol = "rgba(120,120,120,0.28)"; Game.skillFlashT = 15; Game.camShake = 6;
+
+            } else if (Game.pClass === 6) {
+                // 혈기격: 현재 HP 20% 소모 → 전방 광역 대혈창 + 강력 흡혈
+                if ((Game._bloodSkillCooldown || 0) > 0) {
+                    addText(p.x, p.y - 30, "쿨다운 중!", "#cc2244", 35, 13);
+                    p.atkT = 0; Game.invT = 0;
+                    return;
+                }
+                const hpCost = Math.max(5, Math.floor(p.hp * 0.20));
+                if (p.hp <= hpCost) {
+                    addText(p.x, p.y - 30, "HP 부족!", "#ff0000", 35, 13);
+                    p.atkT = 0; Game.invT = 0; // 실패 시 쿨다운 취소
+                } else {
+                    p.hp -= hpCost;
+                    const bloodRange = 160 + (Game.pRangeBonus || 0);
+                    let hitAny = false;
+                    Game.enemies.forEach(e => {
+                        if (!e.active || e.dead) return;
+                        const edx = (e.x+e.w/2)-(p.x+p.w/2);
+                        if (Math.sign(edx) === p.facing && Math.abs(edx) < bloodRange && Math.abs((e.y+e.h/2)-(p.y+p.h/2)) < 80) {
+                            if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg * 2.0), p.facing, false);
+                            if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 40);
+                            hitAny = true;
+                        }
+                    });
+                    if (hitAny) {
+                        const heal = Math.floor(hpCost * 2.5 + 8);
+                        p.hp = Math.min(Game.pMaxHp, p.hp + heal);
+                        addText(p.x, p.y - 42, `+${heal} 흡수`, "#ff6688", 55, 16);
+                    }
+                    for (let i = 0; i < 60; i++) if(typeof addPart === 'function') addPart(cx + p.facing*(5+Math.random()*bloodRange*0.8), cy+(Math.random()-0.5)*40, i<30?"#cc0033":i<50?"#880022":"#ff4466", 50, i<25?7:4);
+                    for (let i = 0; i < 20; i++) if(typeof addPart === 'function') addPart(cx, cy, i<12?"#ff0033":"#660011", 60, 9);
+                    addText(p.x, p.y - 35, "혈기격!", "#cc2244", 65, 22);
+                    Game.skillFlashCol = "rgba(160,0,30,0.40)"; Game.skillFlashT = 22; Game.camShake = 25;
+                    Game._bloodSkillCooldown = 150; // 2.5초 쿨다운
+                }
+
+            } else if (Game.pClass === 7) {
+                // 와일드카드: 7장 카드 연속 투척 (일직선, 색 무작위)
+                const _wcCols = ["#ff4444","#222222","#4488ff","#ff4444","#222222","#4488ff","#ffdd00"];
+                const _wcRange = 55 + (Game.pRangeBonus || 0);
+                const _wcDmg = Math.floor(skillDmg * 0.55);
+                for (let _wi = 0; _wi < 7; _wi++) {
+                    const _vy2 = (Math.random() - 0.5) * 1.2;
+                    const _wCol = _wcCols[_wi];
+                    setTimeout(() => {
+                        if (!Game.player || Game.player.dead) return;
+                        const pp = Game.player;
+                        const _sx = pp.x + (pp.facing > 0 ? pp.w + 2 : -2);
+                        const _sb = typeof spawnBullet === 'function' && spawnBullet(_sx, pp.y + pp.h/2, pp.facing * 13, _vy2, _wcRange, 10, 0, _wcDmg, _wCol);
+                        if (_sb) { _sb.isCard = true; _sb.cardCol = _wCol; }
+                        for (let _pi = 0; _pi < 3; _pi++) if(typeof addPart === 'function') addPart(_sx, pp.y+pp.h/2, _wCol, 15, 2);
+                    }, _wi * 60);
+                }
+                addText(p.x, p.y - 35, "와일드카드!", "#ffdd00", 65, 22);
+                Game.skillFlashCol = "rgba(200,160,0,0.40)"; Game.skillFlashT = 20; Game.camShake = 10;
 
             } else if (Game.pClass === 5) {
-                // 디바인 저지먼트: 망치 내려찍기 광역 근접 (빔 없음)
-                const hammerRange = 80 + (Game.pRangeBonus || 0);
-                Game.enemies.forEach(e => {
-                    if (!e.active || e.dead) return;
-                    const edx = (e.x+e.w/2)-(p.x+p.w/2);
-                    if (Math.sign(edx) === p.facing && Math.abs(edx) < hammerRange && Math.abs((e.y+e.h/2)-(p.y+p.h/2)) < 50) {
-                        if (typeof hitE === 'function') hitE(e, skillDmg, p.facing, false);
-                        if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 35);
+                // 헤븐즈콜: 즉발 십자가 강하
+                p.vx = 0;
+                setTimeout(() => {
+                    if (!Game.player) return;
+                    const pp = Game.player;
+                    Game._paladinSkill = false;
+                    Game._paladinCrossT = 70;
+                    Game._paladinCrossX = pp.x + pp.w/2;
+                    Game._paladinCrossY = pp.y + pp.h;
+
+                    const hammerRange = 140 + (Game.pRangeBonus || 0); // 사거리 대폭 상승
+                    Game.enemies.forEach(e => {
+                        if (!e.active || e.dead) return;
+                        const edx = (e.x+e.w/2)-(pp.x+pp.w/2);
+                        if (Math.sign(edx) === pp.facing && Math.abs(edx) < hammerRange && Math.abs((e.y+e.h/2)-(pp.y+pp.h/2)) < 80) {
+                            if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg * 1.5), pp.facing, false);
+                            if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 60); // 스턴치 폭발적 감소
+                        }
+                    });
+
+                    const hitX = pp.x + pp.w / 2;
+                    const groundY = pp.y + pp.h;
+                    // 지면 파열 파티클 — 십자가가 땅에서 솟아오르는 느낌
+                    for (let i = 0; i < 60; i++) {
+                        const ang = -Math.PI * (0.2 + Math.random() * 0.6); // 위쪽 부채꼴
+                        const spd = 3 + Math.random() * 5;
+                        if(typeof addPart === 'function') addPart(hitX + pp.facing*(Math.random()*80-10),
+                            groundY, i<30?"#ffcc00":i<50?"#ffffff":"#ffaa00", 50 + Math.random()*20, i<25?7:4);
                     }
-                });
-                for (let i = 0; i < 40; i++) {
-                    addPart(cx+p.facing*(20+Math.random()*40), cy+(Math.random()-0.5)*30,
-                        i<25?"#ffcc00":"#ffaa00", 35, i<20?6:3);
-                }
-                addText(p.x, p.y - 35, "디바인 저지먼트", "#ffdd00", 50, 18);
-                Game.skillFlashCol = "rgba(200,180,0,0.25)"; Game.skillFlashT = 18; Game.camShake = 25;
+                    addText(pp.x, pp.y - 35, "헤븐즈콜", "#ffdd00", 50, 18);
+                    Game.skillFlashCol = "rgba(255,220,0,0.35)"; Game.skillFlashT = 20; Game.camShake = 20;
+                    Game._paladinCrossT = 65; // 십자가 렌더 타이머 (길게)
+                    Game._paladinCrossX = hitX;
+                    Game._paladinCrossY = groundY; // 발 위치(지면) 기준
+                    if(typeof playSfx === 'function') playSfx('boss_atk');
+                }, 0);
+            }
+            if (!_isDC && Game.pDoubleSkillChance && Math.random() < Game.pDoubleSkillChance) {
+                const dcDelay = Game.pClass === 3 ? 900 : Game.pClass === 5 ? 950 : 700;
+                setTimeout(() => { if (Game.player && !Game.player.dead) Game._doubleCast = true; }, dcDelay);
+                addText(p.x, p.y - 50, "메아리!", "#ffaa00", 45, 13);
             }
         }
     }
     if (Game._skillWarnT > 0) Game._skillWarnT--;
+
+    // 인레이지 착지 감지 → 착지 순간 타격 발동
+    if (Game._berserkSlamReady && p.onGround) {
+        Game._berserkSlamReady = false;
+        Game._berserkSlam = false;
+        const slamDmg = Game._berserkSlamDmg || 0;
+        Game.enemies.forEach(e => {
+            if (!e.active || e.dead) return;
+            if (Math.abs((e.x+e.w/2)-(p.x+p.w/2)) < 200 && Math.abs((e.y+e.h/2)-(p.y+p.h/2)) < 90) {
+                if (typeof hitE === 'function') hitE(e, slamDmg, p.facing, false);
+                if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 50);
+                for (let j=0;j<8;j++) if(typeof addPart === 'function') addPart(e.x+e.w/2, e.y+e.h/2, j<5?"#cc0000":"#ff4400", 25, 5);
+            }
+        });
+        for (let i=0;i<100;i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 120;
+            const col = i<40?"#cc0000":i<70?"#ff4400":i<90?"#550000":"#ff8800";
+            if(typeof addPart === 'function') addPart(p.x+p.w/2+Math.cos(ang)*dist, p.y+p.h, col, 65, i<45?8:i<75?5:3);
+        }
+        if(typeof spawnLaser === 'function') spawnLaser(p.x-100, p.y+p.h-4, 200, 8, 14, "#880000", 0, true);
+        Game.camShake = 35; if(typeof playSfx === 'function') playSfx('boss_atk');
+    }
 }
 
-// 발키리 서먼 크루 미니언 업데이트
 function updateCrewMinions() {
     if (!Game.crewMinions || !Game.player) return;
     const p = Game.player;
@@ -732,20 +869,18 @@ function updateCrewMinions() {
     for (const cm of Game.crewMinions) {
         cm.life--;
         if (cm.life <= 0) { cm.active = false; continue; }
-        // 플레이어 추종 — 너무 멀면 즉시 텔레포트 (맵 이동 시 이상한 위치 방지)
-        const tdx = p.x - cm.x;
-        if (Math.abs(tdx) > 300) {
-            // 즉시 플레이어 옆으로 이동
-            cm.x = p.x + (cm === Game.crewMinions[0] ? -30 : 30);
-        } else if (Math.abs(tdx) > 30) {
-            cm.x += Math.sign(tdx) * 3.5;
+        // 목표 위치: 플레이어 기준 고정 오프셋 유지
+        const targetX = p.x + (cm.sideOffset || 40);
+        const tdx = targetX - cm.x;
+        if (Math.abs(tdx) > 400) {
+            cm.x = targetX; // 너무 멀면 순간이동
+        } else if (Math.abs(tdx) > 8) {
+            cm.x += Math.sign(tdx) * Math.min(Math.abs(tdx) * 0.18, 5);
         }
         cm.y = p.y;
         cm.facing = p.facing;
-        // 가장 가까운 적 공격
         cm.atkT = (cm.atkT || 0) - 1;
         if (cm.atkT <= 0) {
-            // 크루 미니언: 총으로 원거리 공격
             let closest = null, minDist = 9999;
             for (const e of Game.enemies) {
                 if (!e.active || e.dead) continue;
@@ -755,12 +890,14 @@ function updateCrewMinions() {
             if (closest && minDist < 200 && typeof spawnBullet === 'function') {
                 const dir = closest.x > cm.x ? 1 : -1;
                 cm.facing = dir;
-                spawnBullet(cm.x + 10*dir, cm.y + 5, dir * 12, -0.2, 40, 4, 0, cm.atk);
+                if(typeof spawnBullet === 'function') spawnBullet(cm.x + 10*dir, cm.y + 5, dir * 12, -0.2, 40, 4, 0, cm.atk);
                 cm.atkT = 25;
             }
         }
     }
 }
+
+
 
 function updateProjectiles() {
     Game.bullets.forEach((b) => { 
@@ -772,17 +909,16 @@ function updateProjectiles() {
         if (b.life <= 0) { b.active = false; return; }
         
         if (b.sk !== 2) {
-            for (const t of Game.platforms) { 
-                if (b.sk !== 4 && overlap({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 }, t)) { b.active = false; return; } 
+            for (const t of Game.platforms) {
+                if (b.sk !== 4 && b.sk !== 5 && b.sk !== 6 && typeof overlap === 'function' && overlap({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 }, t)) { b.active = false; return; }
             }
         }
-        
+
         Game.enemies.forEach((e) => {
             if (!e.active || e.dead) return;
             const hitR = b.sk === 2 ? b.r * 2.5 : b.r;
-            if (Math.abs(e.x + e.w / 2 - b.x) < e.w / 2 + hitR && Math.abs(e.y + e.h / 2 - b.y) < e.h / 2 + hitR) { 
+            if (Math.abs(e.x + e.w / 2 - b.x) < e.w / 2 + hitR && Math.abs(e.y + e.h / 2 - b.y) < e.h / 2 + hitR) {
                 if (b.sk === 4) {
-                    // Night Hollow: 30프레임(0.5초)마다 최대 10회 타격
                     b.nhLastHit = b.nhLastHit || {};
                     const eid = Game.enemies.indexOf(e);
                     const lastF = b.nhLastHit[eid] || -9999;
@@ -791,18 +927,31 @@ function updateProjectiles() {
                         b.nhLastHit[eid] = Game.frameCount;
                         b.nhHitCount = (b.nhHitCount||0) + 1;
                     }
-                    // 비활성화 안 함 — life 소진 시 자연 소멸
+                } else if (b.sk === 5) {
+                    // 아크틱 할로우: 10프레임 쿨다운 다단히트, 최대 25회
+                    b.nhLastHit = b.nhLastHit || {};
+                    const eid = Game.enemies.indexOf(e);
+                    const lastF = b.nhLastHit[eid] || -9999;
+                    if (Game.frameCount - lastF >= 10 && (b.nhHitCount||0) < 25) {
+                        if(typeof hitE === 'function') hitE(e, b.dmg, b.vx > 0 ? 1 : -1, false);
+                        b.nhLastHit[eid] = Game.frameCount;
+                        b.nhHitCount = (b.nhHitCount||0) + 1;
+                    }
+                } else if (b.sk === 6) {
+                    // 강령술사 소울 탄환: 일반 히트 후 비활성
+                    if(typeof hitE === 'function') hitE(e, b.dmg, b.vx > 0 ? 1 : -1, false);
+                    if(typeof applyPoiseHit === 'function') applyPoiseHit(e, 8);
+                    b.active = false;
                 } else {
                     if(typeof hitE === 'function') hitE(e, b.dmg || (Game.pBaseDmg * (Game.pBaseDmgMul||1)), b.vx > 0 ? 1 : -1, false);
                     if (b.sk && b.sk !== 3) Game.hitStop = 3;
                     if (Game.pClass === 2 && !b.sk) Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 1);
                     if (!b.sk) {
-                        if (typeof applyPoiseHit === 'function') applyPoiseHit(e, Game.pClass === 4 ? 5 : 10);
+                        if (typeof applyPoiseHit === 'function') applyPoiseHit(e, Game.pClass === 4 ? 3 : 10);
                         Game.comboCount++;
                         Game.comboTimer = 150 + Game.pComboDur;
                     }
                     if (b.sk !== 3) b.active = false;
-                    // sk=3(마법사 3연타): 관통 — 비활성화 안 함
                 }
             }
         });
@@ -811,28 +960,23 @@ function updateProjectiles() {
     Game.eBullets.forEach((b) => { 
         if (!b.active) return;
         b.x += b.vx * Game.pProjSlow; b.y += b.vy * Game.pProjSlow;
-        // grav=true면 중력 적용, false면 직선 비행 (vy 변화 없음)
         if (b.grav) b.vy += 0.4 * Game.pProjSlow;
         b.life--;
         const _floorY = CH - 40;
-        // sk=4(Night Hollow)는 바닥 충돌 무시
         if (b.sk === 4) {
             if (b.life <= 0 || b.x < -50 || b.x > (Game.levelW || 3200) + 50) { b.active = false; return; }
         } else {
             if (b.life <= 0 || b.y > _floorY + 50 || b.x < -50 || b.x > (Game.levelW || 3200) + 50) { b.active = false; return; }
         }
 
-        // 발판 충돌 — 발판 상면 위로 올라오는 경우도 처리
         for (const t of Game.platforms) {
-            if (overlap({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 }, t)) {
+            if (typeof overlap === 'function' && overlap({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 }, t)) {
                 b.active = false; return;
             }
-            // 발판을 통과해버린 경우 — y가 발판 아래에 있으면 제거
             if (b.y > t.y + t.h && b.x >= t.x && b.x <= t.x + t.w) {
                 b.active = false; return;
             }
         }
-        // 투사체 r이 8~10으로 커졌으므로 히트박스도 r 기반 동적 계산
         const hitR2 = (b.r || 8) * 0.85;
         const pCx = Game.player.x + Game.player.w / 2;
         const pCy = Game.player.y + Game.player.h / 2;
@@ -846,17 +990,16 @@ function updateProjectiles() {
         if (l.isPlayer) {
             if (l.life > l.maxLife - 15) { 
                 Game.enemies.forEach(e => {
-                    if (e.active && !e.dead && overlap(e, l) && !l.hitTargets.has(e)) { 
+                    if (e.active && !e.dead && typeof overlap === 'function' && overlap(e, l) && !l.hitTargets.has(e)) { 
                         if(typeof hitE === 'function') hitE(e, l.dmg, Game.player.facing, true); 
                         l.hitTargets.add(e); 
                     }
                 });
             }
         } else {
-            // 적 레이저: 최초 1회만 피격 (hitTargets로 중복 방지)
             if (!l.hitTargets) l.hitTargets = new Set();
             if (l.life > l.maxLife - 5 && !l.hitTargets.has('player')) {
-                if (Game.invT === 0 && overlap(Game.player, l) && !Game.player.dead) {
+                if (Game.invT === 0 && typeof overlap === 'function' && overlap(Game.player, l) && !Game.player.dead) {
                     if (typeof takeDmg === 'function') takeDmg(l.dmg || 20, null, l.unblockable);
                     l.hitTargets.add('player');
                 }
@@ -868,53 +1011,37 @@ function updateProjectiles() {
 }
 
 function updateItemsAndMisc() {
-    // 튜토리얼 통과 조건 체크 — 각 조작 1회 수행 여부 감지
     if (Game.isTutorial && Game.tutorialChecks) {
         const p2 = Game.player;
         const tc = Game.tutorialChecks;
 
-        // dash: 대시 모션 중 — 정상
         if (p2 && p2.dashT > 0) tc.dash = true;
-
-        // jump: 점프 키(X)를 실제로 누른 순간만 — 낙하나 발판 아래 등 즉시 true 방지
         if (p2 && dn("KeyX") && !p2.jpOld && !p2.onGround) tc.jump = true;
-
-        // attack: 실제 공격이 적에게 닿았을 때(콤보 카운트 증가) — atkAnim 잔류 오감지 방지
         if (Game.comboCount > 0) tc.attack = true;
-
-        // guard: V키 누른 순간만 — 단순 상태 유지로 즉시 체크되는 것 방지
         if (dn("KeyV") && !p2?.gOld) tc.guard = true;
-
-        // skill: Shift 입력 자체 감지
         if (dn("ShiftLeft", "ShiftRight")) tc.skill = true;
 
-        // 모든 조작 완료 시 문 열기
         const allDone = tc.dash && tc.jump && tc.attack && tc.guard && tc.skill;
         if (allDone && Game.doors[0] && !Game.doors[0].open) {
             Game.doors[0].open = true;
-            // 화면 중앙 고정 좌표로 — 월드 좌표가 아닌 카메라 기준
             addText(Game.camX + CW / 2 - 80, CH / 2 - 30, "ALL DONE! 문이 열렸다!", "#00ffcc", 180, 18);
         }
 
-        // 더미 몬스터 — 체력만 리셋, 스턴/포이즈는 유지해 처형 연습 가능하게
         Game.enemies.forEach(e => {
             if (e.active && e.isTutorialDummy) {
-                e.hp   = e.maxHp; // 죽지 않는 허수아비
-                e.dead = false;   // 혹시 dead 처리됐어도 강제 부활
+                e.hp   = e.maxHp; 
+                e.dead = false;   
                 e.active = true;
-                // poise/stun은 건드리지 않음 — 패링→스턴→처형 흐름 체험 가능
             }
         });
     }
 
-    // 튜토리얼 말풍선 힌트 렌더
     if (Game.isTutorial && Game.tutorialHints) {
         ctx.save();
         ctx.textAlign = "left";
         Game.tutorialHints.forEach(h => {
             const hx = h.x - Game.camX;
             if (hx < -200 || hx > CW + 200) return;
-            // 말풍선 배경
             ctx.font = "bold 10px SkullFont, NeoDunggeunmo";
             const tw = ctx.measureText(h.text).width;
             ctx.fillStyle = "rgba(0,0,0,0.72)";
@@ -922,11 +1049,9 @@ function updateItemsAndMisc() {
             ctx.strokeStyle = h.col || "#ffcc44";
             ctx.lineWidth = 1;
             ctx.strokeRect(hx - 4, h.y - 13, tw + 8, 16);
-            // 텍스트
             ctx.fillStyle = h.col || "rgba(255,220,80,0.92)";
             ctx.fillText(h.text, hx, h.y);
         });
-        // 통과 조건 현황 (화면 우상단)
         if (Game.tutorialChecks) {
             const tc2 = Game.tutorialChecks;
             const checks = [
@@ -963,22 +1088,22 @@ function updateItemsAndMisc() {
             const near = Math.abs((p.x + p.w/2) - (ev.x + ev.w/2)) < 55 && Math.abs(p.y - ev.y) < 70;
             ev._nearPlayer = near;
             
-            // 🔥 K.upOld를 사용하여 키 씹힘 완벽 방지
-            if (near && dn("ArrowUp") && !K.upOld) {
-                // 💥 기존 버그: 여기서 ev.used = true를 일괄 처리해서 화톳불이 고장났었음. (삭제 완료)
-
+            if (near && dn("ArrowUp") && !K.upOld && !(Game._interactLock > 0)) {
+                Game._interactLock = 60; // 1초간 점프 차단
+                Game.invT = Math.max(Game.invT || 0, 60); // 1초 무적
                 if (ev.type === "curse_altar") {
                     ev.used = true;
-                    const dmgAmt = Math.floor(p.hp * 0.25);
-                    p.hp = Math.max(1, p.hp - dmgAmt);
+                    const dmgAmt = Math.floor(Game.pMaxHp * 0.25);
+                    Game.pMaxHp = Math.max(10, Game.pMaxHp - dmgAmt);
+                    p.maxHp = Game.pMaxHp;
+                    p.hp = Math.min(p.hp, Game.pMaxHp);
                     const roll = Math.random();
 
-                    // 증가 전 실제 ATK 계산
                     const atkBefore = Math.floor(Game.pBaseDmg * (Game.pBaseDmgMul||1) * (Game.pFinalDmgMul||1));
 
                     if (roll < 0.33) {
-                        Game.pBaseDmg   += 15;           // 기본 공격력 직접 증가
-                        Game.pFinalDmgMul += 0.5;         // 최종 배율도 추가
+                        Game.pBaseDmg   += 15;           
+                        Game.pFinalDmgMul += 0.5;         
                         const atkAfter = Math.floor(Game.pBaseDmg * (Game.pBaseDmgMul||1) * (Game.pFinalDmgMul||1));
                         addText(ev.x, ev.y - 40, `저주: ATK ${atkBefore} → ${atkAfter}`, "#ff0055", 160, 14);
                         addText(ev.x, ev.y - 20, "공격력 폭증 + 최종데미지 +50%!", "#ff4488", 120, 11);
@@ -993,45 +1118,42 @@ function updateItemsAndMisc() {
                         addText(ev.x, ev.y - 40, `저주: 치명타 ${critPct}% / 데미지 ×${Game.pCritDmg.toFixed(1)}`, "#ff0055", 160, 13);
                         addText(ev.x, ev.y - 20, "크리 확률+25% / 크리 배율+100%!", "#ff4488", 120, 11);
                     }
-                    // HUD 즉시 갱신 — ATK 수치가 UI에 바로 반영
                     if (typeof updateHUD === 'function') updateHUD();
-                    playSfx('skill'); Game.camShake = 20;
-                    for (let pi = 0; pi < 30; pi++) addPart(ev.x + ev.w/2, ev.y + ev.h/2, "#ff0055", 30, 4);
+                    if(typeof playSfx === 'function') playSfx('skill'); Game.camShake = 20;
+                    for (let pi = 0; pi < 30; pi++) if(typeof addPart === 'function') addPart(ev.x + ev.w/2, ev.y + ev.h/2, "#ff0055", 30, 4);
                     
                 } else if (ev.type === "relic_chest") {
-                    ev.used = true; // 상자 사용 완료 처리
-                    const pool = Array.from({length:33},(_,i)=>i+1)
+                    ev.used = true;
+                    // UPGRADES에 실제 존재하는 ID만 풀로 사용 (존재하지 않는 ID로 "유물: 유물!" 버그 방지)
+                    const pool = (typeof UPGRADES !== 'undefined' ? Object.keys(UPGRADES).map(Number) : [])
                         .filter(id => !Game.obtainedItems || !Game.obtainedItems.includes(id));
                     if (pool.length > 0) {
                         const id = pool[Math.floor(Math.random() * pool.length)];
                         if (typeof applyUpgrade === 'function') applyUpgrade(id);
                         const name = (typeof UPGRADES !== 'undefined' && UPGRADES[id]) ? UPGRADES[id].name.split(':')[0] : '유물';
                         addText(ev.x, ev.y - 20, "유물: " + name + "!", "#ffcc00", 120, 13);
-                        playSfx('item'); playSfx('clear');
+                        if(typeof playSfx === 'function') { playSfx('item'); playSfx('clear'); }
                     }
-                    for (let pi = 0; pi < 25; pi++) addPart(ev.x + ev.w/2, ev.y + ev.h/2, "#ffcc00", 30, 4);
+                    for (let pi = 0; pi < 25; pi++) if(typeof addPart === 'function') addPart(ev.x + ev.w/2, ev.y + ev.h/2, "#ffcc00", 30, 4);
                     
                 } else if (ev.type === "bonfire") {
-                    // 🔥 화톳불 함수 호출. 함수 내부에서 스스로 HP 회복 후 ev.used = true 처리함!
                     if (typeof useBonfire === 'function') useBonfire(ev);
-                    
                 } else if (ev.type === "mimic_chest") {
-                    ev.used = true; // 미믹 사용 완료 처리
+                    ev.used = true; 
                     if (typeof triggerMimic === 'function') triggerMimic(ev);
                 }
             }
         }
     }
 
-
     Game.items.forEach(i => {
         if (!i.active) return;
         i.vy = Math.min(i.vy + GRAV, 8);  i.y += i.vy; let groundFound = false;
-        Game.platforms.forEach(t => { if (overlap({x: i.x, y: i.y, w: i.w, h: i.h}, t) && i.vy > 0) { i.y = t.y - i.h; i.vy = 0; groundFound = true; } });
+        Game.platforms.forEach(t => { if (typeof overlap === 'function' && overlap({x: i.x, y: i.y, w: i.w, h: i.h}, t) && i.vy > 0) { i.y = t.y - i.h; i.vy = 0; groundFound = true; } });
         if(groundFound) i.life--;
         
-        if (overlap(Game.player, {x: i.x, y: i.y, w: i.w, h: i.h}) && !Game.player.dead) {
-            playSfx('item');
+        if (typeof overlap === 'function' && overlap(Game.player, {x: i.x, y: i.y, w: i.w, h: i.h}) && !Game.player.dead) {
+            if(typeof playSfx === 'function') playSfx('item');
             if (i.type === "hp") {
                 if (Game.player.hp < Game.pMaxHp) { Game.player.hp = Math.min(Game.pMaxHp, Game.player.hp + 20); addText(Game.player.x, Game.player.y - 10, "+20 HP", "#27ae60", 40, 14); } 
                 else { Game.score += 100; addText(Game.player.x, Game.player.y - 10, "점수 +100", "#aaaaff", 40, 14); }
@@ -1057,15 +1179,19 @@ function updateItemsAndMisc() {
 
     Game.doors.forEach((d) => {
         if (Game.isTutorial) {
-            // 튜토리얼: 문은 항상 열려 있음 — 조건 복잡도로 막히는 문제 방지
             d.open = true;
         } else {
             d.open = allDead;
         }
-        if (d.open && Game.player && overlap(Game.player, { x: d.x, y: d.y, w: d.w, h: d.h }) && !Game.player.dead) {
-            if (Game.transState === 0 && typeof nextStage === 'function') {
+        if (d.open && Game.player && typeof overlap === 'function' && overlap(Game.player, { x: d.x, y: d.y, w: d.w, h: d.h }) && !Game.player.dead) {
+            d._playerNear = true;
+            if (Game.transState === 0 && typeof nextStage === 'function' && dn("ArrowUp") && !K.upOld) {
+                Game._interactLock = 60; // 1초간 점프 차단
+                Game.invT = Math.max(Game.invT || 0, 60); // 1초 무적
                 nextStage();
             }
+        } else {
+            d._playerNear = false;
         }
     });
 }

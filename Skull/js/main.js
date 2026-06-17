@@ -23,26 +23,47 @@ function update() {
     }
 
     updateEnvironment();
+    // NPC 대화 중에는 게임 로직 정지 (NPC 업데이트만 실행)
+    if (typeof updateNPCs === 'function') updateNPCs();
+    if (Game.npcTalking) {
+        updateItemsAndMisc(); // 텍스트 파티클 등 비전투 업데이트만
+        return;
+    }
     updatePlayer();
     if (typeof updateStamina === 'function') updateStamina();
-    if (typeof updateJustDodge === 'function') updateJustDodge();
     updatePlayerCombat();
     if(typeof updateEnemies === 'function') updateEnemies();
     updateProjectiles();
     if (typeof updateTraps === 'function') updateTraps();
-    if (typeof updateNPCs === 'function') updateNPCs();
     updateCrewMinions();
     updateItemsAndMisc();
 
-    Game.camX += (Game.player.x - CW / 3 - Game.camX) * 0.1; 
+    // 보스 처치 대사 시퀀스 틱 (비차단 — 게임플레이 유지)
+    if (Game.bossKillSeq) {
+        Game.bossKillSeq.timer--;
+        if (Game.bossKillSeq.timer <= 0) {
+            Game.bossKillSeq.idx++;
+            const seq = Game.bossKillSeq;
+            if (seq.idx >= seq.lines.length) {
+                Game.bossKillSeq = null;
+            } else {
+                seq.timer = seq.lines[seq.idx].duration;
+            }
+        }
+    }
+
+    Game.camX += (Game.player.x - CW / 3 - Game.camX) * 0.1;
     Game.camX = Math.max(0, Math.min(Game.levelW - CW, Game.camX));
 }
 
 // ==========================================
-// 업그레이드 데이터 테이블 (이름 + 효과 함수 통합)
+// HUD 및 기타 업데이트
 // ==========================================
+
+// DOM 기반 HUD(HP/MP/DASH/스테이지 표시) 매 프레임 갱신
 function updateHUD() {
     const inGame = ["play", "dead", "gameover", "win", "upgrade", "boss_intro"].includes(Game.gs);
+    const inPlay = ["play", "dead", "boss_intro"].includes(Game.gs); // 게이지는 실제 플레이 중에만
     
     // index.html에 작성된 UI 컴포넌트들을 찾아서 인게임 여부에 따라 보이거나 숨김
     const uiHp = document.getElementById("ui-hp");
@@ -57,11 +78,12 @@ function updateHUD() {
     if (stageLabel) stageLabel.style.display = inGame ? "block" : "none";
     if (scoreLabel) scoreLabel.style.display = inGame ? "block" : "none";
     if (killLabel) killLabel.style.display = inGame ? "block" : "none";
-    // 게이지 묶음 전체 표시/숨김 — SKILL만 아니라 DASH, STAMINA 포함
+    // 게이지(스태미너/스킬/대쉬)는 실제 플레이 중에만 표시
     const uiGauges = document.getElementById("ui-gauges");
-    if (uiGauges) uiGauges.style.display = inGame ? "flex" : "none";
-    // STAMINA도 항상 flex 유지 (position:absolute이므로 부모 display만 맞으면 됨)
-    if (uiSkill) uiSkill.style.display = inGame ? "flex" : "none";
+    if (uiGauges) uiGauges.style.display = inPlay ? "flex" : "none";
+    if (uiSkill) uiSkill.style.display = inPlay ? "flex" : "none";
+    const uiDash = document.getElementById("ui-dash");
+    if (uiDash) uiDash.style.display = inPlay ? "flex" : "none";
 
     if (!inGame || !Game.player) {
         if (reviveLabel) reviveLabel.style.display = "none";
@@ -94,15 +116,49 @@ function updateHUD() {
         hpTxt.textContent = Game.player.hp + " / " + Game.pMaxHp + (Game.pShield > 0 ? ` (+${Game.pShield})` : "") + (grayAmt > 0 ? ` [${grayAmt}]` : "");
     }
     
+    const uiSkillEl = document.getElementById("ui-skill");
     const mpF = document.getElementById("mpFill");
     const sLab = document.getElementById("skillLabel");
+    const sStaticLab = document.getElementById("skillStaticLabel");
+    const sGaugeBorder = document.getElementById("skillGaugeBorder");
+    if (uiSkillEl) uiSkillEl.style.display = inPlay ? "flex" : "none";
     if (mpF && sLab) {
-        const pct = Math.floor((Game.pMp / (Game.pMaxMp || 15)) * 100);
-        mpF.style.width = Math.min(100, pct) + "%";
-        if (Game.pMp >= (Game.pMaxMp || 15)) {
-            sLab.textContent = "READY!"; sLab.style.color = "#ffee00";
+        const CLASS_COLORS = ["#ffffff","#cc44ff","#00ccff","#d11414","#aaaaaa","#ffcc00","#720b0b","#f07400"];
+        if (Game.pClass === 4 && (Game.pGunReload || 0) > 0) {
+            // 발키리 재장전 중: 스킬 게이지에 재장전 진행 표시
+            const reloadMax = Game.pGunReloadMax || 90;
+            const reloadProg = 1 - (Game.pGunReload / reloadMax);
+            mpF.style.width = Math.min(100, reloadProg * 100) + "%";
+            mpF.style.background = "#ffdd00";
+            if (sGaugeBorder) sGaugeBorder.style.borderColor = "#ffdd00";
+            if (sStaticLab) sStaticLab.style.color = "#ffdd00";
+            sLab.textContent = "재장전중"; sLab.style.color = "#ffdd00";
+        } else if (Game.pClass === 6) {
+            // 혈귀: 쿨다운 게이지를 스킬 게이지 자리에 표시
+            const cd = Game._bloodSkillCooldown || 0;
+            const cdMax = 150;
+            const prog = cd > 0 ? (1 - cd / cdMax) : 1;
+            mpF.style.width = Math.min(100, prog * 100) + "%";
+            mpF.style.background = "#cc2244";
+            if (sGaugeBorder) sGaugeBorder.style.borderColor = "#720b0b";
+            if (sStaticLab) sStaticLab.style.color = "#720b0b";
+            if (cd === 0) {
+                sLab.textContent = "준비완료!"; sLab.style.color = "#ffee00";
+            } else {
+                sLab.textContent = Math.floor(prog * 100) + "%"; sLab.style.color = "#cc2244";
+            }
         } else {
-            sLab.textContent = pct + "%"; sLab.style.color = "#00ffcc";
+            const classColor = CLASS_COLORS[Game.pClass] || "#00ffcc";
+            const pct = Math.floor((Game.pMp / (Game.pMaxMp || 15)) * 100);
+            mpF.style.width = Math.min(100, pct) + "%";
+            mpF.style.background = classColor;
+            if (sGaugeBorder) sGaugeBorder.style.borderColor = classColor;
+            if (sStaticLab) sStaticLab.style.color = classColor;
+            if (Game.pMp >= (Game.pMaxMp || 15)) {
+                sLab.textContent = "준비완료!"; sLab.style.color = "#ffee00";
+            } else {
+                sLab.textContent = pct + "%"; sLab.style.color = classColor;
+            }
         }
     }
 
@@ -115,7 +171,7 @@ function updateHUD() {
         dashFill.style.background = dashPct >= 1 ? "#ffdd00" : "#aa9900";
         if (dashLab) {
             // SKILL과 동일하게 "READY!" 로 통일
-            dashLab.textContent = dashPct >= 1 ? "READY!" : Math.floor(dashPct * 100) + "%";
+            dashLab.textContent = dashPct >= 1 ? "준비완료!" : Math.floor(dashPct * 100) + "%";
             dashLab.style.color  = dashPct >= 1 ? "#ffee00" : "#aa9900";
         }
     }
@@ -133,9 +189,9 @@ function updateHUD() {
         stamFill.style.background = stamCol;
         if (stamLab) {
             if (stam >= stamMax) {
-                stamLab.textContent = "MAX"; stamLab.style.color = "greenyellow";
+                stamLab.textContent = "최대"; stamLab.style.color = "greenyellow";
             } else if (stam < 15) {
-                stamLab.textContent = "EMPTY!"; stamLab.style.color = "#ff4400";
+                stamLab.textContent = "부족!"; stamLab.style.color = "#ff4400";
             } else {
                 stamLab.textContent = Math.floor(stamPct * 100) + "%";
                 stamLab.style.color = stamCol;
@@ -160,23 +216,32 @@ function updateHUD() {
         bossBarWrap.style.display = "none";
     }
 
-    const regionNames = ["", "고블린 숲", "파괴된 고블린 숲", "스켈레톤의 영역", "파괴된 스켈레톤의 영역", "저주받은 성당", "부서진 저주받은 성당", "어둠의 성당", "마족 성채", "마왕성 입구", "마왕의 왕좌"];
+    const regionNames = ["", "고블린 숲", "불타는 고블린 숲", "스켈레톤의 영역", "불타는 스켈레톤의 영역", "저주받은 성당", "불타는 저주받은 성당", "어둠의 성당", "마족 성채", "마왕성 입구", "마왕의 왕좌"];
     let rName = regionNames[Math.min(Game.worldN, 10)];
     // 튜토리얼일 때는 STAGE 0으로 표기 — 1-1로 잘못 표시되는 혼란 방지
-    if (Game.isTutorial) {
+    if (Game.gs === "win") {
+        if (stageLabel) stageLabel.textContent = "★ 클리어 ★";
+    } else if (Game.isTutorial) {
         if (stageLabel) stageLabel.textContent = "스테이지 0  [ 튜토리얼 ]";
     } else {
         if (stageLabel) stageLabel.textContent = `[${rName}] 스테이지 ${Game.worldN}-${Game.levelN}${Game.levelN === 3 ? " [BOSS]" : ""}`;
     }
     
-    if(scoreLabel) scoreLabel.textContent = "점수: " + Game.score; 
+    if(scoreLabel) scoreLabel.textContent = "점수: " + Game.score;
     if(killLabel) killLabel.textContent = "처치: " + Game.kills;
 }
 
-// 💡 [패치] innerHTML을 사용하여 <br /> 태그가 정상적으로 줄바꿈되도록 수정
+// 오버레이(overlay) 제목·설명·버튼 텍스트를 갱신하고 표시
 function showOv(t, s1, s2, btn) {
     const overlay = document.getElementById("overlay");
     if (overlay) {
+        const contentBox = overlay.querySelector("div") || overlay.firstElementChild;
+        if (contentBox) {
+            contentBox.style.width = "650px"; 
+            contentBox.style.maxWidth = "90%";
+            contentBox.style.padding = "40px";
+        }
+        
         overlay.querySelector("h1").innerHTML = t;
         const subs = overlay.querySelectorAll(".sub"); 
         if (subs.length > 0) subs[0].innerHTML = s1; 
@@ -189,16 +254,16 @@ function showOv(t, s1, s2, btn) {
     }
 }
 
-// 💡 [패치] 로비 화면(메뉴) 복구 전용 함수 - innerHTML 사용으로 태그 깨짐 방지
+// 로비(메뉴) 화면으로 복귀 — BGM 전환 및 overlay 내용 초기화
 function restoreLobbyUI() {
     if (typeof stopBGM === 'function') stopBGM();
     // 로비 복귀 시 로비 BGM 재생
-    setTimeout(() => { if (typeof playBGM === 'function') playBGM('lobby'); }, 200);
+    setTimeout(() => { if (typeof playBGM === 'function') playBGM('lobby'); }, 300);
     const overlay = document.getElementById("overlay");
     if (overlay) {
         overlay.style.display = "flex";
         const h1 = overlay.querySelector("h1");
-        if (h1) h1.innerHTML = "SKULL YUUSHA";
+        if (h1) h1.innerHTML = "해골용사";
         const subs = overlay.querySelectorAll(".sub");
         if (subs.length > 0) subs[0].innerHTML = "저주에 의해 죽었지만 해골로 되살아난 용사. <br />마왕을 물리치고 저주를 풀기 위해 나아가야 한다.";
         if (subs.length > 1) subs[1].innerHTML = "[안내] 패링, 기본 공격 시 스킬 게이지가 충전됩니다.<br/> 게이지를 모아 강력한 기술을 사용하세요.";
@@ -208,76 +273,107 @@ function restoreLobbyUI() {
     }
 }
 
+// 새 게임 시작 — 스탯·스코어·월드 초기화 후 직업별 기본값 적용 및 첫 스테이지 진입
 function startGame() {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-    // 사망 BGM 등 이전 BGM을 완전히 끊고 새로 시작 — 재시작 시 dead BGM 잔류 방지
+    // 사망 BGM 등 이전 BGM을 완전히 끊음 — worldN/levelN 리셋 전에 play 호출 시 보스 BGM 재생되는 버그 방지
     if (typeof stopBGM === 'function') stopBGM();
-    playBGM('play');
-    
+
     Game.score = 0; Game.kills = 0; Game.worldN = 1; Game.levelN = 1; 
     Game.pMp = 0; Game.comboCount = 0; Game.pRangeBonus = 0; Game.pBaseDef = 0; Game.pShield = 0;
     Game.pMaxMp = 15;
 
+    // ── 공통 기본값 (직업별 설정보다 먼저 초기화해야 덮어쓰지 않음) ──
+    Game.pAtkSpdMul = 1.0; Game.pParryMp = 3;
+    Game.pSkillDmgMul = 1.0; Game.pExtraDmg = 0.0; Game.pHealOnHit = false;
+    Game.pLifestealChance = 0.05; Game.pCritDmg = 1.5;
+    Game.pReflectDmg = 0; Game.pLowHpDmg = 1.0; Game.pDashInv = 0;
+    Game.pProjSlow = 1.0; Game.pSkillWidth = 1.0; Game.pDmgReduction = 1.0; Game.pComboDur = 0; Game.pComboDmg = 0; Game.pRevive = 0;
+
     // ── 직업별 기본 스탯 ──
     if (Game.pClass === 0) {
         // 전사: 밸런스
-        Game.pMaxHp = 60 + (Game.permHpLvl * 10); Game.pBaseDmg = 35 + (Game.permAtkLvl * 2);
+        Game.pMaxHp = 60 + (Game.permHpLvl * 10); Game.pBaseDmg = 50 + (Game.permAtkLvl * 2);
         Game.pMoveSpdMul = 1.0; Game.pDashCDMul = 1.0; Game.pJmpMul = 1.0; Game.pBaseAtkSpd = 1.0;
+        Game.pRangeBonus = 15; Game.pCritChance = 0.20; Game.pBaseDef = 5;
     } else if (Game.pClass === 1) {
-        // 도적: 쌍단검, 매우 빠름, 낮은 데미지
-        Game.pMaxHp = 45 + (Game.permHpLvl * 10); Game.pBaseDmg = 20 + (Game.permAtkLvl * 2);
-        Game.pMoveSpdMul = 1.3; Game.pDashCDMul = 0.55; Game.pJmpMul = 1.2; Game.pBaseAtkSpd = 1.9;
+        // 도적: 쌍단검, 매우 빠름, 낮은 데미지, 높은 치명타
+        Game.pMaxHp = 50 + (Game.permHpLvl * 10); Game.pBaseDmg = 30 + (Game.permAtkLvl * 2);
+        Game.pMoveSpdMul = 1.3; Game.pDashCDMul = 0.55; Game.pJmpMul = 1.2; Game.pBaseAtkSpd = 2.0;
+        Game.pRangeBonus = 10; Game.pCritChance = 0.35; Game.pBaseDef = -5;
     } else if (Game.pClass === 2) {
         // 마법사: 원거리, 보통 공속
-        Game.pMaxHp = 40 + (Game.permHpLvl * 10); Game.pBaseDef = -5; Game.pBaseDmg = 35 + (Game.permAtkLvl * 2);
-        Game.pMoveSpdMul = 1.0; Game.pJmpMul = 1.0; Game.pBaseAtkSpd = 0.55;
+        Game.pMaxHp = 40 + (Game.permHpLvl * 10); Game.pBaseDef = -5; Game.pBaseDmg = 50 + (Game.permAtkLvl * 2);
+        Game.pMoveSpdMul = 1.0; Game.pJmpMul = 1.0; Game.pBaseAtkSpd = 0.55; Game.pCritChance = 0.18;
     } else if (Game.pClass === 3) {
-        // 버서커: 매우 높은 HP/ATK, 매우 느린 공속
+        // 버서커: 매우 높은 HP/ATK, 매우 느린 공속, 낮은 치명타 (대신 고정 대미지)
         Game.pMaxHp = 100 + (Game.permHpLvl * 10); Game.pBaseDmg = 80 + (Game.permAtkLvl * 2);
         Game.pMoveSpdMul = 0.85; Game.pDashCDMul = 1.3; Game.pJmpMul = 1.0; Game.pBaseAtkSpd = 0.45;
-        Game.pRangeBonus = 20; // 중거리 판정
+        Game.pRangeBonus = 30; Game.pCritChance = 0.12; Game.pBaseDef = 10;
     } else if (Game.pClass === 4) {
-        // 발키리(해적): 총, 매우 빠른 공속, 낮은 데미지, 8발 리로드
-        Game.pMaxHp = 50 + (Game.permHpLvl * 10); Game.pBaseDmg = 15 + (Game.permAtkLvl * 2);
+        // 발키리(해적): 총, 매우 빠른 공속, 낮은 데미지, 8발 리로드, 높은 치명타
+        Game.pMaxHp = 50 + (Game.permHpLvl * 10); Game.pBaseDmg = 25 + (Game.permAtkLvl * 2);
         Game.pMoveSpdMul = 1.1; Game.pDashCDMul = 0.9; Game.pJmpMul = 1.0; Game.pBaseAtkSpd = 2.5;
-        Game.pGunAmmo = 8; Game.pGunReload = 0; // 탄약 시스템
+        Game.pGunAmmo = 8; Game.pGunReload = 0; Game.pCritChance = 0.28; Game.pBaseDef = -5;
     } else if (Game.pClass === 5) {
-        // 방패병: 망치+방패, 중거리, 보통 공속, 패링 3배
-        Game.pMaxHp = 80 + (Game.permHpLvl * 10); Game.pBaseDmg = 30 + (Game.permAtkLvl * 2);
+        // 성기사: 망치+방패, 중거리, 보통 공속, 패링 3배, 낮은 치명타 (안정 탱커)
+        Game.pMaxHp = 80 + (Game.permHpLvl * 10); Game.pBaseDmg = 40 + (Game.permAtkLvl * 2);
         Game.pMoveSpdMul = 0.9; Game.pDashCDMul = 1.1; Game.pJmpMul = 0.95; Game.pBaseAtkSpd = 0.9;
-        Game.pRangeBonus = 15; // 중거리
+        Game.pRangeBonus = 30; Game.pCritChance = 0.10; Game.pBaseDef = 15;
+    } else if (Game.pClass === 6) {
+        // 혈귀: 피해 받을수록 강해지는 근거리 흡혈귀
+        Game.pMaxHp = 70 + (Game.permHpLvl * 10); Game.pBaseDmg = 60 + (Game.permAtkLvl * 2);
+        Game.pMoveSpdMul = 1.05; Game.pDashCDMul = 0.9; Game.pJmpMul = 1.0; Game.pBaseAtkSpd = 1.1;
+        Game.pRangeBonus = 10; Game.pCritChance = 0.25; Game.pBaseDef = -5;
+        Game.pLifestealChance = 0.40;
+    } else if (Game.pClass === 7) {
+        // 조커: 원거리 카드 투척 — 빠른 이동, 높은 치명타
+        Game.pMaxHp = 55 + (Game.permHpLvl * 10); Game.pBaseDmg = 42 + (Game.permAtkLvl * 2);
+        Game.pMoveSpdMul = 1.15; Game.pDashCDMul = 0.85; Game.pJmpMul = 1.08; Game.pBaseAtkSpd = 1.1;
+        Game.pRangeBonus = 45; Game.pCritChance = 0.45; Game.pCritDmg = 5.0;
+        Game.pBaseDef = 0;
     }
+
+    // 사거리 역비례 보정: 근거리=높음, 원거리=낮음
+    // [0검사, 1도적, 2마법사, 3버서커, 4발키리, 5성기사, 6혈귀, 7조커]
+    const CLASS_DMG_MUL = [1.5, 1.3, 0.7, 1.5, 0.7, 1.2, 1.0, 1.0];
+    Game.pBaseDmgMul = CLASS_DMG_MUL[Game.pClass] || 1.0;
+    // 영구 강화: 초기화 이후에 적용 (덮어씌워지지 않도록)
+    Game.pMaxHp       += (Game.permHpLvl     || 0) * 10;
+    Game.pBaseDmg     += (Game.permAtkLvl    || 0) * 2;
+    Game.pCritChance  += (Game.permCritLvl   || 0) * 0.02;
+    Game.pMoveSpdMul  += (Game.permSpdLvl    || 0) * 0.04;
+    Game.pAtkSpdMul   += (Game.permAtkSpdLvl || 0) * 0.05;
+    Game.pBaseDef     += (Game.permDefLvl    || 0) * 2;
+    Game.pDmgReduction = 1.0;
+    Game.pDashCDMul    = Math.max(0.5, Game.pDashCDMul - (Game.permDashLvl || 0) * 0.05);
+    Game.pCritDmg     += (Game.permCritDmgLvl || 0) * 0.10;
     
-    Game.pBaseDmgMul = 1.0; Game.pAtkSpdMul = 1.0; Game.pParryMp = 3; 
-    Game.pSkillDmgMul = 1.0; Game.pExtraDmg = 0.0; Game.pHealOnHit = false;
-    Game.pLifestealChance = 0.05; Game.pCritChance = 0.20; Game.pCritDmg = 1.5;
-    // 영구 강화: 클래스 기본값에 더함 (덮어쓰기 아닌 누적)
-    Game.pMaxHp  += (Game.permHpLvl  || 0) * 10;
-    Game.pBaseDmg += (Game.permAtkLvl || 0) * 2;
-    Game.pCritChance += (Game.permCritLvl || 0) * 0.02;
-    Game.pMoveSpdMul += (Game.permSpdLvl  || 0) * 0.04;
-    Game.pJmpMul     += (Game.permJmpLvl  || 0) * 0.05;
-    Game.pDashCDMul   = Math.max(0.5, Game.pDashCDMul - (Game.permDashLvl || 0) * 0.05);
-    Game.pCritDmg    += (Game.permCritDmgLvl || 0) * 0.15;
-    // 최대 마나 고정 15
-    Game.pReflectDmg = 0; Game.pLowHpDmg = 1.0; Game.pDashInv = 0;
-    Game.pProjSlow = 1.0; Game.pSkillWidth = 1.0; Game.pDmgReduction = 1.0; Game.pComboDur = 0; Game.pComboDmg = 0; Game.pRevive = 0;
-    
-    Game.pFinalDmgMul = 1.0; Game.pMultiplierItems = 0; Game.rerollCoins = 0; 
+    Game.pFinalDmgMul = 1.0; Game.pMultiplierItems = 0; Game.rerollCoins = 0;
     Game.pRegenFrames = 0; Game.regenT = 0; Game.pHealOnClear = 0;
     Game.pParryBonus = 0; Game.pCursedPendant = false; Game.curseT = 0;
-    Game.pDropRate = 0.35; Game.pBloodFestival = false; Game.obtainedItems = []; 
-    
+    Game.pDropRate = 0.35; Game.pBloodFestival = false; Game.obtainedItems = [];
+    Game.pDoubleSkillChance = 0; Game._doubleCast = false; Game._showItemList = false;
+    Game._quartzMul = 1; Game._reviveHpMul = 0.5; Game._pendingInvT = 0;
+    if (typeof _appliedSynergies !== 'undefined') _appliedSynergies.clear();
+    Game.summons = []; Game.soulStacks = 0;
+    Game._bloodFuryStacks = 0; Game._bloodFuryTimer = 0;
+    Game.crewMinions = [];
+    Game._berserkSlam = false; Game._berserkSlamReady = false; Game._berserkSlamDmg = 0;
+    Game._paladinSkill = false; Game._paladinHammerT = 0; Game._paladinCrossT = 0;
+    Game._reloadTextShown = false;
+    Game.pGunAmmo = 8; Game.pGunReload = 0;
+    Game._berserkRageStacks = 0; Game._berserkRageT = 0;
+    Game._bloodSkillCooldown = 0;
+    Game._berserkSkillCooldown = 0;
+    if (typeof resetNPCSeen === 'function') resetNPCSeen();
+
     Game.player = null; 
     Game.isPaused = false;
     Game.traps = [];
     Game.bloodDecals = [];
-    Game.justDodgeActive = false;
-    Game.justDodgeT = 0;
-    Game.justDodgeDmgBonus = 1.0;
     // 런 결과 기록 초기화
     Game.runStats = { startTime: Date.now(), totalDmgDealt: 0, totalDmgTaken: 0, bossesKilled: 0, maxCombo: 0, itemsObtained: 0 };
-    _appliedSynergies.clear(); 
 
     const bbw = document.getElementById("bossBarWrap");
     if(bbw) bbw.style.display = "none";
@@ -303,28 +399,122 @@ function startGame() {
 
 const startBtn = document.getElementById("startBtn");
 if(startBtn) {
+    startBtn.addEventListener("keydown", e => { if (!Game._menuReady) e.preventDefault(); });
     startBtn.addEventListener("click", () => {
+        if (!Game._menuReady) return;
         const overlay = document.getElementById("overlay");
         if(overlay) overlay.style.display = "none";
         if (typeof startCutscene === 'function') startCutscene("opening");
-        else Game.gs = "class_select";
+        else { _diffReset(); Game.gs = "difficulty_select"; }
     });
 }
 
-let lastTime = 0; const FPS = 60; const interval = 1000 / FPS; 
+let lastTime = 0; const FPS = 60; const interval = 1000 / FPS;
+
+// ── 난이도 선택 씬 ──────────────────────────────────────────
+const DIFF_NAMES  = ["쉬움", "보통", "어려움", "지옥"];
+const DIFF_COLORS = ["#44ff88", "#ffee44", "#ff8844", "#ff2222"];
+const DIFF_DESCS  = [
+    "초보자를 위한 난이도. 적의 체력과 공격력이 절반으로 줄어 전투에 익숙해지기 좋습니다.",
+    "모험을 처음 떠나는 사람이 즐기기 좋은 난이도. 긴장감 있는 전투가 기다리고 있습니다.",
+    "하드코어를 즐기는 사람에게 좋은 난이도. 적들이 훨씬 강인하고 공격적으로 변합니다.",
+    "그 모든 것이 죽음을 초래합니다. 모든 적이 엘리트로 등장하며, 감당하기 어려운 힘으로 덤벼옵니다. 조심하십시오, 용사님."
+];
+
+// 난이도 선택 씬 상태
+let _diffSel = 1;       // 현재 커서
+let _diffT   = 0;       // 씬 진입 후 프레임 카운터 (타이핑 효과용)
+let _diffUpOld = false, _diffDnOld = false, _diffOkOld = false;
+function _diffReset() { _diffT = 0; _diffSel = 1; _diffUpOld = false; _diffDnOld = false; _diffOkOld = false; }
+const DIFF_TITLE = "난이도를 설정해주세요.";
+const DIFF_TYPING_SPD = 3; // 몇 프레임마다 글자 1개
+
+function tickDifficultySelect(frameNow) {
+    _diffT++;
+
+    const upNow = dn("ArrowUp");
+    const dnNow = dn("ArrowDown");
+    const okNow = dn("Space") || dn("Enter");
+
+    if (upNow && !_diffUpOld) { _diffSel = (_diffSel + 3) % 4; if(typeof playSfx==='function') playSfx('item'); }
+    if (dnNow && !_diffDnOld) { _diffSel = (_diffSel + 1) % 4; if(typeof playSfx==='function') playSfx('item'); }
+    if (okNow && !_diffOkOld && _diffT > DIFF_TITLE.length * DIFF_TYPING_SPD) {
+        Game.difficulty = _diffSel;
+        if(typeof playSfx==='function') playSfx('item');
+        Game.gs = "class_select";
+    }
+
+    _diffUpOld = upNow; _diffDnOld = dnNow; _diffOkOld = okNow;
+
+    // ── 렌더 ──
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, CW, CH);
+
+    // 타이핑 효과: 프레임에 따라 글자 수 늘림
+    const charsVisible = Math.min(DIFF_TITLE.length, Math.floor(_diffT / DIFF_TYPING_SPD));
+    const titleStr = DIFF_TITLE.slice(0, charsVisible);
+
+    ctx.font = "18px SkullFont, NeoDunggeunmo";
+    ctx.fillStyle = "#cccccc";
+    ctx.textAlign = "center";
+    ctx.fillText(titleStr, CW / 2, 90);
+
+    // 타이핑 완료 후 메뉴 표시
+    if (charsVisible >= DIFF_TITLE.length) {
+        const startY = 138;
+        const lineH  = 38;
+        for (let i = 0; i < 4; i++) {
+            const isSelected = (i === _diffSel);
+            const y = startY + i * lineH;
+
+            if (isSelected) {
+                ctx.fillStyle = "rgba(255,255,255,0.07)";
+                ctx.fillRect(CW/2 - 110, y - 20, 220, 28);
+            }
+
+            // 커서 ▶
+            ctx.fillStyle = isSelected ? DIFF_COLORS[i] : "#555555";
+            ctx.textAlign = "right";
+            ctx.font = isSelected ? "bold 18px SkullFont, NeoDunggeunmo" : "16px SkullFont, NeoDunggeunmo";
+            ctx.fillText(isSelected ? "▶" : "　", CW/2 - 30, y);
+
+            // 난이도 이름
+            ctx.fillStyle = isSelected ? DIFF_COLORS[i] : "#666666";
+            ctx.textAlign = "left";
+            ctx.fillText(DIFF_NAMES[i], CW/2 - 22, y);
+        }
+
+        // 선택된 항목 설명
+        ctx.font = "13px SkullFont, NeoDunggeunmo";
+        ctx.textAlign = "center";
+        ctx.fillStyle = _diffSel === 3 ? "#ff4444" : "#aaaaaa";
+        ctx.fillText(DIFF_DESCS[_diffSel], CW/2, startY + 4 * lineH + 6);
+
+        // 조작 안내
+        ctx.fillStyle = "#555555";
+        ctx.font = "11px SkullFont, NeoDunggeunmo";
+        ctx.fillText("↑↓ 방향키로 선택 / SPACE·Enter 확인", CW/2, CH - 16);
+    }
+
+    ctx.textAlign = "left";
+}
+
+const VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7];
 
 function updateClassSelect() {
-    // ← → 로 6직업 순환 + 슬라이드 애니메이션 트리거
+    // ← → 로 직업 순환 + 슬라이드 애니메이션 트리거
     if (dn("ArrowRight") && !K.rDirOld) {
-        Game._classSlideDir = 1;   // 오른쪽으로 슬라이드
+        Game._classSlideDir = 1;
         Game._classSlideT   = 0;
-        Game.pClass = (Game.pClass + 1) % 6;
+        const idx = VALID_CLASSES.indexOf(Game.pClass);
+        Game.pClass = VALID_CLASSES[(idx + 1) % VALID_CLASSES.length];
         playSfx('item');
     }
     if (dn("ArrowLeft") && !K.lOld) {
-        Game._classSlideDir = -1;  // 왼쪽으로 슬라이드
+        Game._classSlideDir = -1;
         Game._classSlideT   = 0;
-        Game.pClass = (Game.pClass + 5) % 6;
+        const idx = VALID_CLASSES.indexOf(Game.pClass);
+        Game.pClass = VALID_CLASSES[(idx + VALID_CLASSES.length - 1) % VALID_CLASSES.length];
         playSfx('item');
     }
     // 슬라이드 타이머 진행
@@ -332,8 +522,17 @@ function updateClassSelect() {
         Game._classSlideT = Math.min(1, (Game._classSlideT || 0) + 0.1);
     }
 
-    if (dn("Space") && !K.spcOld) { startGame(); }
-    if (dn("KeyS") && !K.sOld) { Game._prevShopGs = Game.gs; Game.gs = "shop"; playSfx('item'); }
+    if (dn("Space") && !K.spcOld) {
+        const isUnlocked = (Game.unlockedClasses || Array(19).fill(0).map((v,i)=>i===0?1:0))[Game.pClass] === 1;
+        if (!isUnlocked) {
+            Game._classLockFlash = 60;
+        } else {
+            startGame();
+        }
+    }
+    const _noEscGs = ["boss_loot", "event_room", "upgrade", "route_select"];
+    if (dn("Escape") && !K.escOld && !_noEscGs.includes(Game.gs)) { Game.gs = "menu"; if (typeof restoreLobbyUI === 'function') restoreLobbyUI(); }
+    if (dn("KeyS") && !K.sOld && !_noEscGs.includes(Game.gs)) { Game._prevShopGs = Game.gs; Game.gs = "shop"; playSfx('item'); }
 }
 
 // ==========================================
@@ -341,67 +540,132 @@ function updateClassSelect() {
 // ==========================================
 
 function tickRouteSelect(frameNow) {
-    // 배경
-    ctx.fillStyle = "#08040f";
-    ctx.fillRect(0, 0, CW, CH);
-    const grd = ctx.createRadialGradient(CW/2, CH/2, 0, CW/2, CH/2, CW*0.6);
-    grd.addColorStop(0, "rgba(60,0,80,0.4)"); grd.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grd; ctx.fillRect(0, 0, CW, CH);
+    const t = Date.now();
+    const pulse = (Math.sin(t * 0.003) + 1) / 2;
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffcc00"; ctx.font = "bold 22px NeoDunggeunmo";
-    ctx.fillText(`WORLD ${Game.worldN} 진입 전 - 루트 선택`, CW/2, 55);
-    ctx.fillStyle = "#aaa"; ctx.font = "13px NeoDunggeunmo";
-    ctx.fillText("앞으로 나아갈 길을 선택하라.", CW/2, 78);
+    // ── 배경 ──
+    ctx.fillStyle = "#04010a"; ctx.fillRect(0, 0, CW, CH);
+    const bgGrd = ctx.createRadialGradient(CW/2, CH*0.45, 10, CW/2, CH/2, CW*0.7);
+    bgGrd.addColorStop(0, "rgba(44,0,58,0.55)"); bgGrd.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bgGrd; ctx.fillRect(0, 0, CW, CH);
 
+    // 부유 파티클
+    ctx.save();
+    for (let i = 0; i < 18; i++) {
+        const px = ((i * 91 + t * 0.007 * (i%3===0?1:-0.6)) % CW + CW) % CW;
+        const py = ((i * 57 + t * 0.005 * (i%2===0?0.75:-0.4)) % CH + CH) % CH;
+        const pa = 0.05 + Math.sin(t * 0.0022 + i * 1.4) * 0.03;
+        ctx.fillStyle = `rgba(155,75,255,${pa})`;
+        ctx.beginPath(); ctx.arc(px, py, 1 + (i%4)*0.5, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+
+    // ── 헤더 ──
+    ctx.save(); ctx.textAlign = "center";
+    ctx.font = "bold 19px SkullFont, NeoDunggeunmo";
+    ctx.shadowBlur = 14+pulse*8; ctx.shadowColor = "#9933ff";
+    ctx.fillStyle = "#ddaaff";
+    ctx.fillText(`WORLD ${Game.worldN}  ―  분기점`, CW/2, 26);
+    ctx.shadowBlur = 0;
+    ctx.font = "13px SkullFont, NeoDunggeunmo";
+    ctx.fillStyle = "#553366";
+    ctx.fillText("앞으로 나아갈 길을 선택하라", CW/2, 42);
+    ctx.restore();
+
+    // 구분선
+    const sg = ctx.createLinearGradient(0,0,CW,0);
+    sg.addColorStop(0,"transparent"); sg.addColorStop(0.15,"#551188"); sg.addColorStop(0.5,"#aa55ff"); sg.addColorStop(0.85,"#551188"); sg.addColorStop(1,"transparent");
+    ctx.strokeStyle = sg; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0,47); ctx.lineTo(CW,47); ctx.stroke();
+
+    // ── 옵션 카드 ──
     const opts = [
-        { key: "1", label: "치유의 은혜", desc: "HP 50% 즉시 회복\n체력이 위험할 때 선택", col: "#ff4444" },
-        { key: "2", label: "마나의 샘", desc: "마나 100% 즉시 회복\n필살기 연계 시 선택", col: "#44aaff" },
-        { key: "3", label: "유물의 현현", desc: "패시브 유물 하나 더 선택\n강한 빌드를 원할 때", col: "#ffcc44" },
+        { key:"1", label:"치유의 은혜", lines:["HP 50% 즉시 회복","체력이 위험할 때"], rgb:[255,80,80], icon:"♥", dim:"rgba(52,0,0," },
+        { key:"2", label:"다크쿼츠 광맥",   lines:["다크쿼츠 +8 획득","영구 강화에 사용"], rgb:[140,80,255], icon:"✦", dim:"rgba(10,0,50," },
+        { key:"3", label:"유물의 현현", lines:["패시브 유물 하나 선택","강한 빌드를 원할 때"], rgb:[255,200,50], icon:"◆", dim:"rgba(40,26,0," },
     ];
+    const bw = 172, bh = 168, gap = 12;
+    const totalW = opts.length*bw + (opts.length-1)*gap;
+    const sx = (CW-totalW)/2, by = 55;
+
     opts.forEach((opt, i) => {
-        const bx = 70 + i * 170, by = 110, bw = 155, bh = 150;
-        const hover = (dn("Digit" + opt.key) || dn("Numpad" + opt.key));
-        ctx.fillStyle = hover ? opt.col.replace(")", ",0.25)").replace("rgb","rgba") : "rgba(20,10,30,0.7)";
-        ctx.fillRect(bx, by, bw, bh);
-        ctx.strokeStyle = hover ? opt.col : "rgba(100,60,140,0.6)";
-        ctx.lineWidth = hover ? 2 : 1;
-        ctx.strokeRect(bx, by, bw, bh);
-        ctx.fillStyle = opt.col; ctx.font = "bold 16px NeoDunggeunmo";
-        ctx.fillText(`[${opt.key}] ${opt.label}`, bx + bw/2, by + 30);
-        ctx.fillStyle = "#ccc"; ctx.font = "12px NeoDunggeunmo";
-        const lines = opt.desc.split("\n");
-        lines.forEach((l, j) => ctx.fillText(l, bx + bw/2, by + 60 + j * 20));
+        const bx = sx + i*(bw+gap);
+        const [r,g2,b2] = opt.rgb;
+        const col = `rgb(${r},${g2},${b2})`;
+        const hover = dn("Digit"+opt.key) || dn("Numpad"+opt.key);
+        const hp = hover ? pulse : 0;
+
+        // 카드 bg 그라디언트
+        const cg = ctx.createLinearGradient(bx, by, bx, by+bh);
+        cg.addColorStop(0, hover ? opt.dim+"0.42)" : opt.dim+"0.84)");
+        cg.addColorStop(1, hover ? opt.dim+"0.22)" : opt.dim+"0.95)");
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 9); ctx.fill();
+
+        // 상단 컬러 shimmer
+        const tg = ctx.createLinearGradient(bx, by, bx+bw, by);
+        tg.addColorStop(0,`rgba(${r},${g2},${b2},0)`);
+        tg.addColorStop(0.5,`rgba(${r},${g2},${b2},${hover?0.22:0.10})`);
+        tg.addColorStop(1,`rgba(${r},${g2},${b2},0)`);
+        ctx.fillStyle = tg;
+        ctx.beginPath(); ctx.roundRect(bx, by, bw, bh*0.30, [9,9,0,0]); ctx.fill();
+
+        // 테두리 글로우
+        ctx.shadowBlur = hover ? 10+hp*6 : 3;
+        ctx.shadowColor = col;
+        ctx.strokeStyle = hover ? col : `rgba(${r},${g2},${b2},0.5)`;
+        ctx.lineWidth = hover ? 2 : 1.2;
+        ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 9); ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.textAlign = "center";
+        // 아이콘
+        ctx.font = hover ? "bold 28px SkullFont" : "bold 24px SkullFont";
+        ctx.shadowBlur = hover ? 12 : 4; ctx.shadowColor = col;
+        ctx.fillStyle = col;
+        ctx.fillText(opt.icon, bx+bw/2, by+46);
+        ctx.shadowBlur = 0;
+
+        // 키 + 라벨
+        ctx.font = "bold 15px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = hover ? "#ffffff" : col;
+        ctx.fillText(`[${opt.key}]  ${opt.label}`, bx+bw/2, by+72);
+
+        // 내부 구분선
+        ctx.strokeStyle = `rgba(${r},${g2},${b2},0.22)`; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(bx+16, by+82); ctx.lineTo(bx+bw-16, by+82); ctx.stroke();
+
+        // 설명
+        ctx.font = "13px SkullFont, NeoDunggeunmo";
+        opt.lines.forEach((l, j) => {
+            ctx.fillStyle = hover ? "#ffffff" : "#999999";
+            ctx.fillText(l, bx+bw/2, by+100+j*20);
+        });
     });
+
     ctx.textAlign = "left";
 
-    if (dn("Digit1", "Numpad1") && !K.u1Old) {
-        // 치유: HP 50% 회복
+    // 입력
+    if (dn("Digit1","Numpad1") && !K.u1Old) {
         if (Game.player) Game.player.hp = Math.min(Game.pMaxHp, Game.player.hp + Math.floor(Game.pMaxHp * 0.5));
-        addText(320, 160, "HP +50% 회복!", "#ff4444", 80, 18, 0, 0.5);
-        playSfx('item');
-        Game.transState = 2; Game.transT = 255;
-        Game.gs = "play"; playBGM('play');
+        addText(320, 160, "HP +50% 회복!", "#ff4444", 80, 18, 0, 0.5); playSfx('item');
+        Game.transState = 2; Game.transT = 255; Game.gs = "play"; playBGM('play');
         if (typeof genStage === 'function') genStage(Game.worldN, Game.levelN);
-    } else if (dn("Digit2", "Numpad2") && !K.u2Old) {
-        // 마나 100% 회복
-        Game.pMp = Game.pMaxMp;
-        addText(320, 160, "MP 100% 회복!", "#44aaff", 80, 18, 0, 0.5);
-        playSfx('item');
-        Game.transState = 2; Game.transT = 255;
-        Game.gs = "play"; playBGM('play');
+    } else if (dn("Digit2","Numpad2") && !K.u2Old) {
+        Game.darkQuartz += 8;
+        if (typeof saveProgress === 'function') saveProgress();
+        addText(320, 160, "다크쿼츠 +8!", "#aa66ff", 80, 18, 0, 0.5); playSfx('item');
+        Game.transState = 2; Game.transT = 255; Game.gs = "play"; playBGM('play');
         if (typeof genStage === 'function') genStage(Game.worldN, Game.levelN);
-    } else if (dn("Digit3", "Numpad3") && !K.u3Old) {
-        // 유물의 현현: 미리보기+획득/지나치기 모드로 진입
+    } else if (dn("Digit3","Numpad3") && !K.u3Old) {
+        playSfx('menu_select');
         if (typeof generateUpgradeOptions === 'function') generateUpgradeOptions();
-        Game._upgradeFromRoute = true;
-        Game._upgradePreview = null;
-        Game._upgradeRouteDelay = 10; // 진입 후 10프레임간 키 무시
-        Game.gs = "upgrade";
-        playBGM('upgrade');
+        Game._upgradeFromRoute = true; Game._upgradePreview = null; Game._upgradeRouteDelay = 10;
+        Game.gs = "upgrade"; playBGM('upgrade');
     }
 }
 
+// 메뉴 상태 매 프레임 처리 — 배경 렌더 + Space/Enter 입력으로 게임 시작
 function tickMenu() {
     const bgGrd = ctx.createRadialGradient(CW/2, CH/2, 0, CW/2, CH/2, CW);
     bgGrd.addColorStop(0, "#2a0b4e");
@@ -411,25 +675,32 @@ function tickMenu() {
     ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
     for (let x = 0; x < CW; x += TILE) ctx.fillRect(x, CH - TILE, TILE, TILE);
 
-    if (dn("Space") && !K.spcOld) {
+    if (!Game._menuReady) return; // 페이드인 미완료 시 모든 입력 차단
+    if ((dn("Space") && !K.spcOld) || (dn("Enter") && !K.entOld)) {
+        // 저장/불러오기 패널이 열려 있으면 게임 시작 차단
+        const panel = document.getElementById('saveLoadPanel');
+        if (panel && panel.style.display !== 'none') return;
         const overlay = document.getElementById("overlay");
         if (overlay) overlay.style.display = "none";
         playSfx('item');
         if (typeof startCutscene === 'function') startCutscene("opening");
-        else Game.gs = "class_select";
+        else { _diffReset(); Game.gs = "difficulty_select"; }
     }
 }
 
+// 직업 선택 화면 업데이트 + 렌더
 function tickClassSelect(frameNow) {
     updateClassSelect();
     if (typeof renderClassSelect === 'function') renderClassSelect(frameNow);
 }
 
+// 영구 상점 업데이트 + 렌더
 function tickShop() {
     updateShop();
     renderShop();
 }
 
+// 업그레이드 선택 화면 — R 키로 리롤, 나머지는 renderUpgrade에서 처리
 function tickUpgrade() {
     if (dn("KeyR") && !K.rOld && Game.rerollCoins > 0) {
         Game.rerollCoins--;
@@ -439,6 +710,7 @@ function tickUpgrade() {
     renderUpgrade();
 }
 
+// 플레이·사망·게임오버·클리어 상태를 매 프레임 처리하는 메인 플레이 틱
 function tickPlay() {
     // 사망 → 게임오버 전환
     if (Game.gs === "dead" && Game.deadTimer <= 0) {
@@ -447,12 +719,30 @@ function tickPlay() {
             Game.highScore = Game.score;
             localStorage.setItem("skull_highscore", Game.highScore);
         }
+    }
+
+    // 게임오버 캔버스 표시 (YOU DIED + 통계)
+    if (Game.gs === "gameover") {
+        ctx.fillStyle = "rgba(0,0,0,0.92)"; ctx.fillRect(0, 0, CW, CH);
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "bold 52px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = "#cc0000";
+        ctx.shadowBlur = 28; ctx.shadowColor = "#ff0000";
+        ctx.fillText("당신은 죽었습니다", CW / 2, CH / 2 - 30);
+        ctx.shadowBlur = 0;
         const rs = Game.runStats;
         const runSec = rs ? Math.floor((Date.now() - rs.startTime) / 1000) : 0;
         const runMin = Math.floor(runSec / 60), runS = runSec % 60;
-        const timeStr = `${runMin}분 ${runS}초`;
-        const reachStr = `W${Game.worldN}-${Game.levelN} 도달  최대 ${rs ? rs.maxCombo : 0} 콤보`;
-        showOv("YOU DIED", `스코어: ${Game.score}  (최고: ${Game.highScore})`, `${reachStr}  플레이 ${timeStr}`, "[Space]키로 로비로 복귀");
+        ctx.font = "14px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = "#aaaaaa";
+        ctx.fillText(`스코어: ${Game.score}   최고: ${Game.highScore}`, CW / 2, CH / 2 + 14);
+        ctx.fillText(`스테이지 ${Game.worldN}-${Game.levelN} 도달   최대 ${rs ? rs.maxCombo : 0} 콤보   ${runMin}분 ${runS}초`, CW / 2, CH / 2 + 34);
+        ctx.font = "bold 14px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = (Math.floor(Date.now() / 500) % 2 === 0) ? "#ffffff" : "#555";
+        ctx.fillText("[ SPACE ] 로비로 복귀", CW / 2, CH / 2 + 64);
+        ctx.textAlign = "left";
+        ctx.restore();
     }
 
     // 게임오버/클리어 → 로비 복귀
@@ -477,28 +767,46 @@ function tickPlay() {
         Game.transState   = 0;
         Game.invT         = 0;
         Game.slowMoT      = 0;
-        Game.justDodgeActive = false;
-        Game.justDodgeT   = 0;
         const bbw = document.getElementById("bossBarWrap");
         if (bbw) bbw.style.display = "none";
         Game.gs = "menu";
         restoreLobbyUI();
         return;
     }
-    if (Game.gs === "win" && dn("Space") && !K.spcOld) {
-        stopBGM();
-        if (typeof startCutscene === 'function') startCutscene("ending");
-        else { Game.gs = "menu"; restoreLobbyUI(); }
-        return;
+    if (Game.gs === "win") {
+        ctx.fillStyle = "rgba(0,0,0,0.88)"; ctx.fillRect(0, 0, CW, CH);
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "bold 36px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = "#ffcc00";
+        ctx.shadowBlur = 22; ctx.shadowColor = "#ffcc00";
+        ctx.fillText("해골용사", CW / 2, CH / 2 - 30);
+        ctx.shadowBlur = 0;
+        ctx.font = "16px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = "#cccccc";
+        ctx.fillText("모든 악몽을 정복했습니다.", CW / 2, CH / 2 + 2);
+        ctx.fillText(`스코어: ${Game.score}   최고기록: ${Game.highScore}`, CW / 2, CH / 2 + 24);
+        ctx.font = "bold 14px SkullFont, NeoDunggeunmo";
+        ctx.fillStyle = (Math.floor(Date.now() / 500) % 2 === 0) ? "#ffcc00" : "#886600";
+        ctx.fillText("[ SPACE ] 엔딩 보기", CW / 2, CH / 2 + 56);
+        ctx.textAlign = "left";
+        ctx.restore();
+        if (dn("Space") && !K.spcOld) {
+            stopBGM();
+            if (typeof startCutscene === 'function') startCutscene("ending");
+            else { Game.gs = "menu"; restoreLobbyUI(); }
+            return;
+        }
     }
 
-    // 로직 업데이트
-    if ((Game.gs === "play" || Game.gs === "dead" || Game.gs === "boss_intro") && !Game.isPaused) {
+    // 로직 업데이트 — Tab 오버레이 열려있으면 물리/AI도 멈춤
+    if ((Game.gs === "play" || Game.gs === "dead" || Game.gs === "boss_intro") && !Game.isPaused && !Game._showItemList) {
         if (typeof update === 'function') update();
     }
 
-    // 렌더 — cutscene/opening 계열은 switch에서 별도 처리하므로 여기선 skip
+    // 렌더 — cutscene/opening/win 계열은 별도 처리하므로 여기선 skip
     if (typeof render === 'function'
+        && Game.gs !== "win"
         && Game.gs !== "cutscene"
         && Game.gs !== "opening_anim"
         && Game.gs !== "opening_end"
@@ -508,23 +816,37 @@ function tickPlay() {
 
     // 일시정지 오버레이
     if (Game.isPaused) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CW, CH);
-        ctx.fillStyle = "#fff"; ctx.font = "bold 40px NeoDunggeunmo"; ctx.textAlign = "center";
-        ctx.fillText("PAUSED", CW/2, CH/2);
-        ctx.font = "16px NeoDunggeunmo"; ctx.fillStyle = "#aaa";
-        ctx.fillText("P: 재개 / R: 재시작 / ESC: 로비 복귀", CW/2, CH/2 + 40);
-        ctx.textAlign = "left";
-    }
-}
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; 
+    ctx.fillRect(0, 0, CW, CH);
+    
+    ctx.fillStyle = "#fff"; 
+    ctx.font = "bold 40px SkullFont"; // 폰트 이름 변경
+    ctx.textAlign = "center";
+    ctx.fillText("일시정지", CW/2, CH/2);
+    
+    ctx.font = "16px SkullFont"; // 폰트 이름 변경
+    ctx.fillStyle = "#aaa";
+    ctx.fillText("P: 재개 / R: 재시작 / ESC: 로비 복귀", CW/2, CH/2 + 40);
+    ctx.textAlign = "left";
+}}
 
+// M 키 음소거 토글 및 화면 좌상단 음소거 상태 표시
 function tickMuteOverlay() {
     if (dn("KeyM") && !K.mOld) Game.isMuted = !Game.isMuted;
+    
+    // 적 수 텍스트(y=20) 아래에 배치
     if (Game.isMuted) {
-        ctx.fillStyle = "#ff0000"; ctx.font = "bold 16px NeoDunggeunmo"; ctx.textAlign = "right";
-        ctx.fillText("음소거", CW - 20, 30); ctx.textAlign = "left";
+        ctx.fillStyle = "#ff4444";
+        ctx.font = "bold 11px SkullFont";
+        ctx.textAlign = "left";
+        ctx.fillText("[ 음소거 ]", 10, 36);
+        ctx.textAlign = "left";
     } else {
-        ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "12px NeoDunggeunmo"; ctx.textAlign = "right";
-        ctx.fillText("M: 음소거", CW - 20, 30); ctx.textAlign = "left";
+        ctx.fillStyle = "rgba(200,200,200,0.45)";
+        ctx.font = "11px SkullFont";
+        ctx.textAlign = "left";
+        ctx.fillText("M: 음소거", 10, 36);
+        ctx.textAlign = "left";
     }
 }
 
@@ -541,23 +863,22 @@ const _TUTORIAL_PAGES = [
             "X 키     :  점프  (공중에서 한 번 더 점프 가능)",
             "Z 키     :  대시  (짧은 무적 회피, 스태미나 소모)",
             "C 키     :  기본 공격  (3연타 콤보)",
-            "↓ + C   :  강하 공격  (공중에서 아래방향+C, 체간 대량 감소)",
+            "↓ + C   :  강하 공격  (공중에서 아래방향+C, 강력한 타격)",
             "Shift 키 :  필살기  (MP 게이지 100% 시 발동)",
             "V 키     :  가드 / 패링",
         ]
     },
     {
-        title: "[ 전투 심화: 콤보 & 체간 ]",
+        title: "[ 전투 심화: 콤보 & 패링 ]",
         lines: [
             "■ 콤보 시스템",
             "  C를 연속 입력하면 콤보 카운터 상승 → 데미지 보너스 누적.",
             "  피격되면 콤보가 초기화됩니다.",
             "",
-            "■ 체간(Poise) & 기절(Stun)",
-            "  모든 적은 HP 바 아래에 파란 체간 게이지를 가집니다.",
-            "  체간이 0 → 기절(STUNNED) 상태 진입.",
-            "  기절 중 C를 누르면 FATAL STRIKE 처형 (무적 + 고데미지)!",
-            "  패링(V) 성공 시 체간 -50, 강하(↓+C) 적중 시 체간 -30.",
+            "■ 패링 & 기절(Stun)",
+            "  패링(V) 성공 시 일반 몹: HP 30% 확정 피해 + 기절.",
+            "  기절 중엔 적이 멈추고 피해가 자유롭게 들어감.",
+            "  보스는 패링으로 체간 감소 → 그로기 → C키로 확정 피해!",
         ]
     },
     {
@@ -570,9 +891,7 @@ const _TUTORIAL_PAGES = [
             "■ 가드 브레이크",
             "  스태미나 0인 채로 피격 → 가드 브레이크 (치명 넉백).",
             "  스태미나 게이지를 항상 확인하세요.",
-            "",
-            "■ Witch Time (저스트 회피)",
-            "  대시 직후 피격되면 슬로모션 발동 → 다음 공격 2배 데미지!",
+            
         ]
     },
 ];
@@ -631,14 +950,16 @@ function _renderTutorialIntro(frameNow) {
     const spNow   = isLastPage ? dn("Space") : dn("Space", "ArrowRight");
     const backNow = dn("ArrowLeft");
     if (spNow && !Game._tutPageOld.sp) {
+        if (typeof playSfx === 'function') playSfx('menu_select');
         if (!isLastPage) { Game.tutorialIntroPage++; }
         else if (typeof genTutorial === 'function') { genTutorial(); }
     }
-    if (backNow && !Game._tutPageOld.back && page > 0) { Game.tutorialIntroPage--; }
+    if (backNow && !Game._tutPageOld.back && page > 0) { if (typeof playSfx === 'function') playSfx('menu_select'); Game.tutorialIntroPage--; }
     Game._tutPageOld.sp   = spNow;
     Game._tutPageOld.back = backNow;
 }
 
+// requestAnimationFrame 메인 루프 — 60fps 프레임 제한 후 게임 상태별 틱 디스패치
 function loop(currentTime) {
     if (typeof ensureAudioRunning === 'function') ensureAudioRunning();
     requestAnimationFrame(loop);
@@ -651,6 +972,15 @@ function loop(currentTime) {
     // P키 일시정지 토글
     if (dn("KeyP") && !K.pOld) {
         if (Game.gs === "play" || Game.gs === "boss_intro") { Game.isPaused = !Game.isPaused; playSfx('item'); }
+    }
+
+    // Tab: 유물 목록 토글 + 열릴 때 선택 초기화
+    if (dn("Tab") && !K.tabOld) {
+        if (Game.gs === "play" || Game.gs === "boss_intro") {
+            Game._showItemList = !Game._showItemList;
+            if (Game._showItemList) { Game._tabSelIdx = 0; Game._tabScrollRow = 0; }
+            playSfx('menu_select');
+        }
     }
 
     // 일시정지 중 단축키
@@ -676,9 +1006,12 @@ function loop(currentTime) {
     // 상태별 디스패치
     switch (Game.gs) {
         case "menu":         tickMenu();              break;
+        case "difficulty_select": tickDifficultySelect(frameNow); break;
         case "class_select": tickClassSelect(frameNow); break;
         case "shop":         tickShop();              break;
         case "upgrade":      tickUpgrade();           break;
+        case "boss_loot":    renderBossLoot();        break;
+        case "event_room":   renderEventRoom();       break;
         case "route_select": tickRouteSelect(frameNow); break;
         case "cutscene":
             if (typeof updateCutscene === 'function') updateCutscene();
@@ -705,8 +1038,8 @@ function loop(currentTime) {
         default:             tickPlay();              break;
     }
 
-    // 음소거 오버레이 (메뉴/클래스선택/상점 제외)
-    if (Game.gs !== "menu" && Game.gs !== "class_select" && Game.gs !== "shop" && Game.gs !== "cutscene" && Game.gs !== "opening_anim") {
+    // 음소거 오버레이 (메뉴/클래스선택/상점/튜토리얼인트로 제외 — tutorial_intro는 페이지 번호와 겹침)
+    if (Game.gs !== "menu" && Game.gs !== "class_select" && Game.gs !== "difficulty_select" && Game.gs !== "shop" && Game.gs !== "cutscene" && Game.gs !== "opening_anim" && Game.gs !== "tutorial_intro") {
         tickMuteOverlay();
     }
 
@@ -722,10 +1055,242 @@ function loop(currentTime) {
     K.rDirOld  = dn("ArrowRight");
     K.pOld     = dn("KeyP");
     K.spcOld   = dn("Space");
-    // 🔥 [버그 수정] 상호작용 키(ArrowUp) 엣지 감지 추가
     K.upOld    = dn("ArrowUp");
+    K.dwnOld   = dn("ArrowDown");
+    K.tabOld   = dn("Tab");
 
     if (typeof updateHUD === 'function') updateHUD();
 }
 
 requestAnimationFrame((time) => { lastTime = time; loop(time); });
+
+// ── 반응형 스케일: 뷰포트에 맞게 #wrapper 비율 유지 ──
+(function initResponsiveScale() {
+    const wrapper = document.getElementById('wrapper');
+    const BASE_W = 1280;
+    let baseH = 0;
+
+    function applyScale() {
+        // 스케일 초기화 후 실제 높이 측정
+        wrapper.style.transform = '';
+        wrapper.style.marginTop = '';
+        wrapper.style.marginBottom = '';
+        if (!baseH) baseH = wrapper.offsetHeight || 900;
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const scaleW = vw / BASE_W;
+        const scaleH = vh / baseH;
+        const scale = Math.min(scaleW, scaleH); // 제한 없이 완전 축소 가능
+
+        wrapper.style.transform = `scale(${scale})`;
+        wrapper.style.transformOrigin = 'top center';
+        // transform은 레이아웃 공간을 차지하지 않으므로 축소분만큼 마진으로 보정
+        const scaledH = baseH * scale;
+        const shrink = baseH - scaledH; // 줄어든 픽셀 (항상 >= 0)
+        wrapper.style.marginBottom = `-${shrink}px`;
+        wrapper.style.marginTop = '0';
+    }
+
+    window.addEventListener('resize', applyScale);
+    // 폰트/이미지 로드 후 높이가 확정되면 다시 계산
+    window.addEventListener('load', () => { baseH = 0; applyScale(); });
+    applyScale();
+}());
+// ── 쯔꾸르 메뉴 시스템 ──
+(function initMainMenu() {
+    let menuIdx = 0;
+    const MENU_ITEMS  = ['start','load','save','reset'];
+    const MENU_LABELS = ['시작하기','불러오기','저장하기','초기화'];
+
+    function getDisplay() {
+        return document.getElementById('menuDisplay');
+    }
+
+    function updateMenu() {
+        const el = getDisplay();
+        if (el) {
+            el.textContent = '▶ ' + MENU_LABELS[menuIdx];
+        }
+    }
+
+    function execMenu() {
+        if (!Game._menuReady) return;
+        const action = MENU_ITEMS[menuIdx];
+        if (action === 'start') {
+            hideOverlay();
+            // 오프닝 컷씬 먼저 → 컷씬 끝나면 class_select로 자동 전환
+            if (typeof startCutscene === 'function') startCutscene('opening');
+            else if (typeof startGame === 'function') startGame();
+        } else if (action === 'save') {
+            showSavePanel();
+        } else if (action === 'load') {
+            // localStorage에 저장 데이터 있으면 바로 이어하기, 없으면 코드 입력창
+            if (localStorage.getItem('skull_save')) {
+                loadGameData();
+                hideOverlay();
+                if (typeof startGame === 'function') startGame();
+            } else {
+                showLoadPanel();
+            }
+        } else if (action === 'reset') {
+            // confirm 닫힌 후 Enter가 keydown으로 재전파되지 않도록 준비 시간 차단
+            Game._menuReady = false;
+            const doReset = confirm('모든 진행 데이터를 초기화합니다. 계속하시겠습니까?');
+            setTimeout(() => { Game._menuReady = true; }, 300);
+            if (doReset) {
+                localStorage.clear();
+                alert('초기화 완료!');
+                location.reload();
+            }
+        }
+    }
+
+    function hideOverlay() {
+        const ov = document.getElementById('overlay');
+        if (ov) ov.style.display = 'none';
+    }
+
+    // 저장
+    function saveGameData() {
+        const data = {
+            darkQuartz:     Game.darkQuartz     || 0,
+            permHpLvl:      Game.permHpLvl      || 0,
+            permAtkLvl:     Game.permAtkLvl     || 0,
+            permCritLvl:    Game.permCritLvl    || 0,
+            permSpdLvl:     Game.permSpdLvl     || 0,
+            permDefLvl:     Game.permDefLvl     || 0,
+            permAtkSpdLvl:  Game.permAtkSpdLvl  || 0,
+            permDashLvl:    Game.permDashLvl    || 0,
+            permCritDmgLvl: Game.permCritDmgLvl || 0,
+            permSkillDmgLvl:Game.permSkillDmgLvl|| 0,
+        };
+        const str = btoa(JSON.stringify(data));
+        localStorage.setItem('skull_save', str);
+        return str;
+    }
+
+    function loadGameData() {
+        try {
+            const raw = localStorage.getItem('skull_save');
+            if (!raw) return false;
+            const data = JSON.parse(atob(raw));
+            Object.assign(Game, data);
+            return true;
+        } catch(e) { return false; }
+    }
+
+    function showSavePanel() {
+        const str = saveGameData();
+        const panel = document.getElementById('saveLoadPanel');
+        const label = document.getElementById('saveLoadLabel');
+        const input = document.getElementById('saveDataInput');
+        const menu  = document.getElementById('mainMenu');
+        label.textContent = '저장 코드 (복사해두세요):';
+        input.value = str;
+        input.readOnly = true;
+        panel.style.display = 'block';
+        menu.style.display = 'none';
+        input.select();
+        document.getElementById('saveLoadConfirm').onclick = () => {
+            navigator.clipboard.writeText(str).catch(()=>{});
+            panel.style.display = 'none';
+            menu.style.display = 'block';
+        };
+        document.getElementById('saveLoadCancel').onclick = () => {
+            panel.style.display = 'none';
+            menu.style.display = 'block';
+        };
+    }
+
+    function showLoadPanel() {
+        const panel = document.getElementById('saveLoadPanel');
+        const label = document.getElementById('saveLoadLabel');
+        const input = document.getElementById('saveDataInput');
+        const menu  = document.getElementById('mainMenu');
+        label.textContent = '저장 코드를 붙여넣으세요:';
+        input.value = '';
+        input.readOnly = false;
+        panel.style.display = 'block';
+        menu.style.display = 'none';
+        document.getElementById('saveLoadConfirm').onclick = () => {
+            try {
+                const data = JSON.parse(atob(input.value.trim()));
+                const str = btoa(JSON.stringify(data));
+                localStorage.setItem('skull_save', str);
+                Object.assign(Game, data);
+                alert('불러오기 완료!');
+            } catch(e) { alert('잘못된 코드입니다.'); }
+            panel.style.display = 'none';
+            menu.style.display = 'block';
+        };
+        document.getElementById('saveLoadCancel').onclick = () => {
+            panel.style.display = 'none';
+            menu.style.display = 'block';
+        };
+    }
+
+    // 키 이벤트
+    document.addEventListener('keydown', e => {
+        const ov = document.getElementById('overlay');
+        if (!ov || ov.style.display === 'none') return;
+        // 게임 플레이 중이면 메뉴 입력 차단 (win/gameover 상태에서 오작동 방지)
+        if (typeof Game !== 'undefined' && Game.gs && Game.gs !== 'menu' && Game.gs !== 'class_select') return;
+        const panel = document.getElementById('saveLoadPanel');
+        if (panel && panel.style.display !== 'none') return;
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            menuIdx = (menuIdx - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
+            updateMenu();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            menuIdx = (menuIdx + 1) % MENU_ITEMS.length;
+            updateMenu();
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            execMenu();
+        }
+    });
+
+    // 마우스 클릭
+    document.addEventListener('click', e => {
+        const li = e.target.closest('.menu-item');
+        if (!li) return;
+        const items = Array.from(getItems());
+        menuIdx = items.indexOf(li);
+        updateMenu();
+        execMenu();
+    });
+
+    // DOM 로드 후 초기화
+    window.addEventListener('load', () => {
+        // scene_main.png 페이드인
+        const bg    = document.getElementById('mainBg');
+        const title = document.getElementById('mainTitle');
+        const menu  = document.getElementById('mainMenu');
+        if (bg) { setTimeout(() => { bg.style.opacity = '1'; }, 100); }
+        if (title) { setTimeout(() => { title.style.opacity = '1'; }, 600); }
+        if (menu)  { setTimeout(() => { menu.style.opacity = '1'; }, 1100); }
+        const hint = document.getElementById('menuSpaceHint');
+        if (hint) { setTimeout(() => { hint.style.opacity = '1'; }, 1300); }
+        // 페이드인 완료 전 입력 차단
+        Game._menuReady = false;
+        setTimeout(() => { Game._menuReady = true; }, 2500);
+        updateMenu();
+        // 선택화면 진입 시 자동 BGM
+        setTimeout(() => {
+            if (typeof unlockAudio === 'function') unlockAudio();
+            if (typeof playBGM === 'function') playBGM('lobby');
+        }, 1200);
+
+        // localStorage에서 기존 데이터 복구
+        try {
+            const raw = localStorage.getItem('skull_save');
+            if (raw) {
+                const data = JSON.parse(atob(raw));
+                Object.assign(Game, data);
+            }
+        } catch(e) {}
+    });
+})();
