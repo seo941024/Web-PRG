@@ -528,23 +528,28 @@ function drawEntities(frameNow) {
                 }
             } else {
                 if (e.type === "ranged_bullet") {
-                    // 경고 범위: 붉은 계열, 범위 대폭 축소, shadowBlur 없음
+                    // 경고 범위: 실제 발사 패턴(getRangedBulletPattern)과 동일한 각도로 표시
                     const wProg  = 1 - e.warnT / (e.isElite ? 35 : 25);
                     ctx.globalAlpha = 0.12 + wProg * 0.22;
                     ctx.fillStyle = "#cc2200";    // 다른 몹과 같은 붉은색 계열
                     // 마지막 0.25초 깜빡임
                     if (e.warnT <= 8 && Math.floor(e.warnT / 2) % 2 === 0) ctx.globalAlpha = 0.4;
-                    const spreadAngle = e.isElite ? 0.28 : 0.18; // 대폭 축소
-                    const maxR = e.isElite ? 180 : 140;           // 사거리도 축소
-                    ctx.beginPath(); ctx.moveTo(0, 0);
-                    ctx.arc(0, 0, maxR, e.warnData.ang - spreadAngle, e.warnData.ang + spreadAngle);
-                    ctx.fill();
-                    // 중심선 (실제 발사 방향 명시)
-                    ctx.globalAlpha *= 1.5;
-                    ctx.strokeStyle = "rgba(220,60,40,0.45)"; ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.moveTo(0, 0);
-                    ctx.lineTo(Math.cos(e.warnData.ang) * maxR, Math.sin(e.warnData.ang) * maxR);
-                    ctx.stroke();
+                    const pat = (typeof getRangedBulletPattern === 'function')
+                        ? getRangedBulletPattern(e)
+                        : { half: e.isElite ? 0.54 : 0, speed: e.isElite ? 11 : 9 };
+                    const ang  = e.warnData.ang;
+                    const maxR = (pat.speed || 9) * 70 * 0.5; // 실제 비행거리(speed*life)의 약 절반까지 표시
+                    if (pat.half > 0.02) {
+                        // 다발: 실제 탄막 퍼짐과 똑같은 반각의 부채꼴 (이중 표시 제거)
+                        ctx.beginPath(); ctx.moveTo(0, 0);
+                        ctx.arc(0, 0, maxR, ang - pat.half, ang + pat.half);
+                        ctx.closePath(); ctx.fill();
+                    } else {
+                        // 단발: 발사 방향으로 가는 직선 띠 하나
+                        ctx.save(); ctx.rotate(ang);
+                        ctx.fillRect(0, -3, maxR, 6);
+                        ctx.restore();
+                    }
                 }
                 else if (e.type === "ranged_laser") {
                     // 레이저 경고: 붉은 계열, 눈부심 없이 얇게
@@ -1836,7 +1841,7 @@ function drawEntities(frameNow) {
             else if (Game.pClass === 4) { mColMain = "#666666"; mColShadow = "#444444"; }
             else if (Game.pClass === 5) { mColMain = "#ffcc00"; mColShadow = "#aa8800"; }
             else if (Game.pClass === 6)  { mColMain = "#cc2244"; mColShadow = "#880022"; } // 혈귀: 혈홍
-            else if (Game.pClass === 7) { mColMain = "#ffdd00"; mColShadow = "#cc9900"; } // 조커: 황금
+            else if (Game.pClass === 7) { mColMain = "#f07400"; mColShadow = "#aa5200"; } // 조커: 카니발 오렌지
             else { mColMain = "#ffffff"; mColShadow = "#cccccc"; }
 
             // 망토 (뒤)
@@ -2045,6 +2050,13 @@ function drawEntities(frameNow) {
                     // 팬텀: 무기 없음
                 } else {
                     ctx.translate(5, 5); ctx.rotate(armRot * 0.5); drawBone(false, _pc);
+                }
+                // 도적: 왼손 단도
+                if (_pc === 1) {
+                    ctx.save();
+                    ctx.translate(-14, 2); ctx.rotate(-Math.PI * 0.35 + armRot * 0.3);
+                    drawBone(false, 1);
+                    ctx.restore();
                 }
                 // 성기사: 방패 (왼손)
                 if (_pc === 5) {

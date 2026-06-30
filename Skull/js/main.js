@@ -88,6 +88,10 @@ function updateHUD() {
     if (!inGame || !Game.player) {
         if (reviveLabel) reviveLabel.style.display = "none";
         if (bossBarWrap) bossBarWrap.style.display = "none";
+        if (Game._lastBossBarShown) {
+            Game._lastBossBarShown = false;
+            if (typeof window._applyGameScale === 'function') window._applyGameScale();
+        }
         return;
     }
 
@@ -123,25 +127,16 @@ function updateHUD() {
     const sGaugeBorder = document.getElementById("skillGaugeBorder");
     if (uiSkillEl) uiSkillEl.style.display = inPlay ? "flex" : "none";
     if (mpF && sLab) {
-        const CLASS_COLORS = ["#ffffff","#cc44ff","#00ccff","#d11414","#aaaaaa","#ffcc00","#720b0b","#f07400"];
-        if (Game.pClass === 4 && (Game.pGunReload || 0) > 0) {
-            // 발키리 재장전 중: 스킬 게이지에 재장전 진행 표시
-            const reloadMax = Game.pGunReloadMax || 90;
-            const reloadProg = 1 - (Game.pGunReload / reloadMax);
-            mpF.style.width = Math.min(100, reloadProg * 100) + "%";
-            mpF.style.background = "#ffdd00";
-            if (sGaugeBorder) sGaugeBorder.style.borderColor = "#ffdd00";
-            if (sStaticLab) sStaticLab.style.color = "#ffdd00";
-            sLab.textContent = "재장전중"; sLab.style.color = "#ffdd00";
-        } else if (Game.pClass === 6) {
+        const CLASS_COLORS = ["#ffffff","#cc44ff","#00ccff","#d11414","#aaaaaa","#ffcc00","#cc1133","#f07400"];
+        if (Game.pClass === 6) {
             // 혈귀: 쿨다운 게이지를 스킬 게이지 자리에 표시
             const cd = Game._bloodSkillCooldown || 0;
             const cdMax = 150;
             const prog = cd > 0 ? (1 - cd / cdMax) : 1;
             mpF.style.width = Math.min(100, prog * 100) + "%";
             mpF.style.background = "#cc2244";
-            if (sGaugeBorder) sGaugeBorder.style.borderColor = "#720b0b";
-            if (sStaticLab) sStaticLab.style.color = "#720b0b";
+            if (sGaugeBorder) sGaugeBorder.style.borderColor = "#cc1133";
+            if (sStaticLab) sStaticLab.style.color = "#cc1133";
             if (cd === 0) {
                 sLab.textContent = "준비완료!"; sLab.style.color = "#ffee00";
             } else {
@@ -214,6 +209,13 @@ function updateHUD() {
         document.getElementById("bossFill").style.width = (Math.max(0, boss.hp) / boss.maxHp * 100) + "%";
     } else if (bossBarWrap) {
         bossBarWrap.style.display = "none";
+    }
+    // 보스 바 표시 상태가 바뀌면 wrapper 높이가 변하므로 반응형 스케일 재계산
+    // (안 하면 늘어난 높이만큼 하단 게이지가 뷰포트 밖으로 밀려 잘림)
+    const _bossBarShown = !!boss;
+    if (_bossBarShown !== Game._lastBossBarShown) {
+        Game._lastBossBarShown = _bossBarShown;
+        if (typeof window._applyGameScale === 'function') window._applyGameScale();
     }
 
     const regionNames = ["", "고블린 숲", "불타는 고블린 숲", "스켈레톤의 영역", "불타는 스켈레톤의 영역", "저주받은 성당", "불타는 저주받은 성당", "어둠의 성당", "마족 성채", "마왕성 입구", "마왕의 왕좌"];
@@ -336,7 +338,7 @@ function startGame() {
 
     // 사거리 역비례 보정: 근거리=높음, 원거리=낮음
     // [0검사, 1도적, 2마법사, 3버서커, 4발키리, 5성기사, 6혈귀, 7조커]
-    const CLASS_DMG_MUL = [1.5, 1.3, 0.7, 1.5, 0.7, 1.2, 1.0, 1.0];
+    const CLASS_DMG_MUL = [1.5, 1.3, 0.7, 1.85, 0.7, 1.5, 1.0, 1.0];
     Game.pBaseDmgMul = CLASS_DMG_MUL[Game.pClass] || 1.0;
     // 영구 강화: 초기화 이후에 적용 (덮어씌워지지 않도록)
     Game.pMaxHp       += (Game.permHpLvl     || 0) * 10;
@@ -1071,11 +1073,11 @@ requestAnimationFrame((time) => { lastTime = time; loop(time); });
     let baseH = 0;
 
     function applyScale() {
-        // 스케일 초기화 후 실제 높이 측정
+        // 스케일 초기화 후 실제 높이 측정 (보스 바 표시 등으로 높이가 바뀌므로 매번 재측정)
         wrapper.style.transform = '';
         wrapper.style.marginTop = '';
         wrapper.style.marginBottom = '';
-        if (!baseH) baseH = wrapper.offsetHeight || 900;
+        baseH = wrapper.offsetHeight || 900;
 
         const vw = window.innerWidth;
         const vh = window.innerHeight;
@@ -1095,6 +1097,8 @@ requestAnimationFrame((time) => { lastTime = time; loop(time); });
     window.addEventListener('resize', applyScale);
     // 폰트/이미지 로드 후 높이가 확정되면 다시 계산
     window.addEventListener('load', () => { baseH = 0; applyScale(); });
+    // 보스 바 표시/숨김 등 레이아웃 높이 변화 시 외부에서 재계산 트리거
+    window._applyGameScale = applyScale;
     applyScale();
 }());
 // ── 쯔꾸르 메뉴 시스템 ──

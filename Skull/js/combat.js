@@ -159,7 +159,13 @@ function hitE(e, dmg, facing, isCrit, extraDmg=0) {
     const extraDmgAmt = Math.floor(dmg * extraDmg);
     const finalDmg = Math.floor(dmg + extraDmgAmt);
     e.hp    -= finalDmg;
-    e.flash  = 6;
+    // 통일된 타격 피드백: 모든 직업·공격이 hitE를 거치므로 여기서 일관된 "손맛" 부여
+    //  - 치명타는 항상 히트스톱+셰이크로 묵직하게 (max라 연사 시 누적 안 됨)
+    e.flash  = isCrit ? 9 : 6;
+    // 치명타 피드백: 화면 멈춤(hitStop)은 치명타 100%에서 게임이 끊겨 제거 — 가벼운 셰이크만
+    if (isCrit) {
+        Game.camShake = Math.max(Game.camShake || 0, 3);
+    }
 
     // 혈흔 데칼
     if (typeof addBloodDecal === 'function') addBloodDecal(e.x + e.w/2, e.y + e.h - 4);
@@ -181,7 +187,8 @@ function hitE(e, dmg, facing, isCrit, extraDmg=0) {
     // 흡혈
     if (Game.pLifestealChance > 0 && Math.random() < Game.pLifestealChance && Game.player.hp < Game.pMaxHp) {
         Game.player.hp = Math.min(Game.pMaxHp, Game.player.hp + 2);
-        addText(Game.player.x, Game.player.y - 10, "흡수", "#00ff00", 30, 12);
+        // 플레이어 왼쪽 위로 띄우고 좌상향 드리프트 — 적 머리 위 데미지 숫자와 겹침 방지
+        addText(Game.player.x - 18, Game.player.y - 26, "+흡혈", "#00ff66", 28, 11, -0.5, -1.4);
     }
     if (Game.pHealOnHit && Game.player.hp < Game.pMaxHp && Math.random() < 0.1) {
         Game.player.hp = Math.min(Game.pMaxHp, Game.player.hp + 1);
@@ -307,7 +314,8 @@ function takeDmg(dmg, eObj, unblockable=false, noParry=false) {
     p.vy  = -4;
     Game.hitStop = 15; Game.camShake = 20;
     if (typeof playSfx === 'function') playSfx('dmg');
-    Game.comboCount = 0; Game.comboTimer = 0;
+    // 혈귀: 피격해도 콤보 유지 (혈기 스택 쌓기 & 연계 플레이 보상)
+    if (Game.pClass !== 6) { Game.comboCount = 0; Game.comboTimer = 0; }
 
     // 낙사(unblockable)는 이미 invT를 무시하므로 일반 피격/환경 피해 무적 통일
     const invDur = eObj ? 60 : 15;

@@ -2,13 +2,13 @@
 
 const UPGRADES = {
     1:  { name: "뼈방패: 30 데미지 흡수 배리어",                          apply: g => g.pShield += 30 },
-    2:  { name: "뼈의봉: 공격력 소폭(+10) 상승 및 무기 길이 대폭(+50) 증가", apply: g => { g.pBaseDmg += 10; g.pRangeBonus += 50; } },
+    2:  { name: "뼈의봉: 공격력 +20% 상승 및 무기 길이 대폭(+50) 증가", apply: g => { g.pBaseDmgMul += 0.20; g.pRangeBonus += 50; } },
     3:  { name: "전사의 피: 최대 HP +50",                                apply: g => { g.pMaxHp += 50; g.player.maxHp = g.pMaxHp; g.player.hp += 50; } },
     4:  { name: "파괴의 룬: 필살기 데미지 30% 증폭",                       apply: g => g.pSkillDmgMul += 0.3 },
     5:  { name: "도굴왕: 몬스터 처치 시 아이템 드롭 확률 상승(+15%)",         apply: g => g.pDropRate += 0.15 },
     6:  { name: "광전사의 장갑: 공속 2.3배 상승 / 최종 데미지 0.5배",        apply: g => { g.pAtkSpdMul *= 2.3; g.pFinalDmgMul *= 0.5; } },
     7:  { name: "거인의 힘: 평타 추가 데미지 +15%",                        apply: g => g.pExtraDmg += 0.15 },
-    8:  { name: "스컬의 축복: 체력+10, 공격력+3, 방어력+3, 사거리+6, 공속+10%", apply: g => { g.pMaxHp += 10; g.player.maxHp = g.pMaxHp; g.player.hp += 10; g.pBaseDmg += 3; g.pRangeBonus += 6; g.pBaseDef += 3; g.pBaseAtkSpd += 0.1; } },
+    8:  { name: "스컬의 축복: 체력+10, 공격력+6%, 방어력+3, 사거리+6, 공속+10%", apply: g => { g.pMaxHp += 10; g.player.maxHp = g.pMaxHp; g.player.hp += 10; g.pBaseDmgMul += 0.06; g.pRangeBonus += 6; g.pBaseDef += 3; g.pBaseAtkSpd += 0.1; } },
     9:  { name: "야수의 손톱: 공격속도 20% 증가",                          apply: g => g.pBaseAtkSpd += 0.2 },
     10: { name: "늑대의 피갈퀴손: 평타 타격 시 확률로 HP 회복",               apply: g => g.pHealOnHit = true },
     11: { name: "닌자의 발걸음: 대쉬 쿨타임 25% 감소",                      apply: g => g.pDashCDMul -= 0.25 },
@@ -37,7 +37,7 @@ const UPGRADES = {
 
     // ── 추가 유물 (기존보다 살짝 약한 평범한 성능) ────────────────────────
     34: { name: "낡은 아뮬렛: 최대 HP +25",                                    apply: g => { g.pMaxHp += 25; g.player.maxHp = g.pMaxHp; g.player.hp += 25; } },
-    35: { name: "녹슨 칼날: 공격력 +8",                                         apply: g => { g.pBaseDmg += 8; } },
+    35: { name: "녹슨 칼날: 공격력 +16%",                                       apply: g => { g.pBaseDmgMul += 0.16; } },
     36: { name: "경량 갑옷: 받는 피해 -10%",                                    apply: g => { g.pDmgReduction -= 0.10; } },
     37: { name: "속보의 부적: 이동속도 +12%",                                    apply: g => { g.pMoveSpdMul += 0.12; } },
     38: { name: "예리한 숫돌: 치명타 확률 +8%",                                  apply: g => { g.pCritChance += 0.08; } },
@@ -187,8 +187,8 @@ const SYNERGIES = [
     {
         ids: [7, 35], // 거인의 힘 + 녹슨 칼날
         name: "전사의 기백",
-        desc: "공격력 추가 +12, 최종 데미지 +10%",
-        apply: g => { g.pBaseDmg += 12; g.pFinalDmgMul += 0.10; }
+        desc: "공격력 +24%, 최종 데미지 +10%",
+        apply: g => { g.pBaseDmgMul += 0.24; g.pFinalDmgMul += 0.10; }
     },
     {
         ids: [47, 1], // 철의 심장 + 뼈방패
@@ -659,8 +659,8 @@ const EVENTS = [
       desc: "다크쿼츠 +10 획득",
       apply: g => { g.darkQuartz += 10; saveProgress(); }},
     { name: "피의 계약",     color: "#cc2244",
-      desc: "최대 HP -20, 공격력 영구 +20",
-      apply: g => { g.pMaxHp = Math.max(10, g.pMaxHp - 20); g.player.maxHp = g.pMaxHp; g.player.hp = Math.min(g.player.hp, g.pMaxHp); g.pBaseDmg += 20; }},
+      desc: "최대 HP -20, 공격력 +40%",
+      apply: g => { g.pMaxHp = Math.max(10, g.pMaxHp - 20); g.player.maxHp = g.pMaxHp; g.player.hp = Math.min(g.player.hp, g.pMaxHp); g.pBaseDmgMul += 0.40; }},
     { name: "수호의 가호",   color: "#44ffaa",
       desc: "방어막 +50 획득",
       apply: g => { g.pShield += 50; }},

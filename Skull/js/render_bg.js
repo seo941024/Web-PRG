@@ -29,27 +29,14 @@ function drawBone(isLarge, classType) {
     const ext = _noExt.includes(classType) ? 0 : (Game.pRangeBonus || 0);
 
     if (classType === 1) {
-        // 도적: 블러드문 — 붉은 달 형태 대거
-        // 자루
-        ctx.fillStyle = "#1a0000"; ctx.fillRect(-3,-3,5,7);
-        ctx.fillStyle = "#330011"; ctx.fillRect(-2,-2,3,5);
-        // 달 외곽 (어두운 레이어)
-        ctx.fillStyle = "#5a0000";
-        ctx.beginPath(); ctx.arc(10+ext*0.5, 0, 9, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#990000";
-        ctx.beginPath(); ctx.arc(10+ext*0.5, 0, 7, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#cc1100";
-        ctx.beginPath(); ctx.arc(10+ext*0.5, 0, 5, 0, Math.PI*2); ctx.fill();
-        // 초승달 음영 (달 오른쪽 아래를 어둡게)
-        ctx.fillStyle = "#2a0000";
-        ctx.beginPath(); ctx.arc(13+ext*0.5, 3, 6, 0, Math.PI*2); ctx.fill();
-        // 빨간 테두리 글로우
-        ctx.shadowBlur = 6; ctx.shadowColor = "#ff0000";
-        ctx.fillStyle = "#ff2200";
-        ctx.beginPath(); ctx.arc(10+ext*0.5, 0, 5, Math.PI*1.2, Math.PI*0.2); ctx.fill();
-        ctx.shadowBlur = 0;
-        // 흰 반짝임
-        ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillRect(5+ext*0.5,-7,2,1); ctx.fillRect(4+ext*0.5,-6,1,2);
+        // 도적: 단도 — 짧은 직도
+        ctx.fillStyle = "#2a1200"; ctx.fillRect(-2, -1, 4, 6);   // 손잡이 (어두운 갈색)
+        ctx.fillStyle = "#4a2800"; ctx.fillRect(-1, -1, 2, 5);   // 손잡이 하이라이트
+        ctx.fillStyle = "#777";    ctx.fillRect(-3,  4, 7, 2);   // 가드 (좌우로 돌출)
+        ctx.fillStyle = "#aaa";    ctx.fillRect(-2,  4, 5, 1);   // 가드 상단 하이라이트
+        ctx.fillStyle = "#888";    ctx.fillRect(-1,  6, 3, 10+ext); // 도신
+        ctx.fillStyle = "#bbb";    ctx.fillRect( 0,  6, 1,  9+ext); // 도신 중앙선 (날)
+        ctx.fillStyle = "#ddd";    ctx.fillRect( 0,  6, 1,  3);   // 날 끝 반짝임
     } else if (classType === 2) {
         // 마법사: 레이든 스태프 — 두개골 탑 + 금색 지팡이 + 체인
         // 지팡이 자루 (금색)

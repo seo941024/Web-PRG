@@ -44,6 +44,11 @@ function updatePlayer() {
 
     p.frT++; if (p.frT > 7) { p.fr = (p.fr + 1) % 4; p.frT = 0; }
     
+    // 버서커 MP 자연 회복 (2초마다 +1)
+    if (Game.pClass === 3 && Game.frameCount % 120 === 0) {
+        Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 1);
+    }
+
     if (Game.pRegenFrames > 0) {
         Game.regenT = (Game.regenT || 0) + 1;
         if (Game.regenT >= Game.pRegenFrames) {
@@ -163,19 +168,19 @@ function updatePlayer() {
             p.jumpCount = 1;
             p.vy = -7.5 * _jmpCap;
             if(typeof playSfx === 'function') playSfx('jump');
-            const _JC = ["#ffffff","#aa00ff","#00ccff","#cc0000","#888888","#ffe080","#ff8800","#44ff88","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
+            const _JC = ["#ffffff","#aa00ff","#00ccff","#cc0000","#888888","#ffe080","#cc1133","#f07400","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
             const jCol1 = _JC[Game.pClass] || "#6060ff";
             for (let i = 0; i < 5; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, jCol1, 12);
         } else if (p.onGround) {
             p.vy = -7.5 * _jmpCap; p.jumpCount = 1;
             if(typeof playSfx === 'function') playSfx('jump');
-            const _JC2 = ["#ffffff","#aa00ff","#00ccff","#cc0000","#888888","#ffe080","#ff8800","#44ff88","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
+            const _JC2 = ["#ffffff","#aa00ff","#00ccff","#cc0000","#888888","#ffe080","#cc1133","#f07400","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
             const jCol1 = _JC2[Game.pClass] || "#6060ff";
             for (let i = 0; i < 5; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, jCol1, 12);
         } else if (p.jumpCount < 2) {
             p.vy = -6.5 * _jmpCap; p.jumpCount = 2;
             if(typeof playSfx === 'function') playSfx('jump');
-            const _JC3 = ["#ffffff","#ee00ff","#88eeff","#ff2200","#aaaaaa","#ffee44","#ffaa33","#22ffaa","#ff3355","#cceeff","#cc22ff","#66aaff","#ff8833","#22ddff","#aa33ff","#ffee22","#776699","#66ff22","#6688aa"];
+            const _JC3 = ["#ffffff","#ee00ff","#88eeff","#ff2200","#aaaaaa","#ffee44","#ff4466","#ffaa33","#ff3355","#cceeff","#cc22ff","#66aaff","#ff8833","#22ddff","#aa33ff","#ffee22","#776699","#66ff22","#6688aa"];
             const jCol2 = _JC3[Game.pClass] || "#ff60ff";
             for (let i = 0; i < 8; i++) if(typeof addPart === 'function') addPart(p.x + 7, p.y + 18, jCol2, 18, 4);
         }
@@ -266,26 +271,26 @@ function updatePlayer() {
                 p.hasPlunged = true;
                 p.vx = -p.facing * 10;
                 p.vy = -2;
+                p.kbT = 14; // kbT 동안 이동 블록이 vx를 덮어쓰지 않아 뒤로 미끄러짐
                 Game.invT = 60;
                 for (let _i = 0; _i < 12; _i++) if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#f07400", 14, 3);
             } else if (Game.pClass === 6) {
-                // 혈귀: 가장 가까운 적에게 돌진
+                // 혈귀: 가장 가까운 적 방향으로 수평 추적하며 아래로 내리꽂기
                 p.hasPlunged = true;
                 let _nearE = null; let _minD = Infinity;
                 Game.enemies.forEach(e => {
                     if (!e.active || e.dead) return;
-                    const _d = Math.hypot((e.x+e.w/2)-(p.x+p.w/2), (e.y+e.h/2)-(p.y+p.h/2));
+                    const _d = Math.abs((e.x+e.w/2)-(p.x+p.w/2));
                     if (_d < _minD) { _minD = _d; _nearE = e; }
                 });
-                if (_nearE && _minD < 400) {
+                if (_nearE) {
                     const _dx = (_nearE.x+_nearE.w/2) - (p.x+p.w/2);
-                    const _dy = (_nearE.y+_nearE.h/2) - (p.y+p.h/2);
-                    const _dist = Math.hypot(_dx, _dy) || 1;
-                    p.vx = (_dx/_dist) * 16; p.vy = (_dy/_dist) * 16;
+                    p._bloodDashVx = Math.sign(_dx) * Math.min(10, Math.abs(_dx) / 8);
                     p.facing = _dx > 0 ? 1 : -1;
                 } else {
-                    p.vy = 12; p.vx = 0;
+                    p._bloodDashVx = 0;
                 }
+                p.vx = p._bloodDashVx; p.vy = 13;
             } else {
                 p.hasPlunged = true;
                 if (Game.pClass === 1) {
@@ -307,7 +312,8 @@ function updatePlayer() {
         } else if (Game.pClass === 5) {
             p.vy = 13; p.vx = 0; if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#ffdd00", 5);
         } else if (Game.pClass === 6) {
-            // 혈귀: 초기 돌진 속도 유지 (덮어쓰지 않음)
+            // 혈귀: 수평 추적 속도 유지 + 강하
+            p.vy = 13; p.vx = p._bloodDashVx || 0;
             if(typeof addPart === 'function') addPart(p.x+7, p.y+9, "#cc2244", 5);
         } else if (Game.pClass === 7) {
             p.plunging = false;
@@ -321,7 +327,7 @@ function updatePlayer() {
     }
     
     if (p.dashT > 0) {
-        const dashCols = ["#ffffff","#cc00ff","#00ccff","#ff2200","#aaaaaa","#ffe040","#ff8800","#44ff88","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
+        const dashCols = ["#ffffff","#cc00ff","#00ccff","#ff2200","#aaaaaa","#ffe040","#cc1133","#f07400","#cc2244","#aaddff","#dd44ff","#88ccff","#ff6600","#44eeff","#cc55ff","#ffdd00","#9988aa","#88ff44","#8899aa"];
         const trailCol = dashCols[Game.pClass] || "#ffffff";
         const partSz = Game.pClass === 3 ? 5 : 3;
         const partCnt = Game.pClass === 3 ? 5 : 3;
@@ -344,7 +350,7 @@ function updatePlayer() {
             : (Game.pClass === 3 ? "#880000"
             : (Game.pClass === 4 ? "#ffcc00"
             : (Game.pClass === 5 ? "#ffe040"
-            : (Game.pClass === 6 ? "#720b0b"
+            : (Game.pClass === 6 ? "#cc1133"
             : (Game.pClass === 7 ? "#f07400"
             : "#00ccff"))))));
         Game.camShake = Game.pClass === 3 ? 40 : (Game.pClass === 5 ? 28 : 20);
@@ -356,7 +362,9 @@ function updatePlayer() {
         
         let currentBaseDmg = Game.pBaseDmg * (Game.pBaseDmgMul || 1.0);
         const isCritPlunge = Math.random() < (Game.pCritChance || 0.2);
-        let pdmg = Math.floor(currentBaseDmg * 1.6 * (Game.pFinalDmgMul || 1)
+        // 강하공격: 콤보 마지막(×2.2)보다 확실히 높게 — 위험·낮은 빈도에 대한 보상
+        const _plungeMul = 2.0 + Math.random() * 0.8; // ×2.0~2.8
+        let pdmg = Math.floor(currentBaseDmg * _plungeMul * (Game.pFinalDmgMul || 1)
             * (isCritPlunge ? (Game.pCritDmg || 1.5) : 1)
             * (p.hp / Game.pMaxHp < 0.3 ? (Game.pLowHpDmg || 1.5) : 1));
         pdmg += Math.floor(Game.comboCount / 10) * (Game.pComboDmg || 5);
@@ -479,17 +487,23 @@ function updatePlayerCombat() {
         if (p.hp / Game.pMaxHp < 0.3) dmg = Math.floor(dmg * Game.pLowHpDmg);
 
         let isCrit = false;
-        if (Math.random() < Game.pCritChance) { dmg = Math.floor(dmg * Game.pCritDmg); isCrit = true; }
+        let _critCh = Game.pCritChance;
+        // 도적 급소 적중: 연속 공세(콤보)가 쌓일수록 치명타 확률 상승 (최대 +25%) — 보스전 특화
+        if (Game.pClass === 1) _critCh += Math.min(0.25, (Game.comboCount || 0) * 0.01);
+        if (Math.random() < _critCh) { dmg = Math.floor(dmg * Game.pCritDmg); isCrit = true; }
         dmg = Math.floor(dmg * Game.pFinalDmgMul);
         if (dmg < 1) dmg = 1;
 
         if (Game.pClass === 2) {
             const mageRange = 40 + (Game.pRangeBonus || 0);
-            if(typeof spawnBullet === 'function') spawnBullet(cx, cy, p.facing * 8, 0, mageRange, 6, 0, dmg);
+            const _mb1 = typeof spawnBullet === 'function' && spawnBullet(cx, cy, p.facing * 8, 0, mageRange, 6, 0, dmg);
+            if (_mb1) _mb1.isCrit = isCrit;
             if (isLastHit) {
                 if(typeof spawnBullet === 'function') {
-                    spawnBullet(cx, cy - 10, p.facing * 8, -2, mageRange, 6, 0, dmg);
-                    spawnBullet(cx, cy + 10, p.facing * 8, 2, mageRange, 6, 0, dmg);
+                    const _mb2 = spawnBullet(cx, cy - 10, p.facing * 8, -2, mageRange, 6, 0, dmg);
+                    const _mb3 = spawnBullet(cx, cy + 10, p.facing * 8, 2, mageRange, 6, 0, dmg);
+                    if (_mb2) _mb2.isCrit = isCrit;
+                    if (_mb3) _mb3.isCrit = isCrit;
                 }
                 Game.camShake = 5;
             }
@@ -507,10 +521,12 @@ function updatePlayerCombat() {
                     }
                 } else {
                     const gunRange = 40 + (Game.pRangeBonus || 0);
-                    if(typeof spawnBullet === 'function') spawnBullet(cx, cy-2, p.facing*14, -0.1, gunRange, 5, 0, dmg, "#ffffff");
+                    const _gb = typeof spawnBullet === 'function' && spawnBullet(cx, cy-2, p.facing*14, -0.1, gunRange, 5, 0, dmg, "#ffffff");
+                    if (_gb) _gb.isCrit = isCrit;
                     Game.pGunAmmo--;
                     if(typeof playSfx === 'function') playSfx('gun_shot');
-                    Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 1);
+                    // 발키리는 초당 발사수가 매우 많아 MP가 과도하게 빨리 참 → 두 발당 +1로 효율 절반
+                    if (Game.pGunAmmo % 2 === 0) Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 1);
                     if (Game.pGunAmmo <= 0) {
                         Game.pGunReload = Math.max(30, Math.floor(90/((Game.pBaseAtkSpd||1)*(Game.pAtkSpdMul||1))));
                         Game.pGunReloadMax = Game.pGunReload;
@@ -533,7 +549,7 @@ function updatePlayerCombat() {
             const _spawnX = p.x + (p.facing > 0 ? p.w + 2 : -2);
             const _cardY = p.y + 4;
             const _b = typeof spawnBullet === 'function' && spawnBullet(_spawnX, _cardY, p.facing * 13, _vy0, _cRange, 10, 0, _cardDmg, _card.col);
-            if (_b) { _b.isCard = true; _b.cardCol = _card.col; }
+            if (_b) { _b.isCard = true; _b.cardCol = _card.col; _b.isCrit = isCrit; }
             Game.pMp = Math.min(Game.pMaxMp, Game.pMp + _card.mpGain);
             for (let _i = 0; _i < 5; _i++) if(typeof addPart === 'function') addPart(_spawnX, _cardY + (Math.random()-0.5)*10, "#f07400", 10, 2);
 
@@ -543,7 +559,10 @@ function updatePlayerCombat() {
                 if (!e.active || e.dead) return;
                 if (Math.abs(e.x + e.w / 2 - cx) < rangeX / 2 + e.w / 2 && Math.abs(e.y + e.h / 2 - cy) < rangeY / 2 + e.h / 2) {
                     if (e.isBoss && (e.y + e.h) < Game.player.y) return;
-                    if(typeof hitE === 'function') hitE(e, dmg, p.facing, isCrit, Game.pExtraDmg);
+                    let _hd = dmg;
+                    // 도적 약점 간파: 보스·엘리트에게 +40% 피해 (보스 학살자 정체성)
+                    if (Game.pClass === 1 && (e.isBoss || e.isElite)) _hd = Math.floor(_hd * 1.4);
+                    if(typeof hitE === 'function') hitE(e, _hd, p.facing, isCrit, Game.pExtraDmg);
                     const poiseDmgNormal = isCrit ? 12 : 6;
                     if (typeof applyPoiseHit === 'function') applyPoiseHit(e, poiseDmgNormal);
                     hitTarget = true;
@@ -552,7 +571,9 @@ function updatePlayerCombat() {
 
             if (isLastHit) Game.camShake = 8;
             if (hitTarget) {
-                Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 2);
+                // MP 획득을 공속에 반비례 — 느린 캐릭일수록 한 방에 더 채워 초당 충전량 균형
+                const _mpGain = Math.min(8, Math.max(1, Math.round(2.2 / currentAtkSpd)));
+                Game.pMp = Math.min(Game.pMaxMp, Game.pMp + _mpGain);
                 if (isLastHit) Game.hitStop = 6;
                 Game.comboCount++;
                 Game.comboTimer = 150 + Game.pComboDur;
@@ -560,7 +581,7 @@ function updatePlayerCombat() {
                 else if (Game.comboCount === 30) { if(typeof playSfx === 'function') playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "30 콤보!!", "#ff6600", 60, 22); }
                 else if (Game.comboCount === 50) { if(typeof playSfx === 'function') playSfx('combo_high'); addText(Game.player.x, Game.player.y - 40, "50 콤보!!!", "#ff0000", 70, 26); }
             } 
-            const _pCC = ["#ffffff","#cc44ff","#00ccff","#d11414","#aaaaaa","#ffcc00","#720b0b","#f07400"][Game.pClass] || "#ffffff";
+            const _pCC = ["#ffffff","#cc44ff","#00ccff","#d11414","#aaaaaa","#ffcc00","#cc1133","#f07400"][Game.pClass] || "#ffffff";
             for (let i = 0; i < (isLastHit ? 15 : 6); i++) { if(typeof addPart === 'function') addPart(cx + (Math.random() - 0.5) * 20, cy + (Math.random() - 0.5) * 20, _pCC, 15, 3); }
         }
     }
@@ -641,7 +662,7 @@ function updatePlayerCombat() {
                             if (!e.active || e.dead) return;
                             const edx = (e.x+e.w/2)-(pp.x+pp.w/2);
                             if (Math.sign(edx) === pp.facing && Math.abs(edx) < sRange1 && Math.abs((e.y+e.h/2)-(pp.y+pp.h/2)) < 35) {
-                                if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*0.22), pp.facing, false);
+                                if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*0.38), pp.facing, false);
                             }
                         });
                         for (let j=0;j<6;j++) if(typeof addPart === 'function') addPart(pp.x+pp.w/2+pp.facing*25, pp.y+pp.h/2+(Math.random()-0.5)*20, "#aa00ff", 12, 3);
@@ -685,7 +706,7 @@ function updatePlayerCombat() {
                         if (!e.active || e.dead) return;
                         const edx = Math.abs((e.x+e.w/2)-(pp.x+pp.w/2));
                         if (edx < sRange1+60 && Math.abs((e.y+e.h/2)-(pp.y+pp.h/2)) < 55) {
-                            if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*0.7), pp.facing, false);
+                            if (typeof hitE === 'function') hitE(e, Math.floor(skillDmg*1.1), pp.facing, false);
                             if (typeof applyPoiseHit === 'function') applyPoiseHit(e, 30);
                         }
                     });
@@ -783,8 +804,12 @@ function updatePlayerCombat() {
                         if (!Game.player || Game.player.dead) return;
                         const pp = Game.player;
                         const _sx = pp.x + (pp.facing > 0 ? pp.w + 2 : -2);
-                        const _sb = typeof spawnBullet === 'function' && spawnBullet(_sx, pp.y + pp.h/2, pp.facing * 13, _vy2, _wcRange, 10, 0, _wcDmg, _wCol);
-                        if (_sb) { _sb.isCard = true; _sb.cardCol = _wCol; }
+                        // 카드별 치명타 판정 — 조커 크리 빌드(45%/500%)와 함께 스케일
+                        // hitE는 isCrit을 표시용으로만 쓰므로 데미지에 직접 치명타 배수 적용
+                        const _wcCrit = Math.random() < (Game.pCritChance || 0.2);
+                        const _wcFinal = Math.floor(_wcDmg * (_wcCrit ? (Game.pCritDmg || 1.5) : 1));
+                        const _sb = typeof spawnBullet === 'function' && spawnBullet(_sx, pp.y + pp.h/2, pp.facing * 13, _vy2, _wcRange, 10, 0, _wcFinal, _wCol);
+                        if (_sb) { _sb.isCard = true; _sb.cardCol = _wCol; _sb.isCrit = _wcCrit; }
                         for (let _pi = 0; _pi < 3; _pi++) if(typeof addPart === 'function') addPart(_sx, pp.y+pp.h/2, _wCol, 15, 2);
                     }, _wi * 60);
                 }
@@ -908,7 +933,7 @@ function updateProjectiles() {
         b.life--; 
         if (b.life <= 0) { b.active = false; return; }
         
-        if (b.sk !== 2) {
+        if (b.sk !== 2 && !b.isCard) {
             for (const t of Game.platforms) {
                 if (b.sk !== 4 && b.sk !== 5 && b.sk !== 6 && typeof overlap === 'function' && overlap({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 }, t)) { b.active = false; return; }
             }
@@ -943,7 +968,7 @@ function updateProjectiles() {
                     if(typeof applyPoiseHit === 'function') applyPoiseHit(e, 8);
                     b.active = false;
                 } else {
-                    if(typeof hitE === 'function') hitE(e, b.dmg || (Game.pBaseDmg * (Game.pBaseDmgMul||1)), b.vx > 0 ? 1 : -1, false);
+                    if(typeof hitE === 'function') hitE(e, b.dmg || (Game.pBaseDmg * (Game.pBaseDmgMul||1)), b.vx > 0 ? 1 : -1, b.isCrit || false, Game.pExtraDmg || 0);
                     if (b.sk && b.sk !== 3) Game.hitStop = 3;
                     if (Game.pClass === 2 && !b.sk) Game.pMp = Math.min(Game.pMaxMp, Game.pMp + 1);
                     if (!b.sk) {

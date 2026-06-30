@@ -51,14 +51,18 @@ function mkEnemy(x, y, w) {
     const rand = Math.random(); 
     let type = "melee";
     
-    if (w >= 1) { 
-        if (rand < 0.2) type = "ranged_laser"; 
-        else if (rand < 0.4) type = "ranged_bullet"; 
-        else if (rand < 0.55 && w >= 2) type = "shield";
+    if (w >= 1) {
+        // 월드가 오를수록 원거리·특수 비중 증가 — 초반은 근접 위주(온보딩), 후반은 복합 압박
+        const rangedRatio = Math.min(0.55, 0.25 + w * 0.03); // w1 0.28 → w10 0.55
+        const shieldCut   = rangedRatio + 0.15;              // 원거리 뒤 방패 구간(0.15)
+        const specialCut  = shieldCut + 0.12;                // 방패 뒤 특수타입 구간(0.12)
+        if (rand < rangedRatio * 0.5)            type = "ranged_laser";
+        else if (rand < rangedRatio)             type = "ranged_bullet";
+        else if (rand < shieldCut && w >= 2)     type = "shield";
         // 특수 타입 (월드 조건)
-        else if (rand < 0.65 && w >= 3 && w <= 4) type = "bomber";     // 자폭형 w3~4
-        else if (rand < 0.65 && w >= 5 && w <= 6) type = "splitter";   // 분열형 w5~6
-        else if (rand < 0.65 && w >= 7)            type = "phantom";   // 투명형 w7~10
+        else if (rand < specialCut && w >= 3 && w <= 4) type = "bomber";    // 자폭형 w3~4
+        else if (rand < specialCut && w >= 5 && w <= 6) type = "splitter";  // 분열형 w5~6
+        else if (rand < specialCut && w >= 7)           type = "phantom";   // 투명형 w7~10
     }
     
     let e = getObj(Game.enemies); 

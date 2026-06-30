@@ -18,22 +18,31 @@ function calcLaser(startX, startY, height, facing) {
 // 잡몹 원거리 공격 - 경고 방향과 발사 방향 완전 일치
 // ==========================================
 
+// 잡몹 탄막 발사 패턴 — 발사부와 예고(텔레그래프)가 동일하게 참조해 범위 불일치 방지
+//  angles: 중심각 대비 각 탄의 오프셋(rad) 목록, half: 부채꼴 반각(예고용), speed: 탄속
+function getRangedBulletPattern(e) {
+    if (e.isElite) {
+        const spread = 0.18;
+        const angles = [];
+        for (let s = -3; s <= 3; s++) angles.push(s * spread); // 7발 부채꼴
+        return { angles, half: 3 * spread, speed: 11 };        // half = 0.54
+    }
+    return { angles: [0], half: 0, speed: 9 };                  // 단발 직선
+}
+
 // 잡몹 원거리 공격 실행 — warnData의 방향 정보로 경고와 발사 방향을 1:1 일치
 function fireEnemyRanged(e) {
     const wd = e.warnData;
     if (!wd) return;
 
     if (e.type === "ranged_bullet") {
-        const ang    = wd.ang;
-        const count  = e.isElite ? 3 : 1;
-        const spread = e.isElite ? 0.18 : 0;
-        // 속도 대폭 상향 — 선딜 길게 줬으니 발사 후엔 빠르게
-        const bSpd = e.isElite ? 11 : 9;
-        for (let s = -count; s <= count; s += (e.isElite ? 1 : 2)) {
+        const ang = wd.ang;
+        const pat = getRangedBulletPattern(e);
+        for (const da of pat.angles) {
             spawnEBullet(
                 e.x + e.w / 2, e.y + e.h / 2,
-                Math.cos(ang + s * spread) * bSpd,
-                Math.sin(ang + s * spread) * bSpd,
+                Math.cos(ang + da) * pat.speed,
+                Math.sin(ang + da) * pat.speed,
                 70, 5, e.atk,
                 false   // 중력 없음 — 직선 묵직하게
             );

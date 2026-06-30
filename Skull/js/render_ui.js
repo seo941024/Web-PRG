@@ -19,6 +19,38 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     context.fillText(line, x, y);
 }
 
+// 단어 단위 줄바꿈 — '\n' 강제개행 지원, 한 단어가 폭 초과 시에만 글자 단위 폴백.
+// (현재 ctx 폰트/색/정렬을 그대로 사용. x = 정렬 기준점)
+function drawWrappedLines(text, x, yStart, maxW, lineH) {
+    if (!text) return yStart;
+    let y = yStart;
+    for (const seg of String(text).split('\n')) {
+        const words = seg.split(' ');
+        let line = '';
+        for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            const cand = line ? line + ' ' + w : w;
+            if (line && ctx.measureText(cand).width > maxW) {
+                ctx.fillText(line, x, y); y += lineH; line = w;
+            } else {
+                line = cand;
+            }
+            // 단어 하나가 폭을 넘기면 글자 단위로 쪼갬
+            if (ctx.measureText(line).width > maxW && line.indexOf(' ') === -1) {
+                let chunk = '';
+                for (const ch of line) {
+                    const t2 = chunk + ch;
+                    if (chunk && ctx.measureText(t2).width > maxW) { ctx.fillText(chunk, x, y); y += lineH; chunk = ch; }
+                    else chunk = t2;
+                }
+                line = chunk;
+            }
+        }
+        if (line) { ctx.fillText(line, x, y); y += lineH; }
+    }
+    return y;
+}
+
 function renderClassSelect(frameNow) {
     // 배경
     const bgGrd = ctx.createRadialGradient(CW/2, CH/2, 0, CW/2, CH/2, CW);
@@ -44,8 +76,8 @@ function renderClassSelect(frameNow) {
           hp:50,  atk:30,  def:-5,  crit:35, atkSpd:200, movSpd:130,
           ratings:[["체력","중하"],["공격력","중하"],["방어","최하"],["공격속도","최상"],["이동속도","최상"],["치명타","최상"]],
           skill:"새비지블로우", skillDesc:"6연타로 무차별 난도질 후 돌진 마무리.",
-          passive:"잔상", passiveDesc:"대시 직후 1.5초간 치명타율 +20%",
-          charDesc:"초고속 쌍단검으로\n누구보다 빠르고 높게 이동하며\n눈 앞의 적을 빠르게 섬멸한다.",
+          passive:"약점 간파", passiveDesc:"보스·엘리트 피해 +40%\n콤보 유지 시 치명타율 +25%",
+          charDesc:"초고속 쌍단검의 암살자.\n잡몹전엔 평범하나, 거대한 적의\n급소를 노려 보스를 학살한다.",
           unlockCond: null },
         { name:"마법사", color:"#00ccff", diffStars:2, _default:true,
           hp:40,  atk:50,  def:-5,  crit:18, atkSpd:55,  movSpd:100,
@@ -75,7 +107,7 @@ function renderClassSelect(frameNow) {
           passive:"신성방패", passiveDesc:"패링 성공 시 3초간 피해 30% 감소",
           charDesc:"신성력을 이용해 싸우는 수호자\n패링 능력이 매우 탁월하며\n방어력이 올라갈수록 강해진다.",
           unlockCond: "패링 10회" },
-        { name:"혈귀", color:"#720b0b", diffStars:4,
+        { name:"혈귀", color:"#cc1133", diffStars:4,
           hp:70,  atk:60,  def:-5,  crit:25, atkSpd:110, movSpd:105,
           ratings:[["체력","중상"],["공격력","상"],["방어","최하"],["공격속도","상"],["이동속도","중상"],["치명타","상"]],
           skill:"혈기격", skillDesc:"HP 20% 소모, 전방 광역 흡혈 대참격을 날린다.",
@@ -178,14 +210,7 @@ function renderClassSelect(frameNow) {
     ctx.fillStyle = "#ccccee";
     ctx.font = "13px SkullFont, NeoDunggeunmo";
     const skMaxW = PANEL_W - 20;
-    let skLine = "", skY = DA_Y + 62;
-    for (let i = 0; i < cl.skillDesc.length; i++) {
-        const test = skLine + cl.skillDesc[i];
-        if (ctx.measureText(test).width > skMaxW && skLine.length > 0) {
-            ctx.fillText(skLine, LC, skY); skLine = cl.skillDesc[i]; skY += 18;
-        } else { skLine = test; }
-    }
-    if (skLine) ctx.fillText(skLine, LC, skY);
+    drawWrappedLines(cl.skillDesc, LC, DA_Y + 62, skMaxW, 18);
 
     // 구분선 B
     const DB_Y = DA_Y + 96;
@@ -204,14 +229,7 @@ function renderClassSelect(frameNow) {
     ctx.fillStyle = "#bbbbcc";
     ctx.font = "13px SkullFont, NeoDunggeunmo";
     ctx.textAlign = "center";
-    let paLine = "", paY = DB_Y + 60;
-    for (let i = 0; i < cl.passiveDesc.length; i++) {
-        const test = paLine + cl.passiveDesc[i];
-        if (ctx.measureText(test).width > skMaxW && paLine.length > 0) {
-            ctx.fillText(paLine, LC, paY); paLine = cl.passiveDesc[i]; paY += 16;
-        } else { paLine = test; }
-    }
-    if (paLine) ctx.fillText(paLine, LC, paY);
+    drawWrappedLines(cl.passiveDesc, LC, DB_Y + 60, skMaxW, 16);
 
     // ════════════════════════════════
     // 오른쪽 패널
@@ -300,12 +318,33 @@ function renderClassSelect(frameNow) {
         ctx.fillStyle = "#aaaaaa";
         ctx.font = "13px SkullFont, NeoDunggeunmo";
         ctx.textAlign = "center";
-        cl.charDesc.split("\n").forEach((line, i) => {
+        const _descLines = cl.charDesc.split("\n");
+        _descLines.forEach((line, i) => {
             ctx.fillText(line, RX + PANEL_W / 2, descDivY + 20 + i * 16);
         });
+        // ── 온보딩: 직업별 핵심 운영 팁 (초보자가 직업 정체성을 바로 파악) ──
+        const CLASS_TIPS = [
+            "콤보 3타 마지막에 섬광 — 끊지 말고 끝까지 치기",          // 검사
+            "보스 학살자 — 콤보 유지로 치명타 올려 보스 녹이기",        // 도적
+            "거리 유지가 생명 — 평타로 MP 모아 스킬",                 // 마법사
+            "느리지만 강함 — 처치로 광기 쌓고 강하공격 활용",          // 버서커
+            "탄 8발 소진 후 재장전 — 탄 관리하며 점사",               // 발키리
+            "V 패링이 핵심 — 막고 반격하면 피해 감소",                // 성기사
+            "흡혈로 버팀 — 강하로 적에게 붙어 난타",                  // 혈귀
+            "치명타 특화 — 카드 랜덤, 강하는 뒤로 회피",              // 조커
+        ];
+        const _ti = classes.indexOf(cl);
+        const _tip = CLASS_TIPS[_ti];
+        if (_tip) {
+            // 오른쪽 패널 하단 (SPACE는 왼쪽으로 옮겼으므로 여기 비어 충돌 없음)
+            const _tipY = CARD_Y + CARD_H - 16;
+            ctx.fillStyle = cl.color;
+            ctx.font = "bold 11px SkullFont, NeoDunggeunmo";
+            ctx.fillText("▶ " + _tip, RX + PANEL_W / 2, _tipY);
+        }
     }
 
-    // ── SPACE 선택 (카드 정중앙 하단) ──
+    // ── SPACE 선택 (왼쪽 패널 중앙 하단) ──
     ctx.font = "bold 15px SkullFont, NeoDunggeunmo";
     ctx.textAlign = "center";
     if (_blink) {
@@ -318,7 +357,7 @@ function renderClassSelect(frameNow) {
         ctx.fillStyle = `#${_dr}${_dg}${_db}`;
         ctx.shadowBlur = 0;
     }
-    ctx.fillText("▶  SPACE 선택  ◀", CARD_CX, CARD_Y + CARD_H - 16);
+    ctx.fillText("▶  SPACE 선택  ◀", LC, CARD_Y + CARD_H - 16);
     ctx.shadowBlur = 0;
 
     // ── 해금 오버레이 (미해금 시) ──
@@ -800,58 +839,56 @@ if (
         const ammo   = Game.pGunAmmo !== undefined ? Game.pGunAmmo : 8;
         const reload = Game.pGunReload || 0;
         const p = Game.player;
-        const pcx = Math.round(p.x + p.w / 2 - Game.camX);
-        const pcy = Math.round(p.y);
         const t = Date.now();
 
         // 탄약 8칸: 각 7px 너비, 간격 2px
         const SLOT = 7, GAP = 2, SLOTS = 8;
         const barW = SLOTS * SLOT + (SLOTS - 1) * GAP; // 69px
+        // 탄약 UI는 플레이어를 그대로 따라감 (가로 클램프 금지 — 화면 끝에서 좌측에 붙어 튀어나오던 버그 원인)
+        const pcx = Math.round(p.x + p.w / 2 - Game.camX);
+        const pcy = Math.max(40, Math.round(p.y)); // 상단 HUD 위로만 안 솟게 약한 하한
         const barX = pcx - Math.floor(barW / 2);
         const barY = pcy - 34;
 
-        // 배경
-        ctx.fillStyle = "rgba(0,0,0,0.75)";
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(barX - 3, barY - 3, barW + 6, 14, 3);
-        else ctx.rect(barX - 3, barY - 3, barW + 6, 14);
-        ctx.fill();
-
-        // 탄약 칸
-        for (let a = 0; a < SLOTS; a++) {
-            const filled = a < ammo;
-            const col = filled ? "#ffcc00" : "#2a2a2a";
-            ctx.fillStyle = col;
-            ctx.shadowBlur = 0;
-            ctx.fillRect(barX + a * (SLOT + GAP), barY, SLOT, 8);
-        }
-        ctx.shadowBlur = 0;
-
-        // 재장전 게이지
         if (reload > 0) {
-            const reloadMax = Game.pGunReloadMax || 90;
-            const prog = 1 - reload / reloadMax;
-            const rgY = barY - 16;
-            // 배경
-            ctx.fillStyle = "rgba(0,0,0,0.8)";
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(barX - 3, rgY - 3, barW + 6, 12, 2);
-            else ctx.rect(barX - 3, rgY - 3, barW + 6, 12);
-            ctx.fill();
-            // 트랙
-            ctx.fillStyle = "#333";
-            ctx.fillRect(barX, rgY, barW, 6);
-            // 진행
-            const progW = Math.floor(barW * prog);
-            const pulse = 0.7 + Math.sin(t * 0.015) * 0.3;
-            ctx.fillStyle = `rgba(170,170,170,${pulse})`;
-            ctx.fillRect(barX, rgY, progW, 6);
-            // 텍스트
-            ctx.fillStyle = "#aaaaaa";
-            ctx.font = "9px SkullFont, NeoDunggeunmo";
+            // "재장전중..." 텍스트를 탄약 게이지 위에 표기 (점 개수 애니메이션)
+            const dots = ".".repeat(1 + Math.floor(t / 250) % 3);
+            ctx.fillStyle = "#ffcc00";
+            ctx.font = "bold 10px SkullFont, NeoDunggeunmo";
             ctx.textAlign = "center";
-            ctx.fillText("재장전", pcx, rgY - 2);
+            ctx.shadowBlur = 4; ctx.shadowColor = "#aa7700";
+            ctx.fillText("재장전중" + dots, pcx, barY - 6);
+            ctx.shadowBlur = 0;
             ctx.textAlign = "left";
+
+            // 탄약 게이지: 재장전 진행도만큼 차오름
+            const prog = Game.pGunReloadMax ? Math.max(0, 1 - reload / Game.pGunReloadMax) : 0;
+            const shown = Math.floor(prog * SLOTS);
+            ctx.fillStyle = "rgba(0,0,0,0.75)";
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(barX - 3, barY - 3, barW + 6, 14, 3);
+            else ctx.rect(barX - 3, barY - 3, barW + 6, 14);
+            ctx.fill();
+            for (let a = 0; a < SLOTS; a++) {
+                ctx.fillStyle = a < shown ? "#ffcc00" : "#3a2a00";
+                ctx.fillRect(barX + a * (SLOT + GAP), barY, SLOT, 8);
+            }
+        } else {
+            // 배경
+            ctx.fillStyle = "rgba(0,0,0,0.75)";
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(barX - 3, barY - 3, barW + 6, 14, 3);
+            else ctx.rect(barX - 3, barY - 3, barW + 6, 14);
+            ctx.fill();
+
+            // 탄약 칸
+            for (let a = 0; a < SLOTS; a++) {
+                const filled = a < ammo;
+                ctx.fillStyle = filled ? "#ffcc00" : "#2a2a2a";
+                ctx.shadowBlur = 0;
+                ctx.fillRect(barX + a * (SLOT + GAP), barY, SLOT, 8);
+            }
+            ctx.shadowBlur = 0;
         }
     }
 
@@ -887,48 +924,6 @@ if (
         ctx.restore();
     }
 
-    // ── 버서커 UI: 인레이지 쿨다운 게이지 + 광기 스택 ──
-    if (Game.pClass === 3 && Game.player && !Game.player.dead) {
-        const p = Game.player;
-        const pcx = Math.round(p.x + p.w/2 - Game.camX);
-        const pcy = Math.round(p.y) - 38;
-        const cd = Game._berserkSkillCooldown || 0;
-        const cdMax = 180;
-        const BAR_W = 36;
-        ctx.save();
-        // 쿨다운 게이지
-        ctx.fillStyle = "rgba(0,0,0,0.65)";
-        ctx.fillRect(pcx - BAR_W/2 - 2, pcy - 8, BAR_W + 4, 10);
-        if (cd > 0) {
-            const prog = 1 - cd / cdMax;
-            ctx.fillStyle = "#5a0000";
-            ctx.fillRect(pcx - BAR_W/2, pcy - 7, BAR_W, 8);
-            ctx.fillStyle = "#d11414";
-            ctx.fillRect(pcx - BAR_W/2, pcy - 7, Math.floor(BAR_W * prog), 8);
-            ctx.fillStyle = "#ff6644";
-            ctx.font = "8px SkullFont, NeoDunggeunmo";
-            ctx.textAlign = "center";
-            ctx.fillText("인레이지 쿨", pcx, pcy);
-        } else {
-            ctx.fillStyle = "#d11414";
-            ctx.shadowBlur = 6; ctx.shadowColor = "#d11414";
-            ctx.fillRect(pcx - BAR_W/2, pcy - 7, BAR_W, 8);
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "8px SkullFont, NeoDunggeunmo";
-            ctx.textAlign = "center";
-            ctx.fillText("인레이지 ▶", pcx, pcy);
-        }
-        // 광기 스택
-        if ((Game._berserkRageStacks||0) > 0) {
-            ctx.fillStyle = "#ff2200";
-            ctx.font = "bold 10px SkullFont, NeoDunggeunmo";
-            ctx.shadowBlur = 6; ctx.shadowColor = "#ff4400";
-            ctx.fillText(`분노 ${Game._berserkRageStacks}/7`, pcx, pcy - 12);
-            ctx.shadowBlur = 0;
-        }
-        ctx.restore();
-    }
 
 
 
