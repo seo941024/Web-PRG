@@ -44,5 +44,6 @@
 ### PixelLab 사용 팁 (겪은 시행착오)
 - 캐릭터 생성: Humanoid / v3 / **Low Top-Down** 카메라 / 48px / High Detail
 - 방향은 5개만 생성(south, south-east, east, north-east, north) — west 계열은 코드(`sprites.js`)가 좌우반전으로 자동 처리, 크레딧 37.5% 절감
-- **애니메이션은 프리셋(Walking/Running/Full Sprint/Idle)이 안정적**, Custom Animation V3는 BETA라 복잡한 동작(회전, 양손 동시)에서 자주 실패함 — 단순한 단일 팔 동작 위주로 프롬프트 작성
+- **애니메이션은 프리셋(Walking/Running/Full Sprint/Idle)이 안정적**, Custom Animation V3는 BETA라 복잡한 동작(회전, 양손 동시)에서 실패 확률이 있음 — 실패해도 유료 결제 후 재시도 여지가 있으니 **과감한 동작도 시도할 것** (보스는 특히 단순 팔동작만으론 부족함, 크고 과격한 모션 필요)
 - Pixelorama 편집기에서 "V3 animations... visible frame count of 4,6,8,10,12,14,16" 에러 나면: "Keep first frame" 옵션 때문에 참조프레임이 카운트에서 제외되는 것 — 총 프레임을 목록 값+1로 맞추거나 처음부터 원하는 프레임수로 재생성
+- **레이저·투사체 등 원거리 공격은 캐릭터 팔 애니로 정교하게 안 만들어도 됨** — 캐릭터는 짧은 시전 포즈만, 실제 빔/탄환은 `combat.js`의 `spawnLaser`/`spawnEBullet`처럼 코드로 그리는 별도 오브젝트로 처리 (보스도 동일)
