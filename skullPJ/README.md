@@ -57,13 +57,39 @@
 5. (아이디어, 후순위) **대시 공격** — Space 회피 중 C 누르면 돌진하며 찌르는 별도 모션. 걷기공격/러닝공격은
    직업 수만큼 배로 늘어나서(8직업×3~5종 애니) 지금은 스킵 — 대시공격 하나 정도만 나중에 추가 검토
 
+### ✅ 채택된 최종 프롬프트 (앞으로 모든 직업 attack 생성에 이걸로 계속 쓸 것)
+손 교체를 극단적으로 강조한 버전("이게 제일 중요한 규칙" 식)은 오히려 결과가 더 안 좋았음(정적인 포즈로 오해).
+**아래 버전(손 교체는 언급하되 과하게 강조 안 한 버전)이 실전 테스트에서 성공적** — 5방향 다 이걸로 생성 완료.
+
+**Custom Animation V3 — Action Description:**
+```
+Fast 4-hit dual-dagger combo, one continuous motion. The character strikes using only ONE arm at a time for every single hit — never both daggers swinging together. Alternate hands: right, left, right, left. Each strike should be BIG and exaggerated — a large, wide, full-arm swing with a strong wind-up before the strike and a strong follow-through after, not a small subtle flick. The first three hits are fast wide slashes; the fourth and final hit is the biggest and most powerful, a large overhead or wide sweeping finishing blow with maximum extension. Character and weapon motion only — do NOT draw any impact effects, sparks, motion trails, slash lines, or speed lines around the character; keep the frame clean, showing only the body and dagger movement itself, no extra VFX elements. Grim dark-fantasy skeleton character.
+```
+
+**설정:**
+- Frame Count: **16** (14 또는 16만 선택 가능. "Keep first frame" 반드시 **끄기**)
+- Direction: 5방향(south, south-east, east, north-east, north) 각각 생성
+- 실제 결과: 손이 완벽하게 매번 교체되진 않음(AI 한계), 그래도 동작 크기·이펙트 없음·전체적인 느낌은 합격점 — **이 정도면 실사용 가능한 수준으로 판단하고 채택**
+
+**참고 — 시도했다가 기각한 버전** (손 교체를 "가장 중요한 규칙"으로 못박은 버전, 오히려 정적인 X자 포즈로 나옴):
+```
+Fast 4-hit dagger combo. This is the MOST important rule: the character MUST physically switch which hand holds and swings the dagger every single hit — hit 1 uses the RIGHT hand, hit 2 uses the LEFT hand, hit 3 uses the RIGHT hand again, hit 4 uses the LEFT hand. The dagger visibly moves from one hand to the other between each hit. Do not keep the same hand for multiple hits. Big exaggerated swings, dark-fantasy skeleton character, no impact effects or sparks.
+```
+→ 이 버전은 쓰지 말 것.
+
+### 도적 베이스 캐릭터 프롬프트 (참고용 — 이미 완성됨, 재생성 필요시)
+```
+Undead skeleton assassin, bone-white skull face with hollow glowing eyes, dark charcoal armor with a hood, tattered purple scarf and violet cape. Lean and agile, dual-wielding two short steel daggers, one in each hand. Fast rogue thief, vivid purple accents, grim dark-fantasy game character.
+```
+설정: Humanoid / v3 / Low Top-Down 카메라 / 48px / High Detail
+
 ### PixelLab 사용 팁 (겪은 시행착오)
 - 캐릭터 생성: Humanoid / v3 / **Low Top-Down** 카메라 / 48px / High Detail
 - 방향은 5개만 생성(south, south-east, east, north-east, north) — west 계열은 코드가 좌우반전으로 자동 처리
 - **프리셋 애니(Walking/Running=Full Sprint/Idle)는 안정적.** Custom Animation V3는 BETA라 실패 확률 있음:
   - 회전하는 동작(구르기 등)은 거의 실패 → 스킵 권장
   - **양손 동시 동작 요청 시 캐릭터가 "춤추듯" 이상하게 움직임** — 반드시 "한 번에 한 팔만" 명시
-  - **"한 손씩 번갈아 치기"를 시켜도 AI가 잘 못 지킴** — 시도 2번 다 실패 (한쪽은 계속 같은 손만 사용, 한쪽은 양손을 겹쳐 든 정적 포즈로 오해). 대안: 짧은 단일 스윙 하나만 확실히 뽑고 코드에서 좌우반전으로 "반대손"을 흉내내는 방법 고려 중 (아직 미적용)
+  - **"한 손씩 번갈아 치기"는 AI가 완벽히 지키진 못함** — 손 교체를 "가장 중요한 규칙"으로 과하게 강조하면 오히려 정적인 포즈로 나빠짐. 적당히만 언급한 버전이 실전에서 더 나음 → 아래 "채택된 최종 프롬프트" 참고, 그걸로 고정해서 씀
   - **타격 이펙트(스파크·궤적선)를 하지 말라고 해도 자꾸 그려 넣음** — 완전히 막긴 어려움, 심하지 않으면 그냥 받아들이는 것도 방법. 어차피 실제 타격 이펙트는 `combat.js`의 `addPart`/`addText`로 코드에서 따로 그림
   - 유료 결제 후엔 실패 감수하고 **과감한 동작도 시도**하는 방침 (실패해도 재시도 여지 있음). 보스는 특히 단순 팔동작만으론 부족, 크고 과격한 모션 필요
 - Pixelorama 편집기에서 "V3 animations... visible frame count of 4,6,8,10,12,14,16" 에러 나면: "Keep first frame" 옵션 켜져있으면 참조프레임이 카운트에서 제외되는 것 — 총 프레임을 목록 값+1로 맞추거나, **처음부터 "Keep first frame" 끄고 원하는 프레임수(14 또는 16만 선택 가능)로 재생성**하는 게 훨씬 깔끔함
