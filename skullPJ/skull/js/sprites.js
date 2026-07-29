@@ -81,7 +81,7 @@ function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor) {
 // ── 프레임 애니메이션 (GIF → PNG 프레임 추출본, tools/extract_gif_frames.py) ──
 // 아직 안 뽑은 방향/애니는 조용히 실패 → drawAnimSprite가 정지 포즈로 자동 폴백.
 const ANIM_FRAME_COUNT = 8; // 기본 프레임 수 (대부분의 애니)
-const ANIM_FRAME_COUNTS = { attack: 15, idle: 7 }; // 애니마다 프레임 수 다르면 여기 등록. attack: 0번=참조(idle)프레임, 1~14=실제 4타 콤보
+const ANIM_FRAME_COUNTS = { attack: 16, idle: 7 }; // 애니마다 프레임 수 다르면 여기 등록. attack: 0~15 전부 4타 콤보(3-4-4-5, 참조프레임 없음)
 function animFrameCount(animName) { return ANIM_FRAME_COUNTS[animName] || ANIM_FRAME_COUNT; }
 const AnimSprites = {}; // key `${classId}_${anim}_${dir}` -> { frames:[Image], loadedCount, ready, frameCount }
 
@@ -106,6 +106,11 @@ function preloadAnims(classId, animNames) {
     animNames.forEach(a => REAL_DIRS.forEach(d => loadAnim(classId, a, d)));
 }
 
+// 애니메이션별 발치 비율 — 캔버스 크기가 다른 애니(예: attack은 108px, idle/walk는 92px)는
+// 여백 비율도 달라서 공용 SPRITE_FEET_RATIO를 쓰면 발이 떠 보임. PIL로 실측해서 등록.
+const ANIM_FEET_RATIO = { attack: 0.713 };
+function feetRatioFor(animName) { return ANIM_FEET_RATIO[animName] || SPRITE_FEET_RATIO; }
+
 // 프레임 애니 렌더 — 준비 안 됐으면 정지 포즈(drawDirSprite)로 폴백
 function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y) {
     const realDir = REAL_DIRS.includes(dir) ? dir : MIRROR_MAP[dir];
@@ -119,7 +124,7 @@ function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y) {
     const dw = img.naturalWidth, dh = img.naturalHeight;
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
-    ctx.drawImage(img, x - dw / 2, y - dh * SPRITE_FEET_RATIO, dw, dh);
+    ctx.drawImage(img, x - dw / 2, y - dh * feetRatioFor(animName), dw, dh);
     ctx.restore();
 }
 

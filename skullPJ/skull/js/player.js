@@ -16,17 +16,16 @@ const Player = {
 const COMBO_MAX = 4;
 const COMBO_REST_FRAMES = 18;   // 피니시(4타) 후 후딜 0.3초 @60fps
 const COMBO_WINDOW_FRAMES = 24; // 타 사이 재입력 대기창 0.4초 — 이 안에 C 안 누르면 콤보 리셋
-// 14프레임(실 콤보 분량)을 4타로 배분 (14는 4로 안 나눠떨어짐) — 피니시가 크고 화려하므로 프레임 더 배정
-// 실제 gif는 15프레임인데 0번은 PixelLab이 강제한 "참조(idle) 프레임"이라 재생에서 제외 — 1~14번만 사용
-const ATTACK_SEGMENTS = [3, 3, 3, 5]; // 합 14, [i] = (i+1)타의 프레임 수
-const ATTACK_FRAME_OFFSET = 1; // 참조 프레임(0번) 건너뛰기
+// 16프레임(PixelLab Frame Count는 14/16만 선택 가능, keep first frame 끔 → 전부 콤보용)을 4타로 배분: 3-4-4-5
+const ATTACK_SEGMENTS = [3, 4, 4, 5]; // 합 16, [i] = (i+1)타의 프레임 수
+const ATTACK_FRAME_OFFSET = 0; // 참조프레임 없음, 0번부터 바로 콤보 시작
 function attackSegmentRange(combo) {
     let start = ATTACK_FRAME_OFFSET;
     for (let i = 0; i < combo - 1; i++) start += ATTACK_SEGMENTS[i] || 0;
     const size = ATTACK_SEGMENTS[combo - 1] || ATTACK_SEGMENTS[ATTACK_SEGMENTS.length - 1];
     return { start, size };
 }
-const ATTACK_ANIM_TOTAL = ATTACK_SEGMENTS.reduce((a, b) => a + b, 0); // 14 — 타이밍 계산은 실 콤보 분량 기준
+const ATTACK_ANIM_TOTAL = ATTACK_SEGMENTS.reduce((a, b) => a + b, 0); // 16 — 타이밍 계산은 실 콤보 분량 기준
 
 // 방향 이름 → 단위벡터 (공격 판정 방향에 사용)
 const DIR_VEC = {
@@ -46,7 +45,7 @@ function tryPlayerAttack() {
     if (p.combo === COMBO_MAX) p.comboRestT = COMBO_REST_FRAMES;
     // 재생 길이는 "이번 타의 세그먼트 프레임 수" 기준 (전체 15프레임이 아니라 해당 구간만) — 공속 빠를수록 빨리 재생
     const segSize = ATTACK_SEGMENTS[p.combo - 1] || ATTACK_SEGMENTS[ATTACK_SEGMENTS.length - 1];
-    const animFps = 28 * prof.atkSpd; // 더 스냅있게 (기존 20 → 28)
+    const animFps = 16 * prof.atkSpd; // 14→느림, 20→빠름 사이 조정
     p.atkAnimMax = Math.max(4, Math.round(60 / animFps * segSize));
     p.atkAnim = p.atkAnimMax;
     p.atkT = Math.round(p.atkAnimMax * 0.6); // 이동 잠금은 스윙 앞부분만
@@ -121,10 +120,14 @@ function updatePlayer(walls) {
     if (dn("KeyC") && p.kbT <= 0) tryPlayerAttack();
 
     let mx = 0, my = 0;
-    if (dn("ArrowLeft", "KeyA")) mx = -1;
-    if (dn("ArrowRight", "KeyD")) mx = 1;
-    if (dn("ArrowUp", "KeyW")) my = -1;
-    if (dn("ArrowDown", "KeyS")) my = 1;
+    // 공격 중엔 스윙 전체(atkAnim) 동안 제자리 고정 — atkT(앞부분)만 잠그면 회수 동작 구간에서
+    // 살짝 움직이는 게 티가 나서 atkAnim 전체로 확장. comboRestT(피니시 후딜)도 동일하게 고정.
+    if (p.atkAnim <= 0 && p.comboRestT <= 0) {
+        if (dn("ArrowLeft", "KeyA")) mx = -1;
+        if (dn("ArrowRight", "KeyD")) mx = 1;
+        if (dn("ArrowUp", "KeyW")) my = -1;
+        if (dn("ArrowDown", "KeyS")) my = 1;
+    }
 
     const dname = dirFromVec(mx, my);
     if (dname) p.facing = dname;
