@@ -23,7 +23,14 @@ spawnEnemy(300, 750);
 spawnEnemy(820, 780);
 spawnEnemy(180, 300);
 
-function loop() {
+// 로직 전체가 "프레임당 px/60fps 기준 타이머"로 짜여 있어서, rAF를 그대로 쓰면
+// 모니터 주사율(120/144Hz 등)에 비례해 게임 속도 자체가 빨라짐. 고정 스텝(1/60초)
+// 누적기로 로직 업데이트만 60Hz에 고정하고, 렌더는 매 rAF마다 그려 부드러움은 유지.
+const STEP_MS = 1000 / 60;
+const MAX_STEPS_PER_FRAME = 5; // 텝 전환 등으로 너무 오래 멈췄다 돌아와도 한번에 폭주하지 않게 제한
+let lastTime = null, acc = 0;
+
+function step() {
     Game.frameCount++;
     if (!Player.dead) {
         updatePlayer(walls);
@@ -31,7 +38,20 @@ function loop() {
     }
     updateFx();
     updateCamera(Player);
-    renderRoom(walls);
-    requestAnimationFrame(loop);
 }
-loop();
+
+function loop(now) {
+    requestAnimationFrame(loop);
+    if (lastTime === null) lastTime = now;
+    acc += now - lastTime;
+    lastTime = now;
+    acc = Math.min(acc, STEP_MS * MAX_STEPS_PER_FRAME);
+    let steps = 0;
+    while (acc >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+        step();
+        acc -= STEP_MS;
+        steps++;
+    }
+    renderRoom(walls);
+}
+requestAnimationFrame(loop);
