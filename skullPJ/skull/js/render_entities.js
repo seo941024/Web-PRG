@@ -25,6 +25,14 @@ function renderRoom(walls) {
         ctx.fillStyle = "#44445260"; ctx.fillRect(w.x, w.y, w.w, 4);
     }
 
+    // 문 — 닫힘(잠김, 붉은빛)/열림(초록빛) 상태를 벽 위에 덧칠해 구분
+    (Game.doors || []).forEach(d => {
+        ctx.fillStyle = d.open ? "rgba(60,220,120,0.35)" : "rgba(220,60,60,0.35)";
+        ctx.fillRect(d.x, d.y, d.w, d.h);
+        ctx.strokeStyle = d.open ? "#3cdc78" : "#dc3c3c"; ctx.lineWidth = 2;
+        ctx.strokeRect(d.x, d.y, d.w, d.h);
+    });
+
     // 대시 잔상
     for (const g of dashGhosts) {
         ctx.globalAlpha = (g.life / g.max) * 0.45;
@@ -39,19 +47,29 @@ function renderRoom(walls) {
         ctx.beginPath(); ctx.ellipse(e.x, e.y, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
 
         if (e.state === "windup") {
-            ctx.strokeStyle = "rgba(255,60,60,0.7)"; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(e.x, e.y - 14, 14, 0, Math.PI * 2 * (1 - e.warnT / 24)); ctx.stroke();
+            const warnBase = e._warnBase || 24;
+            ctx.strokeStyle = e.isBoss ? "rgba(255,200,60,0.85)" : "rgba(255,60,60,0.7)";
+            ctx.lineWidth = e.isBoss ? 3 : 2;
+            const ringR = e.isBoss ? 22 : 14;
+            ctx.beginPath(); ctx.arc(e.x, e.y - (e.isBoss ? 18 : 14), ringR, 0, Math.PI * 2 * (1 - e.warnT / warnBase)); ctx.stroke();
         }
 
         ctx.save();
         if (e.flash > 0) ctx.filter = "brightness(2) saturate(0)";
-        drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, "#ff3333");
+        drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.isBoss ? "#ffcc33" : "#ff3333");
         ctx.restore();
 
-        // HP바
-        const hpw = 24;
-        ctx.fillStyle = "#000a"; ctx.fillRect(e.x - hpw/2, e.y - 40, hpw, 4);
-        ctx.fillStyle = "#e33"; ctx.fillRect(e.x - hpw/2, e.y - 40, hpw * Math.max(0, e.hp / e.maxHp), 4);
+        // HP바 — 보스는 크고 금테, 일반 몹은 작고 붉은 그대로
+        const hpw = e.isBoss ? 60 : 24;
+        const hpy = e.isBoss ? e.y - 52 : e.y - 40;
+        ctx.fillStyle = "#000c"; ctx.fillRect(e.x - hpw/2 - 1, hpy - 1, hpw + 2, 6);
+        ctx.fillStyle = "#3a0808"; ctx.fillRect(e.x - hpw/2, hpy, hpw, 4);
+        const ehpRatio = Math.max(0, e.hp / e.maxHp);
+        const ehpGrd = ctx.createLinearGradient(e.x - hpw/2, 0, e.x + hpw/2, 0);
+        if (e.isBoss) { ehpGrd.addColorStop(0, "#ffe066"); ehpGrd.addColorStop(1, "#cc8800"); }
+        else { ehpGrd.addColorStop(0, "#ff5050"); ehpGrd.addColorStop(1, "#cc1111"); }
+        ctx.fillStyle = ehpGrd; ctx.fillRect(e.x - hpw/2, hpy, hpw * ehpRatio, 4);
+        if (e.isBoss) { ctx.strokeStyle = "#ffcc33aa"; ctx.lineWidth = 1; ctx.strokeRect(e.x - hpw/2, hpy, hpw, 4); }
     });
 
     // 플레이어 공격 스윙 이펙트 — 몸통 높이 기준 채워진 부채꼴 (판정 각도 60도와 정확히 일치)
@@ -75,6 +93,36 @@ function renderRoom(walls) {
         ctx.stroke();
         ctx.restore();
     }
+
+    // 적 투사체 (보스 패턴 등)
+    Game.eBullets.forEach(b => {
+        if (!b.active) return;
+        ctx.fillStyle = "#ff6633";
+        ctx.shadowBlur = 6; ctx.shadowColor = "#ff6633";
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // 드롭 아이템 — 종류별 색 원 + 살짝 둥둥 뜨는 느낌, 만료 임박하면 깜빡임
+    Game.items.forEach(it => {
+        if (!it.active) return;
+        const style = ITEM_STYLE[it.type] || { col: "#ffffff", label: "?" };
+        const bob = Math.sin((Game.frameCount + it.x) * 0.08) * 2;
+        if (it.life < 90 && Math.floor(it.life / 6) % 2 === 0) return; // 소멸 임박 깜빡임
+        ctx.save();
+        ctx.translate(it.x, it.y + bob);
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.beginPath(); ctx.ellipse(0, 8, 7, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = style.col;
+        ctx.shadowBlur = 8; ctx.shadowColor = style.col;
+        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 9px monospace"; ctx.textAlign = "center";
+        ctx.fillText(style.label, 0, 3);
+        ctx.textAlign = "left";
+        ctx.restore();
+    });
 
     // 플레이어 그림자
     ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -110,23 +158,68 @@ function renderRoom(walls) {
     // ── 화면 흔들림 ──
     if (Game.camShake > 0) Game.camShake--;
 
-    // 플레이어 HP HUD (화면 고정)
-    ctx.fillStyle = "#000a"; ctx.fillRect(14, 14, 160, 16);
-    ctx.fillStyle = "#e33"; ctx.fillRect(14, 14, 160 * Math.max(0, Player.hp / Player.maxHp), 16);
-    ctx.strokeStyle = "#fff5"; ctx.strokeRect(14, 14, 160, 16);
-    ctx.fillStyle = "#fff"; ctx.font = "11px monospace";
-    ctx.fillText(`HP ${Math.max(0, Player.hp)}/${Player.maxHp}`, 20, 26);
+    // ── 플레이어 HUD 패널 (화면 고정) ──
+    const HX = 14, HY = 12, HW = 176, HH = 54;
+    ctx.save();
+    ctx.fillStyle = "rgba(10,8,18,0.72)";
+    ctx.fillRect(HX, HY, HW, HH);
+    ctx.strokeStyle = "#5a3a8a"; ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 6; ctx.shadowColor = "#7a4fc9aa";
+    ctx.strokeRect(HX, HY, HW, HH);
+    ctx.shadowBlur = 0;
+
+    // HP 바
+    const barX = HX + 10, barW = HW - 20;
+    const hpRatio = Math.max(0, Player.hp / Player.maxHp);
+    ctx.fillStyle = "#1a0808"; ctx.fillRect(barX, HY + 8, barW, 14);
+    const hpGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    hpGrd.addColorStop(0, "#ff6a4d"); hpGrd.addColorStop(1, "#c81e1e");
+    ctx.fillStyle = hpGrd; ctx.fillRect(barX, HY + 8, barW * hpRatio, 14);
+    ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 8, barW, 14);
+    ctx.fillStyle = "#ffe8e0"; ctx.font = "bold 10px SkullFont, NeoDunggeunmo, monospace";
+    ctx.textAlign = "left"; ctx.shadowBlur = 3; ctx.shadowColor = "#000";
+    ctx.fillText(`HP ${Math.max(0, Math.ceil(Player.hp))}/${Player.maxHp}`, barX + 4, HY + 18.5);
+    ctx.shadowBlur = 0;
 
     // 스태미나 바 (회피 소모)
-    ctx.fillStyle = "#000a"; ctx.fillRect(14, 34, 160, 8);
-    ctx.fillStyle = Player.stamina < STAMINA_DASH ? "#886600" : "#ffcc33";
-    ctx.fillRect(14, 34, 160 * (Player.stamina / STAMINA_MAX), 8);
-    ctx.strokeStyle = "#fff3"; ctx.strokeRect(14, 34, 160, 8);
+    const stRatio = Player.stamina / STAMINA_MAX;
+    ctx.fillStyle = "#1a1408"; ctx.fillRect(barX, HY + 26, barW, 9);
+    const stGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    if (Player.stamina < STAMINA_DASH) { stGrd.addColorStop(0, "#8a6a1a"); stGrd.addColorStop(1, "#5a4408"); }
+    else { stGrd.addColorStop(0, "#ffe066"); stGrd.addColorStop(1, "#e8a020"); }
+    ctx.fillStyle = stGrd; ctx.fillRect(barX, HY + 26, barW * stRatio, 9);
+    ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 26, barW, 9);
+
+    // 콤보 표시
+    if (Player.combo > 0 && (Player.atkAnim > 0 || Player.comboWindowT > 0)) {
+        ctx.fillStyle = "#ffcc44"; ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
+        ctx.textAlign = "left"; ctx.shadowBlur = 4; ctx.shadowColor = "#aa6600";
+        ctx.fillText(`콤보 ${Player.combo}/${COMBO_MAX}`, barX, HY + 46);
+        ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+
+    // ── 월드/레벨 표시 (화면 우측 상단) ──
+    ctx.save();
+    ctx.textAlign = "right";
+    const isBossLv = Game.levelN >= 3;
+    ctx.fillStyle = isBossLv ? "#ff5555" : "#cbb8ee";
+    ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
+    ctx.shadowBlur = 4; ctx.shadowColor = isBossLv ? "#ff2222" : "#7a4fc9";
+    ctx.fillText(`WORLD ${Game.worldN} - ${Game.levelN}${isBossLv ? "  [ BOSS ]" : ""}`, CW - 14, 24);
+    ctx.shadowBlur = 0;
+    ctx.font = "11px SkullFont, NeoDunggeunmo, monospace";
+    ctx.fillStyle = "#9a8cc0";
+    ctx.fillText(`점수 ${Game.score}   킬 ${Game.kills}   다크 쿼츠 ${Game.darkQuartz}`, CW - 14, 40);
+    ctx.restore();
 
     if (Player.dead) {
-        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0, 0, CW, CH);
-        ctx.fillStyle = "#f55"; ctx.font = "bold 28px monospace"; ctx.textAlign = "center";
-        ctx.fillText("YOU DIED", CW/2, CH/2);
+        ctx.fillStyle = "rgba(5,0,10,0.7)"; ctx.fillRect(0, 0, CW, CH);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#ff3344"; ctx.font = "bold 40px SkullFont, NeoDunggeunmo, monospace";
+        ctx.shadowBlur = 18; ctx.shadowColor = "#ff0000";
+        ctx.fillText("당신은 죽었습니다", CW/2, CH/2);
+        ctx.shadowBlur = 0;
         ctx.textAlign = "left";
     }
 }

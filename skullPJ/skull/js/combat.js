@@ -79,6 +79,87 @@ function addItem(x, y, w, h, vy, life, type) {
     i.vy = vy; i.life = life; i.type = type;
 }
 
+// 적 투사체 이동/충돌 갱신 — 탑다운이라 grav/isArrow 등 사이드스크롤 전용 플래그는 무시하고 직선 이동만 처리
+function updateEBullets(walls) {
+    Game.eBullets.forEach(b => {
+        if (!b.active) return;
+        b.x += b.vx; b.y += b.vy;
+        if (--b.life <= 0) { b.active = false; return; }
+        for (const w of walls) {
+            if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) { b.active = false; return; }
+        }
+        if (!Player.dead) {
+            const dx = b.x - Player.x, dy = b.y - Player.y;
+            const hitR = b.r + Math.max(Player.hb.w, Player.hb.h) / 2;
+            if (dx * dx + dy * dy < hitR * hitR) {
+                hitPlayer(b.dmg, { x: b.x, y: b.y });
+                b.active = false;
+            }
+        }
+    });
+}
+
+// 몹 처치 시 아이템 드롭 — skull_V1 mob.js의 드롭 확률/타입 로직 이식(중력 낙하만 제거, 탑다운은 제자리에 둥둥)
+// isBoss/isElite면 확정 드롭, 그 외엔 Game.pDropRate 확률
+function dropLoot(e) {
+    if (!(Math.random() < Game.pDropRate || e.isBoss || e.isElite)) return;
+    let type = "hp";
+    const roll = Math.random();
+    if (e.isBoss || e.isElite) {
+        if (roll < 0.2) type = "atk_drop";
+        else if (roll < 0.4) type = "def_drop";
+        else if (roll < 0.6) type = "atk_spd_drop";
+        else if (roll < 0.8) type = "move_spd_drop";
+        else type = "hp";
+    } else {
+        if (roll < 0.4) type = "hp";
+        else if (roll < 0.55) type = "atk_drop";
+        else if (roll < 0.7) type = "def_drop";
+        else if (roll < 0.85) type = "atk_spd_drop";
+        else type = "move_spd_drop";
+    }
+    addItem(e.x, e.y, 10, 10, 0, 600, type);
+}
+
+const ITEM_STYLE = {
+    hp:            { col: "#33ff66", label: "H" },
+    atk_drop:      { col: "#ff5544", label: "A" },
+    def_drop:      { col: "#44aaff", label: "D" },
+    atk_spd_drop:  { col: "#ffdd44", label: "S" },
+    move_spd_drop: { col: "#44ffee", label: "M" },
+};
+
+// 아이템 등등 떠 있다가 수명 만료 시 소멸, 플레이어가 닿으면 즉시 효과 적용 후 소멸
+function updateItems() {
+    Game.items.forEach(it => {
+        if (!it.active) return;
+        if (--it.life <= 0) { it.active = false; return; }
+        const pRect = { x: Player.x - Player.hb.w / 2, y: Player.y - Player.hb.h / 2, w: Player.hb.w, h: Player.hb.h };
+        const iRect = { x: it.x - it.w / 2, y: it.y - it.h / 2, w: it.w, h: it.h };
+        if (!Player.dead && overlap(pRect, iRect)) {
+            applyItemEffect(it);
+            it.active = false;
+        }
+    });
+}
+
+function applyItemEffect(it) {
+    const p = Player;
+    if (it.type === "hp") {
+        if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + 20); addText(p.x, p.y - 20, "+20 HP", "#33ff66", 40, 14); }
+        else { Game.score += 20; addText(p.x, p.y - 20, "점수 +20", "#aaaaff", 40, 14); }
+    } else if (it.type === "atk_drop") {
+        Game.pAtkBonus += 2; addText(p.x, p.y - 20, "공격력 증가!", "#ff5544", 40, 14);
+    } else if (it.type === "def_drop") {
+        Game.pDefBonus += 1; addText(p.x, p.y - 20, "방어력 증가!", "#44aaff", 40, 14);
+    } else if (it.type === "atk_spd_drop") {
+        Game.pAtkSpdBonus += 0.06; addText(p.x, p.y - 20, "공격 속도 증가!", "#ffdd44", 40, 14);
+    } else if (it.type === "move_spd_drop") {
+        Game.pMoveSpdBonus += 0.06; addText(p.x, p.y - 20, "이동 속도 증가!", "#44ffee", 40, 14);
+    }
+    for (let i = 0; i < 8; i++) addPart(p.x, p.y, ITEM_STYLE[it.type].col, 16, 3);
+}
+
 // 파티클/텍스트 풀 업데이트 (수명 감소·이동, 없으면 생성만 되고 영원히 화면에 안 나옴)
 function updateFx() {
     Game.parts.forEach(pt => {

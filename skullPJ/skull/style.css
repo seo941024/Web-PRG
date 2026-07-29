@@ -1,6 +1,40 @@
 html, body {
   margin: 0; height: 100%; background: #0b0b10;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
+  font-family: "SkullFont", "NeoDunggeunmo", monospace;
 }
-#c { image-rendering: pixelated; box-shadow: 0 0 40px #000; background: #15151d; }
-#hint { position: fixed; top: 10px; left: 10px; color: #889; font: 12px monospace; line-height: 1.5; }
+#wrap {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+}
+#c {
+  image-rendering: pixelated;
+  box-shadow: 0 0 40px #000, 0 0 0 2px #3a2a55, 0 0 0 4px #000;
+  background: #15151d;
+}
+#hint {
+  margin-top: 10px;
+  display: flex; align-items: center; gap: 18px;
+  padding: 6px 16px;
+  background: linear-gradient(#1a1526, #100c18);
+  border: 1px solid #4a2f74;
+  border-radius: 4px;
+  box-shadow: 0 0 12px rgba(150, 80, 255, 0.15) inset;
+  color: #cbb8ee;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+#hint .hkey {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 6px;
+  background: #241a38;
+  border: 1px solid #7a4fc9;
+  border-radius: 3px;
+  color: #ffcc44;
+  text-shadow: 0 0 6px #aa00ff88;
+}
+#hint .hlbl {
+  margin-right: 4px;
+  color: #9a8cc0;
+}

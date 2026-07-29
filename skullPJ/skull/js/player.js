@@ -40,16 +40,17 @@ function tryPlayerAttack() {
     if (p.atkT > 0 || p.atkCD > 0 || p.dashT > 0 || p.comboRestT > 0) return;
     p.comboWindowT = 0; // 재입력 성공 — 대기창 소모
     const prof = classProfile(Game.pClass);
+    const effAtkSpd = prof.atkSpd * (1 + (Game.pAtkSpdBonus || 0)); // atk_spd_drop 아이템 누적 반영
     // 4타 콤보 — 4타째 이후 짧은 휴식(0.3초), 그 뒤 다시 1타부터
     p.combo = (p.combo % COMBO_MAX) + 1;
     if (p.combo === COMBO_MAX) p.comboRestT = COMBO_REST_FRAMES;
     // 재생 길이는 "이번 타의 세그먼트 프레임 수" 기준 (전체 15프레임이 아니라 해당 구간만) — 공속 빠를수록 빨리 재생
     const segSize = ATTACK_SEGMENTS[p.combo - 1] || ATTACK_SEGMENTS[ATTACK_SEGMENTS.length - 1];
-    const animFps = 16 * prof.atkSpd; // 14→느림, 20→빠름 사이 조정
+    const animFps = 16 * effAtkSpd; // 14→느림, 20→빠름 사이 조정
     p.atkAnimMax = Math.max(4, Math.round(60 / animFps * segSize));
     p.atkAnim = p.atkAnimMax;
     p.atkT = Math.round(p.atkAnimMax * 0.6); // 이동 잠금은 스윙 앞부분만
-    p.atkCD = Math.max(p.atkAnimMax, Math.round(prof.atkCD / prof.atkSpd / COMBO_MAX));
+    p.atkCD = Math.max(p.atkAnimMax, Math.round(prof.atkCD / effAtkSpd / COMBO_MAX));
     p.animName = "attack"; p.animFrame = 0; p.animT = 0;
     const [dx, dy] = DIR_VEC[p.facing];
     const range = prof.range, arc = 60; // 부채꼴 판정 반각(도)
@@ -68,7 +69,7 @@ function tryPlayerAttack() {
             let da = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang))) * 180 / Math.PI;
             if (da > arc) return;
         }
-        let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1));
+        let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1)) + (Game.pAtkBonus || 0);
         // 피니시(4타)는 후딜이 긴 만큼 데미지 보너스 — 콤보 완주 보상
         if (p.combo === COMBO_MAX) dmg = Math.round(dmg * 1.7);
         const isCrit = Math.random() < prof.crit;
@@ -86,6 +87,7 @@ function tryPlayerAttack() {
 function hitPlayer(dmg, eObj) {
     const p = Player;
     if (p.dead || p.invT > 0 || p.dashT > 0) return;
+    dmg = Math.max(1, dmg - (Game.pDefBonus || 0)); // def_drop 아이템 누적 반영 (고정 감산, 최소 1)
     p.hp -= dmg;
     p.invT = 45; p.kbT = 12;
     const ex = p.x - (eObj ? eObj.x : p.x), ey = p.y - (eObj ? eObj.y : p.y);
@@ -132,7 +134,7 @@ function updatePlayer(walls) {
     const dname = dirFromVec(mx, my);
     if (dname) p.facing = dname;
 
-    let sp = p.speed;
+    let sp = p.speed * (1 + (Game.pMoveSpdBonus || 0)); // move_spd_drop 아이템 누적 반영
     if (mx !== 0 && my !== 0) sp *= 0.707; // 대각선 정규화
 
     // 스프린트: Z 유지 — 이동속도 2배, 스태미나 소모 없음 (풀스프린트 애니 사용)

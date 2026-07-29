@@ -32,6 +32,15 @@ const Game = {
     // 오브젝트 풀 (combat.js의 getObj가 사용)
     bullets: [], eBullets: [], lasers: [], parts: [], texts: [], items: [],
     enemies: [],
+    doors: [], // 스테이지 진행용 문 — main.js의 buildRoom()이 방마다 새로 채움
+
+    // 몹 처치 보상 — skull_V1(사이드스크롤) mob.js/upgrade_shop.js의 아이템 드롭·런 강화 구조를
+    // 탑다운으로 이식. pDropRate 확률로 잡몹이 아이템 드롭, 보스는 확정 드롭 + 다크 퀴츠.
+    pDropRate: 0.35,
+    pAtkBonus: 0,      // 평타 데미지 고정 가산 (atk_drop 아이템)
+    pDefBonus: 0,      // 피격 데미지 고정 감산 (def_drop 아이템)
+    pAtkSpdBonus: 0,   // 공격속도 배율 가산 (atk_spd_drop 아이템)
+    pMoveSpdBonus: 0,  // 이동속도 배율 가산 (move_spd_drop 아이템)
 
     frameCount: 0,
 };
