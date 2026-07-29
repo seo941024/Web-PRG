@@ -77,6 +77,11 @@ Fast 4-hit dagger combo. This is the MOST important rule: the character MUST phy
 ```
 → 이 버전은 쓰지 말 것.
 
+**⚠️ 알려진 한계 — 방향별 통일성**: 5방향(south/south-east/east/north-east/north)을 각각 독립적으로 생성하다 보니
+AI가 매번 "새로 그리는" 것에 가까워서, 방향마다 동작의 디테일·타이밍이 미묘하게 달라짐. 이건 **프롬프트로 못 고치는
+툴 구조 자체의 한계**로 판단하고 받아들이기로 함(재시도로 해결 안 됨). 실제 플레이에선 한 번에 한 방향만 보이니
+크게 안 거슬릴 걸로 예상 — 나중에 실플레이에서 진짜 문제 되면 그때 방향별 `ATTACK_SEGMENTS` 커스터마이즈 고려.
+
 ### 도적 베이스 캐릭터 프롬프트 (참고용 — 이미 완성됨, 재생성 필요시)
 ```
 Undead skeleton assassin, bone-white skull face with hollow glowing eyes, dark charcoal armor with a hood, tattered purple scarf and violet cape. Lean and agile, dual-wielding two short steel daggers, one in each hand. Fast rogue thief, vivid purple accents, grim dark-fantasy game character.
