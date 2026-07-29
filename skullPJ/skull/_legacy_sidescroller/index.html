@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>해골용사</title>
+    <style>
+      @font-face {
+        font-family: "SkullFont";
+        src: url("skull_base_font.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
+      }
+    </style>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@1.530/neodgm/style.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="wrapper">
+      <div id="topBar" style="min-height: 58px">
+        <div
+          id="ui-hp"
+          class="hpArea"
+          style="display: none; width: 340px; align-items: center; gap: 6px"
+        >
+          <span
+            class="hpLabel"
+            style="font-size: 20px; font-weight: bold; white-space: nowrap"
+            >HP</span
+          >
+          <div
+            id="playerHpBarWrap"
+            style="
+              width: 240px;
+              height: 28px;
+              background: #200505;
+              border: 2px solid #ff6666;
+              border-radius: 4px;
+              position: relative;
+              overflow: hidden;
+            "
+          >
+            <div
+              id="playerHpFill"
+              style="
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(to right, #cc0000, #ff3333);
+                transition: width 0.12s;
+              "
+            ></div>
+            <div
+              id="playerShieldFill"
+              style="
+                width: 0%;
+                height: 100%;
+                background: #00ccff;
+                position: absolute;
+                top: 0;
+                left: 0;
+                transition: width 0.12s;
+                opacity: 0.8;
+                display: none;
+              "
+            ></div>
+            <span
+              id="hpText"
+              style="
+                position: absolute;
+                width: 100%;
+                text-align: center;
+                left: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 15px;
+                font-weight: bold;
+                color: #fff;
+                text-shadow:
+                  1px 1px 3px #000,
+                  0 0 6px #000;
+                pointer-events: none;
+              "
+              >50 / 50</span
+            >
+          </div>
+        </div>
+        <div id="stageLabel" style="display: none; flex: 1; text-align: center">
+          스테이지 1-1
+        </div>
+        <div
+          id="scoreLabel"
+          style="display: none; width: 312px; text-align: right"
+        >
+          점수 : 0
+        </div>
+      </div>
+
+      <div
+        id="reviveLabel"
+        style="
+          color: #ff0088;
+          font-weight: bold;
+          font-size: 18px;
+          text-align: center;
+          display: none;
+          margin-bottom: 6px;
+          text-shadow: 1px 1px 2px #000;
+        "
+      >
+        [불사조의 깃털 n개 보유중]
+      </div>
+
+      <div id="bossBarWrap">
+        <div id="bossBarLabel">보스</div>
+        <div id="bossTrack"><div id="bossFill" style="width: 100%"></div></div>
+      </div>
+
+      <div id="canvasWrap">
+        <canvas id="c" width="640" height="360"></canvas>
+
+        <div id="overlay">
+          <!-- scene_main.png 배경 이미지 -->
+          <img
+            id="mainBg"
+            src="scene_main.png"
+            style="
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              z-index: 0;
+              opacity: 0;
+              transition: opacity 1.2s;
+            "
+          />
+
+          <!-- 해골용사 타이틀 — 이미지와 겹치지 않게 하단 배치 -->
+          <div
+            id="mainTitle"
+            style="
+              position: absolute;
+              bottom: 47%;
+              left: 50%;
+              transform: translateX(-50%);
+              z-index: 2;
+              text-align: center;
+              opacity: 0;
+              transition: opacity 1.2s;
+            "
+          >
+            <h1
+              style="
+                font-family:
+                  &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, sans-serif;
+                color: #f0f4ff;
+                font-size: 120px;
+                margin: 0;
+                letter-spacing: 7px;
+                text-shadow:
+                  0 0 20px #87aee0,
+                  0 0 40px #6d7cc2,
+                  3px 3px 0 #181c3b;
+              "
+            >
+              해골용사
+            </h1>
+          </div>
+
+          <!-- 쯔꾸르 메뉴 — 단일 표시 영역 (내용만 바뀜) -->
+          <nav
+            id="mainMenu"
+            style="
+              position: absolute;
+              bottom: 18%;
+              left: 50%;
+              transform: translateX(-50%);
+              z-index: 3;
+              opacity: 0;
+              transition: opacity 0.8s;
+              text-align: center;
+            "
+          >
+            <!-- 단일 항목 표시 영역 -->
+            <div
+              id="menuDisplay"
+              style="
+                font-family:
+                  &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, sans-serif;
+                font-size: 30px;
+                color: #ffffff;
+                letter-spacing: 4px;
+                min-width: 200px;
+                text-align: center;
+                text-shadow:
+                  0 0 10px #ffffff,
+                  0 0 22px #3e3ed6,
+                  0 0 38px #2a2a49;
+                animation: menuGlow 1.4s ease-in-out infinite alternate;
+              "
+            >
+              ▶ 시작하기
+            </div>
+          </nav>
+
+          <!-- SPACE 입력 안내 — 가운데 하단 고정 -->
+          <div
+            id="menuSpaceHint"
+            style="
+              position: absolute;
+              bottom: 5%;
+              left: 50%;
+              transform: translateX(-50%);
+              z-index: 3;
+              opacity: 0;
+              transition: opacity 0.8s;
+              font-family:
+                &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, sans-serif;
+              font-size: 16px;
+              color: #888;
+              letter-spacing: 2px;
+              text-align: center;
+            "
+          >
+            [ SPACE / ENTER ] 선택 &nbsp;&nbsp; [ ↑↓ ] 이동
+          </div>
+
+          <!-- 저장/불러오기 텍스트 입력창 (숨김) -->
+          <div
+            id="saveLoadPanel"
+            style="
+              display: none;
+              position: absolute;
+              bottom: 8%;
+              left: 50%;
+              transform: translateX(-50%);
+              z-index: 4;
+              text-align: center;
+            "
+          >
+            <p
+              id="saveLoadLabel"
+              style="
+                font-family:
+                  &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, sans-serif;
+                color: #aaa;
+                font-size: 16px;
+                margin: 0 0 8px 0;
+              "
+            ></p>
+            <textarea
+              id="saveDataInput"
+              rows="3"
+              style="
+                width: 400px;
+                background: #111;
+                color: #00ffaa;
+                border: 1px solid #444;
+                font-family:
+                  &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, monospace;
+                font-size: 14px;
+                padding: 8px;
+                resize: none;
+              "
+            ></textarea>
+            <div
+              style="
+                margin-top: 10px;
+                display: flex;
+                gap: 14px;
+                justify-content: center;
+              "
+            >
+              <button
+                id="saveLoadConfirm"
+                style="
+                  font-family:
+                    &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, sans-serif;
+                  background: #222;
+                  color: #00ffaa;
+                  border: 1px solid #00ffaa;
+                  padding: 8px 22px;
+                  font-size: 16px;
+                  cursor: pointer;
+                "
+              >
+                확인
+              </button>
+              <button
+                id="saveLoadCancel"
+                style="
+                  font-family:
+                    &quot;SkullFont&quot;, &quot;NeoDunggeunmo&quot;, sans-serif;
+                  background: #222;
+                  color: #888;
+                  border: 1px solid #444;
+                  padding: 8px 22px;
+                  font-size: 16px;
+                  cursor: pointer;
+                "
+              >
+                취소
+              </button>
+            </div>
+          </div>
+
+          <!-- 모바일 시작 버튼 (현재 비활성화 — 추후 모바일 지원 시 활성화) -->
+          <!--
+          <button class="startBtn" id="startBtn"
+            style="display:none;"
+            onclick="startGame()">▶ 여정을 시작한다</button>
+          -->
+        </div>
+      </div>
+
+      <div
+        id="bottomBar"
+        style="
+          min-height: 88px;
+          flex-direction: column;
+          gap: 8px;
+          padding: 12px 19px;
+        "
+      >
+        <!-- position:relative 컨테이너 — 스태미너를 절대좌표로 올림 -->
+        <div
+          style="
+            display: flex;
+            width: 100%;
+            align-items: center;
+            min-height: 55px;
+            position: relative;
+          "
+        >
+          <!-- 좌: 처치수 -->
+          <div style="width: 180px; flex-shrink: 0">
+            <span id="killLabel" style="display: none; font-size: 25px"
+              >처치: 0</span
+            >
+          </div>
+
+          <!-- 중: 스태미너 — 바의 중심이 정확히 전체 너비의 50%에 위치 -->
+          <!-- left = 50% - 라벨(96) - gap(8) - 바절반(130) = 50% - 234px -->
+          <div
+            id="ui-gauges"
+            style="
+              display: none;
+              position: absolute;
+              left: 0;
+              right: 0;
+              top: 0;
+              bottom: 0;
+              pointer-events: none;
+              align-items: center;
+            "
+          >
+            <div
+              id="ui-stamina"
+              style="
+                position: absolute;
+                left: calc(50% - 234px);
+                top: 50%;
+                transform: translateY(-50%);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              <span
+                style="
+                  color: #ccf f33;
+                  font-weight: bold;
+                  font-size: 22px;
+                  letter-spacing: 1px;
+                  text-shadow: 0 0 6px #ccff33;
+                  white-space: nowrap;
+                  width: 110px;
+                  text-align: right;
+                "
+                >스태미너</span
+              >
+              <div
+                style="
+                  width: 260px;
+                  height: 18px;
+                  background: #111;
+                  border: 2px solid #ccff33;
+                  border-radius: 3px;
+                  flex-shrink: 0;
+                  box-shadow: 0 0 4px #ccff33;
+                  position: relative;
+                "
+              >
+                <div
+                  id="staminaFill"
+                  style="
+                    width: 100%;
+                    height: 100%;
+                    background: #ccff33;
+                    transition: width 0.05s;
+                    border-radius: 2px;
+                  "
+                ></div>
+              </div>
+              <span
+                id="staminaLabel"
+                style="
+                  color: #ccff33;
+                  font-size: 20px;
+                  width: 110px;
+                  text-align: left;
+                  font-weight: bold;
+                  white-space: nowrap;
+                "
+                >최대</span
+              >
+            </div>
+          </div>
+
+          <!-- 우: 스킬·대쉬 -->
+          <div
+            style="
+              margin-left: auto;
+              width: 310px;
+              flex-shrink: 0;
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+              align-items: flex-end;
+            "
+          >
+            <div
+              id="ui-skill"
+              style="
+                display: none;
+                align-items: center;
+                justify-content: flex-end;
+              "
+            >
+              <span
+                id="skillStaticLabel"
+                style="
+                  color: #00ffcc;
+                  font-weight: bold;
+                  font-size: 20px;
+                  width: 60px;
+                  text-align: right;
+                  margin-right: 8px;
+                  white-space: nowrap;
+                "
+                >스킬</span
+              >
+              <div
+                id="skillGaugeBorder"
+                style="
+                  width: 120px;
+                  height: 15px;
+                  background: #111;
+                  border: 2px solid #00ffcc;
+                  border-radius: 3px;
+                  flex-shrink: 0;
+                  position: relative;
+                "
+              >
+                <div
+                  id="mpFill"
+                  style="
+                    width: 0%;
+                    height: 100%;
+                    background: #00ffcc;
+                    transition: width 0.1s;
+                    border-radius: 2px;
+                  "
+                ></div>
+              </div>
+              <span
+                id="skillLabel"
+                style="
+                  color: #00ffcc;
+                  font-size: 18px;
+                  width: 96px;
+                  text-align: right;
+                  margin-left: 8px;
+                  font-weight: bold;
+                  white-space: nowrap;
+                "
+                >0%</span
+              >
+            </div>
+            <div
+              id="ui-dash"
+              style="
+                display: none;
+                align-items: center;
+                justify-content: flex-end;
+              "
+            >
+              <span
+                style="
+                  color: #ffdd00;
+                  font-weight: bold;
+                  font-size: 20px;
+                  width: 60px;
+                  text-align: right;
+                  margin-right: 8px;
+                  white-space: nowrap;
+                "
+                >대쉬</span
+              >
+              <div
+                style="
+                  width: 120px;
+                  height: 15px;
+                  background: #111;
+                  border: 2px solid #ffdd00;
+                  border-radius: 3px;
+                  flex-shrink: 0;
+                  position: relative;
+                "
+              >
+                <div
+                  id="dashFill"
+                  style="
+                    width: 100%;
+                    height: 100%;
+                    background: #ffdd00;
+                    transition: width 0.08s;
+                    border-radius: 2px;
+                  "
+                ></div>
+              </div>
+              <span
+                id="dashLabel"
+                style="
+                  color: #ffdd00;
+                  font-size: 18px;
+                  width: 96px;
+                  text-align: right;
+                  margin-left: 8px;
+                  font-weight: bold;
+                  white-space: nowrap;
+                "
+                >준비완료!</span
+              >
+            </div>
+          </div>
+        </div>
+        <div
+          style="font-size: 19px; color: #888; text-align: center; width: 100%"
+        >
+          ← → 이동 &nbsp;|&nbsp; Z 대쉬 &nbsp;|&nbsp; X 점프 &nbsp;|&nbsp; C
+          평타 &nbsp;|&nbsp; ↓+C 강하 공격 &nbsp;|&nbsp; Shift 스킬 사용
+          &nbsp;|&nbsp; V 가드/패링
+        </div>
+      </div>
+    </div>
+
+    <script src="js/core.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/story.js"></script>
+    <script src="js/systems.js"></script>
+    <script src="js/mapgen.js"></script>
+    <script src="js/mob.js"></script>
+    <script src="js/boss.js"></script>
+    <script src="js/combat.js"></script>
+    <script src="js/stage.js"></script>
+    <script src="js/render_bg.js"></script>
+    <script src="js/render_entities.js"></script>
+    <script src="js/render_ui.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/npc.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/upgrade_shop.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

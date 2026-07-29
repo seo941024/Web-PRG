@@ -1,0 +1,6 @@
+html, body {
+  margin: 0; height: 100%; background: #0b0b10;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+#c { image-rendering: pixelated; box-shadow: 0 0 40px #000; background: #15151d; }
+#hint { position: fixed; top: 10px; left: 10px; color: #889; font: 12px monospace; line-height: 1.5; }

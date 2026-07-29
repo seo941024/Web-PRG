@@ -309,21 +309,45 @@ function updateEnemies() {
             const _rangedSpdMul = [1.0, 1.0, 1.1, 1.3][Game.difficulty || 0];
 
             if (e.type === "melee") {
+                if ((e.chargeCD || 0) > 0) e.chargeCD--;
+              // ── 돌진 돌격 패턴 (중거리에서 예고 후 빠른 대시) ──
+              if (e.chargeWarn > 0) {                       // 돌격 예고(제자리 웅크림)
+                    e.chargeWarn--; e.vx = 0; e.facing = e.chargeDir;
+                    if (e.chargeWarn === 0) { e.chargeT = 26; if(typeof playSfx === 'function') playSfx('enemy_atk'); }
+              } else if (e.chargeT > 0) {                    // 돌진 중
+                    e.chargeT--; e.facing = e.chargeDir;
+                    e.vx = e.chargeDir * (e.isElite ? 5.5 : 4.5) * _spdMul;
+                    if (Math.abs(dx) < 60 && Math.abs(dy) < 50 && typeof takeDmg === 'function') {
+                        takeDmg(Math.floor(e.atk * 1.3), e); e.chargeT = 0; e.atkAnim = 16;
+                    }
+              } else {
+                // 돌격 발동: 접지 + 중거리 + 쿨다운 + 낮은 확률
+                if (e.onGround && Math.abs(dy) < 45 && Math.abs(dx) > 120 && Math.abs(dx) < 300 &&
+                    (e.chargeCD || 0) <= 0 && e.warnT <= 0 && e.atkAnim <= 0 && Math.random() < 0.025) {
+                    e.chargeWarn = 22; e.chargeDir = dx > 0 ? 1 : -1; e.chargeCD = 240;
+                    addText(e.x + e.w/2, e.y - 12, "돌격!", "#ff8800", 40, 11);
+                } else {
                 e.sT--;
                 if (Math.abs(dx) < 55 && Math.abs(dy) < 40 && e.sT <= 0 && e.warnT <= 0 && e.atkAnim <= 0) {
-                    e.warnT = 70;
-                    e.sT = e.sI; e.vx = 0; e.facing = dx > 0 ? 1 : -1; 
+                    e.warnT = e.isElite ? 30 : 42;  // 예고 단축(70→42): 걸어서 못 피하게, 엘리트는 더 빠름
+                    e.sT = e.sI; e.vx = 0; e.facing = dx > 0 ? 1 : -1;
                 }
                 if (e.warnT > 0) {
-                    e.warnT--; e.vx = 0; 
-                    if (e.warnT <= 0) {
-                        e.atkAnim = 30; 
-                        if(typeof playSfx === 'function') playSfx('enemy_atk'); 
-                        if ((e.facing > 0 && dx > 0 && dx < 80) || (e.facing < 0 && dx < 0 && dx > -80)) {
-                            if (Math.abs(dy) < 45 && typeof takeDmg === 'function') takeDmg(e.atk, e);
+                    // 예고 중 플레이어가 크게 벗어나면 공격 취소·재추격 (허공 헛스윙 = 멍청함 제거)
+                    if (Math.abs(dx) > 95 || Math.abs(dy) > 60) {
+                        e.warnT = 0; e.atkAnim = 0;
+                    } else {
+                        e.warnT--; e.vx = 0;
+                        if (e.warnT <= 0) {
+                            e.atkAnim = 30;
+                            e.vx = e.facing * 3.2;  // 공격 순간 앞으로 짧게 돌진 → 살짝 물러서도 맞음
+                            if(typeof playSfx === 'function') playSfx('enemy_atk');
+                            if ((e.facing > 0 && dx > 0 && dx < 92) || (e.facing < 0 && dx < 0 && dx > -92)) {
+                                if (Math.abs(dy) < 48 && typeof takeDmg === 'function') takeDmg(e.atk, e);
+                            }
                         }
                     }
-                } else if (e.atkAnim > 0) { e.atkAnim--; e.vx = 0; } 
+                } else if (e.atkAnim > 0) { e.atkAnim--; e.vx *= 0.85; }  // 돌진 관성 감쇠
                 else {
                     if (distSq < 100000) {
                         let eSpd = (e.isElite ? 0.30 : 0.20) * _spdMul;
@@ -336,7 +360,9 @@ function updateEnemies() {
                         e.vx = e.pDir * (e.isElite ? 1.5 : 1.0) * _spdMul;
                     }
                 }
-            } 
+                }
+                }
+            }
             else if (e.type === "shield") {
                 e.guardT = (e.guardT + 1) % 360; 
                 e.isGuarding = e.guardT < 180;   
@@ -504,7 +530,8 @@ function updateEnemies() {
         // 스턴·넉백 경직 중엔 몸박 데미지 없음 — kbT 중 피격 방지
         // 몸박: 패링 차단(noParry=true), 가드는 허용
         if (!e.stun && e.kbT <= 0 && Game.invT === 0 && typeof overlap === 'function' && overlap(Game.player, { x: e.x, y: e.y, w: e.w, h: e.h }) && !Game.player.dead) {
-            if(typeof takeDmg === 'function') takeDmg(e.atk, e, false, true);
+            // 불합리 제거: 몸박(무예고 접촉)은 정식 공격보다 약하게 — 절반 피해
+            if(typeof takeDmg === 'function') takeDmg(Math.max(1, Math.floor(e.atk * 0.5)), e, false, true);
         }
     });
 }

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>해골용사 — 탑다운</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="c" width="1280" height="720"></canvas>
+  <div id="hint">이동: 방향키 / WASD &nbsp;·&nbsp; 스프린트(유지): Z &nbsp;·&nbsp; 회피(스태미나 소모): Space &nbsp;·&nbsp; 공격: C</div>
+
+  <!-- 상태/유틸 -->
+  <script src="js/core.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/sprites.js"></script>
+  <!-- 전투(오브젝트 풀·데미지 코어) -->
+  <script src="js/combat.js"></script>
+  <!-- 스태미나 상수만 재사용(Game.player 종속 함수들은 아직 미사용) -->
+  <script src="js/systems.js"></script>
+  <!-- 플레이어/적/렌더/루프 -->
+  <script src="js/player.js"></script>
+  <script src="js/mob.js"></script>
+  <script src="js/render_entities.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
