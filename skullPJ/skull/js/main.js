@@ -49,7 +49,6 @@ function pickSpawnSpots(n, walls) {
 // stageN/roundN에 맞는 방을 새로 구성 — 기존 오브젝트 비우고 벽·문·적 재배치
 function buildRoom(stageN, roundN) {
     Game.enemies.forEach(e => e.active = false);
-    Game.bullets.forEach(b => b.active = false);
     Game.eBullets.forEach(b => b.active = false);
     Game.parts.forEach(p => p.active = false);
     Game.texts.forEach(t => t.active = false);

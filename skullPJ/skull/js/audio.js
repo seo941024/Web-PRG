@@ -167,100 +167,36 @@ function playSfx(type) {
         noise(0.22, 0.08, 'highpass', 5000);
     }
     else if (type === 'atk') {
-        const cls = (typeof Game !== 'undefined') ? (Game.pClass || 0) : 0;
-        if (cls === 0) {
-            // 검사: 금속 참격 — 고음 슬래시 + 마찰 노이즈
-            sweep('sawtooth', 2200, 180, 0.30, 0.055, 220);
-            noise(0.55, 0.06, 'bandpass', 3200);
-            noise(0.25, 0.12, 'highpass', 6000);
-        } else if (cls === 1) {
-            // 도적(현재 유일한 플레이 직업): 쌍단검.
-            // 3600Hz 하강 슬라이스는 휘슬처럼 가늘어 "귀엽게" 들렸음 → 중저역 베임 + 젖은 임팩트로 교체
-            sweep('sawtooth', 1100, 90, 0.32, 0.055, 280);
-            noise(0.42, 0.045, 'bandpass', 1900);
-            noise(0.32, 0.07, 'lowpass', 520);
-        } else if (cls === 2) {
-            // 발키리: 총성 균열음 + 탄피
-            noise(0.90, 0.025, 'highpass', 4500);
-            noise(0.40, 0.06, 'bandpass', 1600);
-            sweep('sawtooth', 240, 28, 0.45, 0.12, 500);
-        } else if (cls === 3) {
-            // 마법사: 마법 방출 — 공명 버스트 + 파열
-            sweep('sine', 1800, 280, 0.28, 0.12);
-            noise(0.50, 0.08, 'bandpass', 2000);
-            sweep('sawtooth', 900, 60, 0.20, 0.18, 300);
-        } else if (cls === 4) {
-            // 버서커: 둔중한 파쇄 — 저음 충격
-            sweep('sawtooth', 160, 22, 0.85, 0.18, 700);
-            noise(0.60, 0.14, 'lowpass', 500);
-            noise(0.35, 0.08, 'bandpass', 900);
-        } else if (cls === 5) {
-            // 성기사: 신성한 타격 — 맑은 금속음 + 저음 울림
-            sweep('sawtooth', 1600, 120, 0.28, 0.09, 150);
-            noise(0.40, 0.08, 'highpass', 4000);
-            osc('sine', 82, 0.30, 0.25);
-        } else if (cls === 6) {
-            // 소환사: 마법 채찍 — 기묘한 영체 터치음
-            sweep('sine', 600, 1200, 0.22, 0.10);
-            noise(0.30, 0.08, 'bandpass', 1400);
-        } else if (cls === 7) {
-            // 강령술사: 죽음의 손길 — 저음 공명 + 이세계 잡음
-            sweep('sine', 220, 80, 0.28, 0.20);
-            noise(0.45, 0.15, 'bandpass', 400);
-            osc('sine', 160, 0.20, 0.18);
-        } else if (cls === 6) {
-            // 혈귀: 날카로운 혈창 — 금속 베임 + 젖은 충격
-            sweep('sawtooth', 2800, 120, 0.35, 0.08, 300);
-            noise(0.55, 0.06, 'lowpass', 600);
-            noise(0.30, 0.10, 'bandpass', 1200);
-        } else if (cls === 9) {
-            // 검성: 검기 — 날카로운 고음 금속음
-            sweep('sawtooth', 3200, 200, 0.40, 0.07, 200);
-            noise(0.50, 0.05, 'highpass', 5000);
-            osc('sine', 880, 0.15, 0.10);
-        } else if (cls === 10) {
-            // 마창사: 마창 — 전기 충격 + 날카로운 베임
-            sweep('sawtooth', 2000, 100, 0.35, 0.10, 250);
-            noise(0.45, 0.07, 'bandpass', 2500);
-        } else if (cls === 11) {
-            // 귀신병: 허공 타격 — 유령 같은 스쳐지나감
-            sweep('sine', 800, 1600, 0.20, 0.08);
-            noise(0.35, 0.06, 'highpass', 3500);
-        } else if (cls === 12) {
-            // 폭탄병: 둔탁한 철제 타격
-            sweep('sawtooth', 200, 28, 0.70, 0.15, 500);
-            noise(0.50, 0.10, 'lowpass', 400);
-        } else if (cls === 13) {
-            // 빙술사: 냉기 타격 — 얼음 결정 파열
-            sweep('sine', 2200, 300, 0.28, 0.09);
-            noise(0.40, 0.06, 'highpass', 4500);
-            osc('sine', 1100, 0.15, 0.12);
-        } else if (cls === 14) {
-            // 무당: 저주 접촉 — 오싹한 공명
-            sweep('sine', 180, 60, 0.30, 0.20);
-            noise(0.40, 0.12, 'bandpass', 400);
-        } else if (cls === 7) {
-            // 조커: 경쾌한 손장난 — 카드 슬랩
-            noise(0.55, 0.04, 'highpass', 3000);
-            sweep('sawtooth', 1200, 80, 0.28, 0.08, 200);
-        } else if (cls === 16) {
-            // 분신술사: 다중 타격 — 잔상 충격음
-            sweep('sawtooth', 1000, 80, 0.25, 0.08);
-            setTimeout(() => { if (audioCtx) sweep('sawtooth', 1200, 100, 0.20, 0.07); }, 40);
-            setTimeout(() => { if (audioCtx) sweep('sawtooth', 1400, 120, 0.15, 0.06); }, 80);
-        } else if (cls === 17) {
-            // 연금술사: 플라스크 타격 — 유리 파열 + 액체 튐
-            noise(0.60, 0.05, 'highpass', 4000);
-            sweep('sine', 800, 200, 0.25, 0.12);
-            noise(0.35, 0.08, 'bandpass', 1000);
-        } else if (cls === 18) {
-            // 선봉대: 방패 타격 — 묵직한 금속 충격
-            sweep('sawtooth', 280, 30, 0.80, 0.18, 500);
-            noise(0.55, 0.08, 'lowpass', 450);
-            noise(0.35, 0.06, 'bandpass', 900);
-        } else {
-            // fallback
-            sweep('sawtooth', 800, 80, 0.30, 0.12);
+        // 평타 — 확정 로스터(0 성기사 / 1 도적 / 2 마법사 / 3 버서커 / 4 발키리 / 5 혈귀) 기준.
+        // 원래 V1의 클래스 0~18 분기(검사·조커·검성·마창사·분신술사 등 삭제된 직업 포함)를
+        // 그대로 들고 있었으나, 실제 로스터와 어긋나 혼란만 주므로 정리했다.
+        // 지금 플레이 가능한 건 도적(1) 하나이고, 나머지는 스프라이트/스탯 구현 시 함께 손볼 자리표시자.
+        switch (Game.pClass) {
+            case 1: // 도적 — 쌍단검. 가는 고역 휘슬을 피하고 중저역 베임 + 젖은 임팩트
+                sweep('sawtooth', 1100, 90, 0.32, 0.055, 280);
+                noise(0.42, 0.045, 'bandpass', 1900);
+                noise(0.32, 0.07, 'lowpass', 520);
+                break;
+            case 0: // 성기사 — 망치. 묵직한 금속 충격 + 저음 울림
+                sweep('sawtooth', 420, 45, 0.55, 0.16, 420);
+                noise(0.45, 0.09, 'lowpass', 600);
+                osc('sine', 82, 0.30, 0.24);
+                break;
+            case 3: // 버서커 — 대검. 둔중한 파쇄
+                sweep('sawtooth', 240, 26, 0.70, 0.20, 600);
+                noise(0.50, 0.14, 'lowpass', 480);
+                break;
+            case 2: // 마법사 — 마법탄 방출
+            case 4: // 발키리 — 사격
+                sweep('sawtooth', 900, 120, 0.34, 0.12, 300);
+                noise(0.35, 0.07, 'bandpass', 1500);
+                break;
+            case 5: // 혈귀 — 혈창. 베임 + 젖은 충격
+                sweep('sawtooth', 1300, 110, 0.36, 0.08, 320);
+                noise(0.45, 0.08, 'lowpass', 560);
+                break;
+            default:
+                sweep('sawtooth', 800, 90, 0.30, 0.10, 260);
         }
     }
     else if (type === 'enemy_atk') {
@@ -301,64 +237,9 @@ function playSfx(type) {
         osc('sine', 3520, 0.20, 0.10);
         noise(0.40, 0.15, 'bandpass', 2800);
     }
-    else if (type === 'skill') {
-        const cls = (typeof Game !== 'undefined') ? (Game.pClass || 0) : 0;
-        if (cls === 0) {
-            // 검사: 강렬한 대검 수평베기
-            sweep('sawtooth', 180, 22, 0.85, 0.55, 700);
-            noise(0.65, 0.35, 'bandpass', 1800);
-            noise(0.40, 0.20, 'highpass', 4000);
-        } else if (cls === 1) {
-            // 도적: 공간 찢는 순간이동
-            noise(0.80, 0.04, 'highpass', 6000);
-            sweep('sawtooth', 4000, 50, 0.60, 0.08, 300);
-            setTimeout(() => { if (audioCtx) { noise(0.50, 0.03, 'highpass', 5000); } }, 80);
-        } else if (cls === 2) {
-            // 마법사: 얼음 블랙홀 — 냉기 흡수음 + 저주파 공명
-            sweep('sine', 800, 60, 0.45, 0.55, 700);
-            noise(0.50, 0.40, 'bandpass', 600);
-            osc('sine', 80, 0.35, 0.60);
-            setTimeout(() => { if (audioCtx) { noise(0.30, 0.25, 'lowpass', 400); } }, 120);
-        } else if (cls === 3) {
-            // 버서커: 짐승 같은 충격파 슬램
-            sweep('sawtooth', 55, 10, 1.0, 0.80, 800);
-            noise(0.75, 0.50, 'lowpass', 800);
-            [2000, 1000, 500].forEach((f, i) => setTimeout(() => { if (audioCtx) { noise(0.35, 0.12, 'bandpass', f); } }, i * 70));
-        } else if (cls === 4) {
-            // 헌터: 크루 소환 — 군사 신호음 + 금속 울림
-            osc('square', 440, 0.25, 0.08);
-            osc('square', 660, 0.20, 0.06);
-            setTimeout(() => { if (audioCtx) { osc('square', 880, 0.22, 0.10); noise(0.35, 0.15, 'bandpass', 2200); } }, 90);
-            setTimeout(() => { if (audioCtx) { noise(0.40, 0.20, 'highpass', 3000); } }, 180);
-        } else if (cls === 5) {
-            // 성기사: 신성 회오리 — 찬란한 빛의 폭발
-            sweep('sine', 440, 1760, 0.45, 0.35);
-            noise(0.55, 0.25, 'highpass', 3000);
-            osc('sine', 220, 0.30, 0.50);
-            osc('sine', 440, 0.20, 0.40);
-        } else if (cls === 6) {
-            // 혈귀: 혈기격 — 폭발적 혈창 해방
-            sweep('sawtooth', 80, 20, 1.0, 0.55, 600);
-            noise(0.70, 0.35, 'lowpass', 600);
-            noise(0.45, 0.20, 'bandpass', 1200);
-            setTimeout(() => { if (audioCtx) { sweep('sawtooth', 400, 40, 0.50, 0.30, 400); } }, 80);
-        } else if (cls === 7) {
-            // 조커: 와일드카드 — 카드 7장 연속 투척
-            osc('square', 880, 0.25, 0.08);
-            setTimeout(() => { if (audioCtx) osc('square', 660, 0.20, 0.06); }, 80);
-            setTimeout(() => {
-                if (!audioCtx) return;
-                if (Math.random() < 0.5) {
-                    sweep('sawtooth', 150, 20, 1.0, 0.60, 700); noise(0.80, 0.40, 'lowpass', 400);
-                } else {
-                    sweep('sine', 400, 40, 0.60, 0.40); noise(0.50, 0.20, 'highpass', 2000);
-                }
-            }, 180);
-        } else {
-            sweep('sine', 440, 880, 0.35, 0.40);
-            noise(0.40, 0.25, 'highpass', 2500);
-        }
-    }
+    // 'skill'(직업 필살기) SFX는 아직 호출처가 없다 — 탑다운에 스킬 시스템이 없기 때문.
+    // V1의 클래스별 분기 58줄은 삭제된 직업(조커·헌터 등)까지 포함해 실제 로스터와 어긋났으므로 제거.
+    // 스킬을 구현할 때 skull_V1/skull/js/audio.js 의 'skill' 블록을 참고할 것.
     else if (type === 'dmg') {
         sweep('sawtooth', 200, 25, 0.8, 0.3, 450);
         noise(0.6, 0.3, 'bandpass', 800);
@@ -1216,63 +1097,6 @@ function playBGM(scene = 'play') {
         return;
     }
 
-    // ── wg6(10월드) 잡몹 스테이지: 바람소리 + 저음 "우...우..." 공허 ──────
-    if (wg === 6) {
-        function _w6Wind() {
-            if (!isBgmPlaying || Game.isMuted || !noiseBuffer) return;
-            const now = audioCtx.currentTime;
-            const src = audioCtx.createBufferSource();
-            src.buffer = noiseBuffer; src.loop = true;
-            const filt = audioCtx.createBiquadFilter();
-            filt.type = 'bandpass';
-            filt.frequency.value = 380 + Math.random() * 200;
-            filt.Q.value = 0.40;
-            const gWind = audioCtx.createGain();
-            gWind.gain.setValueAtTime(0, now);
-            gWind.gain.linearRampToValueAtTime(0.10, now + 3.0);
-            gWind.gain.linearRampToValueAtTime(0.06, now + 7.0);
-            gWind.gain.linearRampToValueAtTime(0, now + 9.0);
-            src.connect(filt); filt.connect(gWind); gWind.connect(_out());
-            src.start(now); src.stop(now + 9.0);
-        }
-        bgmInterval2 = setInterval(_w6Wind, 8000); _w6Wind();
-
-        // 저음 우...우... 드론
-        const w6MoanF = [28, 32, 27, 30, 25, 33, 29, 28];
-        let w6mi = 0;
-        function _w6Moan() {
-            if (!isBgmPlaying || Game.isMuted) return;
-            const now = audioCtx.currentTime;
-            const bf = w6MoanF[w6mi % w6MoanF.length];
-            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-            o.type = 'sine';
-            o.frequency.setValueAtTime(bf, now);
-            o.frequency.linearRampToValueAtTime(bf * 1.07, now + 2.0);
-            o.frequency.linearRampToValueAtTime(bf * 0.95, now + 4.5);
-            g.gain.setValueAtTime(0, now);
-            g.gain.linearRampToValueAtTime(0.12, now + 1.0);
-            g.gain.setValueAtTime(0.10, now + 3.8);
-            g.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 5.8);
-            if (noiseBuffer) {
-                const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer;
-                const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 100;
-                const gn = audioCtx.createGain();
-                gn.gain.setValueAtTime(0, now);
-                gn.gain.linearRampToValueAtTime(0.04, now + 1.2);
-                gn.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
-                src.connect(lp); lp.connect(gn); gn.connect(_out()); src.start(now);
-            }
-            w6mi++;
-        }
-        function _w6Schedule() {
-            if (!isBgmPlaying) return;
-            setTimeout(() => { _w6Moan(); _w6Schedule(); }, 4500 + Math.random() * 4000);
-        }
-        bgmInterval = setInterval(() => {}, 999999);
-        _w6Moan(); _w6Schedule();
-        return;
-    }
 
     // ── 일반 스테이지 BGM: 테마별 분위기 ────────────────────────────────
     // 전부 어두운 음계로 통일한다 (장음계·상승 선율은 다크 판타지와 정면으로 어긋남).
@@ -1321,44 +1145,8 @@ function playBGM(scene = 'play') {
                    55.0,0,0,0, 49.0,0,0,0, 43.7,0,0,0, 82.4,0,0,0,
                    65.4,0,0,0, 73.4,0,0,0, 82.4,0,0,0, 82.4,0,0,0],
         },
-        // ⚠️ 아래 wg4·wg5·wg6 프로필은 현재 사용되지 않는다.
-        // 스테이지 4·5는 위쪽 _isBurning 메탈 분기에서 처리하고 early return 하므로 여기까지 오지 않음.
-        // skull_V1(월드 10개) 시절 자산이라 참고용으로만 남겨둠 — 메탈 분기를 걷어낼 때 되살릴 수 있다.
-        // wg4: 마족 성채 — B Locrian 산업 어둠 + 킥 + 금속 타격 + 왜곡 기타
-        4: {
-            spd: 140, melType:'sawtooth', bassType:'sawtooth', melVol:0.12, bassVol:0.17,
-            distMel:160, distBass:220, kick:true, metalHit:true,
-            mel:  [247,0,0,349, 0,247,261,0, 220,0,247,0, 294,261,247,220,
-                   247,0,349,0, 294,0,261,0, 247,220,0,247, 196,0,220,0,
-                   311,0,0,370, 0,311,294,0, 261,0,311,0,  349,311,294,261,
-                   247,0,0,294, 261,0,247,0, 220,196,0,220, 247,0,0,0],
-            bass: [123,0,0,0, 116,0,0,0, 123,0,116,0, 130,0,0,0,
-                   123,0,0,0, 116,0,0,0, 110,0,116,0, 123,0,0,0,
-                   156,0,0,0, 147,0,0,0, 156,0,147,0, 165,0,0,0,
-                   123,0,0,0, 116,0,0,0, 110,0,0,0,   123,0,0,0],
-        },
-        // wg5: 마왕성 입구 — 핏빛 드론 + 유령 멜로디 + 저음 맥동
-        5: {
-            spd: 380, melType:'sine', bassType:'sine', melVol:0.10, bassVol:0.16,
-            drone:true, ghostMel:true,
-            mel:  [110,0,0,0, 98,0,0,0,  116,0,0,0, 110,0,0,0,
-                   104,0,0,0, 98,0,0,0,  87,0,0,0,  110,0,0,0,
-                   116,0,0,0, 110,0,98,0, 87,0,0,0,  98,0,0,0,
-                   104,0,0,0, 98,0,0,0,  116,0,98,0, 110,0,0,0],
-            bass: [55,0,0,0, 0,0,0,0, 55,0,0,0, 58,0,0,0,
-                   55,0,0,0, 0,0,0,0, 49,0,0,0, 55,0,0,0,
-                   58,0,0,0, 0,0,0,0, 55,0,0,0, 52,0,0,0,
-                   55,0,0,0, 0,0,0,0, 58,0,0,0, 55,0,0,0],
-        },
-        6: {
-            spd: 860, melType:'sine', bassType:'sine', melVol:0, bassVol:0, drone:true, ghost:true,
-            mel:  [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
-                   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
-            bass: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
-                   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
-        },
     };
-    const p = profiles[Math.min(wg, 6)] || profiles[1];
+    const p = profiles[wg] || profiles[1];   // wg4·5는 아래 메탈 분기가 처리하므로 여기 없음
     const _isBurning = Game.stageN >= 4; // 화산지대·마왕성 = 메탈 계열
 
     // 화산지대·마왕성: 메탈 전용 BGM (일반 BGM 없이 기타+드럼만)
@@ -1447,20 +1235,6 @@ function playBGM(scene = 'play') {
         if (p.hihat && si % 2 === 1) _hihat(p.hhVol || 0.10);
         if (p.kick   && b % 4 === 0) _kick(0.36);
         // wg6: 세찬 바람 — 860ms마다 2.2초 버스트, 중첩으로 연속 바람 효과
-        if (p.ghost && noiseBuffer) {
-            const wnow = audioCtx.currentTime;
-            const wsrc = audioCtx.createBufferSource(); wsrc.buffer = noiseBuffer;
-            const whp = audioCtx.createBiquadFilter(); whp.type = 'highpass'; whp.frequency.value = 550;
-            const wlp = audioCtx.createBiquadFilter(); wlp.type = 'lowpass'; wlp.frequency.value = 4000;
-            const wgn = audioCtx.createGain();
-            const wvol = 0.13 + Math.random() * 0.10;
-            wgn.gain.setValueAtTime(0, wnow);
-            wgn.gain.linearRampToValueAtTime(wvol, wnow + 0.35);
-            wgn.gain.setValueAtTime(wvol * (0.75 + Math.random() * 0.25), wnow + 1.1);
-            wgn.gain.linearRampToValueAtTime(0, wnow + 2.2);
-            wsrc.connect(whp); whp.connect(wlp); wlp.connect(wgn); wgn.connect(_out());
-            wsrc.start(wnow); wsrc.stop(wnow + 2.2);
-        }
         // wg2 스네어 + 킥
         if (p.snare && noiseBuffer) {
             if (p.kickBeats  && p.kickBeats.includes(b))  _kick(0.42);
@@ -1488,237 +1262,7 @@ function playBGM(scene = 'play') {
     }, p.spd);
 
     // ── 2차 레이어 ─────────────────────────────────────────────────────
-    if (p.drone) {
-        // wg5: 저음 드론 맥동
-        const dFreqs = wg >= 6 ? [18.35, 20.60, 16.35] : [55, 52, 58, 55];
-        let di = 0;
-        bgmInterval2 = setInterval(() => {
-            if (!isBgmPlaying || Game.isMuted) return;
-            const now = audioCtx.currentTime;
-            const df = dFreqs[di % dFreqs.length]; di++;
-            const od = audioCtx.createOscillator(); const gd = audioCtx.createGain();
-            od.type = 'sine'; od.frequency.value = df;
-            gd.gain.setValueAtTime(0, now); gd.gain.linearRampToValueAtTime(0.28, now + 1.8);
-            gd.gain.setValueAtTime(0.28, now + 3.5); gd.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-            od.connect(gd); gd.connect(_out()); od.start(now); od.stop(now + 5.5);
-            // 2배음 윙윙 레이어
-            const od2 = audioCtx.createOscillator(); const gd2 = audioCtx.createGain();
-            od2.type = 'sine'; od2.frequency.value = df * 2;
-            gd2.gain.setValueAtTime(0, now); gd2.gain.linearRampToValueAtTime(0.10, now + 2.2);
-            gd2.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
-            od2.connect(gd2); gd2.connect(_out()); od2.start(now); od2.stop(now + 5.0);
-            if (p.ghost && noiseBuffer) {
-                // "우..." 망자 포르만트 노이즈
-                const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer; src.loop = true;
-                const bpg = audioCtx.createBiquadFilter(); bpg.type = 'bandpass'; bpg.Q.value = 25;
-                const gng = audioCtx.createGain();
-                bpg.frequency.setValueAtTime(215 + Math.random() * 55, now);
-                bpg.frequency.linearRampToValueAtTime(280 + Math.random() * 45, now + 3.5);
-                gng.gain.setValueAtTime(0, now); gng.gain.linearRampToValueAtTime(0.06, now + 1.8);
-                gng.gain.setValueAtTime(0.06, now + 5.0); gng.gain.linearRampToValueAtTime(0, now + 7.2);
-                src.connect(bpg); bpg.connect(gng); gng.connect(_out());
-                src.start(now); src.stop(now + 7.5);
-                // 가끔 들리는 괴물 비명 (~60% 확률)
-                if (Math.random() < 0.60) {
-                    const ssrc = audioCtx.createBufferSource(); ssrc.buffer = noiseBuffer;
-                    const sbp = audioCtx.createBiquadFilter(); sbp.type = 'bandpass'; sbp.Q.value = 13;
-                    const sgn = audioCtx.createGain();
-                    sbp.frequency.setValueAtTime(520, now); sbp.frequency.linearRampToValueAtTime(1700, now + 0.40);
-                    sbp.frequency.linearRampToValueAtTime(820, now + 0.90); sbp.frequency.linearRampToValueAtTime(2100, now + 1.40);
-                    sbp.frequency.linearRampToValueAtTime(360, now + 2.10);
-                    sgn.gain.setValueAtTime(0, now); sgn.gain.linearRampToValueAtTime(0.10, now + 0.22);
-                    sgn.gain.setValueAtTime(0.10, now + 1.65); sgn.gain.linearRampToValueAtTime(0, now + 2.30);
-                    ssrc.connect(sbp); sbp.connect(sgn); sgn.connect(_out());
-                    ssrc.start(now); ssrc.stop(now + 2.6);
-                    // 저음 성도 레이어
-                    const so = audioCtx.createOscillator(); const sgo = audioCtx.createGain();
-                    so.type = 'sawtooth';
-                    so.frequency.setValueAtTime(155, now); so.frequency.linearRampToValueAtTime(470, now + 0.32);
-                    so.frequency.linearRampToValueAtTime(185, now + 0.82); so.frequency.linearRampToValueAtTime(590, now + 1.35);
-                    so.frequency.linearRampToValueAtTime(115, now + 2.10);
-                    const sdw = audioCtx.createWaveShaper(); sdw.curve = _makeDistortion(80);
-                    sgo.gain.setValueAtTime(0, now); sgo.gain.linearRampToValueAtTime(0.09, now + 0.32);
-                    sgo.gain.setValueAtTime(0.09, now + 1.55); sgo.gain.linearRampToValueAtTime(0, now + 2.30);
-                    so.connect(sdw); sdw.connect(sgo); sgo.connect(_out()); so.start(now); so.stop(now + 2.6);
-                }
-            }
-        }, 4800);
-        // wg5 유령 멜로디 레이어
-        if (p.ghostMel) {
-            const gMel = [110,0,98,0, 116,0,0,0, 104,0,87,0, 98,0,0,0];
-            let gmi = 0;
-            bgmInterval3 = setInterval(() => {
-                if (!isBgmPlaying || Game.isMuted) { gmi++; return; }
-                const now = audioCtx.currentTime;
-                const gf = gMel[gmi % gMel.length]; gmi++;
-                if (gf > 0) {
-                    const og = audioCtx.createOscillator(); const gg = audioCtx.createGain();
-                    og.type = 'sine'; og.frequency.value = gf;
-                    og.frequency.setValueAtTime(gf, now);
-                    og.frequency.linearRampToValueAtTime(gf * 1.004, now + 0.3);
-                    og.frequency.linearRampToValueAtTime(gf, now + 0.6);
-                    gg.gain.setValueAtTime(0, now); gg.gain.linearRampToValueAtTime(0.11, now + 0.18);
-                    gg.gain.setValueAtTime(0.11, now + 0.55); gg.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-                    og.connect(gg); gg.connect(_out()); og.start(now); og.stop(now + 1.1);
-                    // 5도 위 화음
-                    const og2 = audioCtx.createOscillator(); const gg2 = audioCtx.createGain();
-                    og2.type = 'sine'; og2.frequency.value = gf * 1.498;
-                    gg2.gain.setValueAtTime(0, now); gg2.gain.linearRampToValueAtTime(0.05, now + 0.25);
-                    gg2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-                    og2.connect(gg2); gg2.connect(_out()); og2.start(now); og2.stop(now + 0.9);
-                }
-            }, p.spd * 2);
-        }
-    } else if (wg === 1) {
-        // 고블린 숲: 화음 아르페지오 반주
-        const jChords = [[196,294,392],[220,330,440],[196,294,392],[174,261,349]];
-        let ci = 0;
-        bgmInterval2 = setInterval(() => {
-            if (!isBgmPlaying || Game.isMuted) return;
-            const now = audioCtx.currentTime;
-            jChords[ci % 4].forEach(f => {
-                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-                o.type = 'triangle'; o.frequency.value = f;
-                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.06, now + 0.07);
-                g.gain.exponentialRampToValueAtTime(0.001, now + 0.80);
-                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 0.80);
-            });
-            ci++;
-        }, p.spd * 8);
-        // worldN 2(불타는): 메탈 기타 오버레이
-        if (_isBurning) {
-            const bRiff = [1,0,1.498,0, 1,0,1.335,1.498, 1,0,0.89,0, 1.498,0,1,0];
-            const bRoot = 110; const bT = Math.round(p.spd * 1.5); let bri = 0;
-            bgmInterval3 = setInterval(() => {
-                if (!isBgmPlaying || Game.isMuted) { bri++; return; }
-                const b2 = bri % bRiff.length; bri++;
-                if (bRiff[b2] > 0) _guitar(bRoot * bRiff[b2], 0.11, bT * 1.2 / 1000);
-                if (b2 === 0 || b2 === 8) _kick(0.28);
-                if (b2 === 4 || b2 === 12) _snare(0.22);
-            }, bT);
-        }
-    } else if (wg === 2) {
-        // 언데드: 현악기풍 서스테인 패드 (Am/G/F/E 진행)
-        const strChords = [[220,261,330],[196,247,294],[175,220,262],[165,220,247]];
-        let sc = 0;
-        bgmInterval2 = setInterval(() => {
-            if (!isBgmPlaying || Game.isMuted) return;
-            const now = audioCtx.currentTime;
-            const pd = p.spd * 16 / 1000;
-            strChords[sc % 4].forEach((f, i) => {
-                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-                o.type = 'triangle'; o.frequency.value = f;
-                o.detune.value = (i - 1) * 4; // 약간의 두께
-                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.055, now + 0.5);
-                g.gain.setValueAtTime(0.055, now + pd - 0.6); g.gain.exponentialRampToValueAtTime(0.001, now + pd);
-                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + pd);
-            });
-            sc++;
-        }, p.spd * 16);
-        if (_isBurning) {
-            // worldN 4(불타는): 메탈 기타 오버레이
-            const bRiff = [1,0,1.498,0, 1,0,1.335,1.498, 1,0,0.89,0, 1.498,0,1,0];
-            const bRoot = 98; const bT = Math.round(p.spd * 1.5); let bri = 0;
-            bgmInterval3 = setInterval(() => {
-                if (!isBgmPlaying || Game.isMuted) { bri++; return; }
-                const b2 = bri % bRiff.length; bri++;
-                if (bRiff[b2] > 0) _guitar(bRoot * bRiff[b2], 0.12, bT * 1.2 / 1000);
-                if (b2 === 0 || b2 === 8) _kick(0.30);
-                if (b2 === 4 || b2 === 12) _snare(0.24);
-            }, bT);
-        } else {
-            // 3차: 카운터 멜로디 (한 옥타브 위 피아노풍)
-            const cMel = [440,0,494,0, 523,494,0,0, 440,0,392,440, 494,0,0,0];
-            let cmi = 0;
-            bgmInterval3 = setInterval(() => {
-                if (!isBgmPlaying || Game.isMuted) { cmi++; return; }
-                const now = audioCtx.currentTime;
-                const cf = cMel[cmi % cMel.length]; cmi++;
-                if (cf > 0) {
-                    const oc = audioCtx.createOscillator(); const gc = audioCtx.createGain();
-                    oc.type = 'triangle'; oc.frequency.value = cf;
-                    gc.gain.setValueAtTime(0, now); gc.gain.linearRampToValueAtTime(0.07, now + 0.02);
-                    gc.gain.exponentialRampToValueAtTime(0.001, now + p.spd * 1.4 / 1000);
-                    oc.connect(gc); gc.connect(_out()); oc.start(now); oc.stop(now + p.spd * 1.4 / 1000);
-                }
-            }, p.spd);
-        }
-    } else if (wg === 3) {
-        // 고딕 성당: 합창 + 타종
-        const choirNotes = [[165,220,262],[131,165,196],[147,196,247],[110,165,220]];
-        let chi = 0;
-        bgmInterval2 = setInterval(() => {
-            if (!isBgmPlaying || Game.isMuted) return;
-            const now = audioCtx.currentTime;
-            const pd = p.spd * 14 / 1000;
-            choirNotes[chi % 4].forEach((f, vi) => {
-                // 비브라토를 가진 합창 목소리
-                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-                o.type = 'sine'; o.frequency.value = f;
-                o.detune.value = (vi - 1) * 7;
-                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.065, now + 0.8);
-                g.gain.setValueAtTime(0.065, now + pd - 0.6); g.gain.exponentialRampToValueAtTime(0.001, now + pd);
-                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + pd);
-                // 3배음 (choir 음색 두께)
-                const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
-                o2.type = 'sine'; o2.frequency.value = f * 3;
-                g2.gain.setValueAtTime(0, now); g2.gain.linearRampToValueAtTime(0.018, now + 0.6);
-                g2.gain.exponentialRampToValueAtTime(0.001, now + pd * 0.8);
-                o2.connect(g2); g2.connect(_out()); o2.start(now); o2.stop(now + pd * 0.8);
-            });
-            chi++;
-        }, p.spd * 14);
-        if (_isBurning) {
-            // worldN 6(불타는): 메탈 기타 오버레이
-            const bRiff = [1,0,1.498,0, 1,0,1.335,1.498, 1,0,0.89,0, 1.498,0,1,0];
-            const bRoot = 82; const bT = Math.round(p.spd * 1.5); let bri = 0;
-            bgmInterval3 = setInterval(() => {
-                if (!isBgmPlaying || Game.isMuted) { bri++; return; }
-                const b2 = bri % bRiff.length; bri++;
-                if (bRiff[b2] > 0) _guitar(bRoot * bRiff[b2], 0.13, bT * 1.2 / 1000);
-                if (b2 === 0 || b2 === 8) _kick(0.32);
-                if (b2 === 4 || b2 === 12) _snare(0.25);
-            }, bT);
-        } else {
-            // 3차: 저음 타종 (교회 종소리)
-            bgmInterval3 = setInterval(() => {
-                if (!isBgmPlaying || Game.isMuted) return;
-                const now = audioCtx.currentTime;
-                [82, 110].forEach((f, i) => {
-                    const ob = audioCtx.createOscillator(); const gb = audioCtx.createGain();
-                    ob.type = 'sine'; ob.frequency.value = f;
-                    gb.gain.setValueAtTime(0.18, now + i * 0.04);
-                    gb.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
-                    ob.connect(gb); gb.connect(_out());
-                    ob.start(now + i * 0.04); ob.stop(now + 3.5);
-                });
-            }, p.spd * 28);
-        }
-    } else if (wg === 4) {
-        // 마족 성채: 왜곡 리듬 기타 + 저음 패드
-        const riffSeq = [247,0,247,0, 311,0,294,247, 220,0,261,0, 247,0,0,0];
-        let ri = 0;
-        bgmInterval2 = setInterval(() => {
-            if (!isBgmPlaying || Game.isMuted) { ri++; return; }
-            const now = audioCtx.currentTime;
-            const rf = riffSeq[ri % riffSeq.length]; ri++;
-            if (rf > 0) _guitar(rf, 0.18, p.spd * 1.8 / 1000);
-        }, p.spd);
-        // 3차: 저음 패드 화음
-        const dChords = [[62,74,98],[52,65,87],[58,69,92],[62,74,98]];
-        let dci = 0;
-        bgmInterval3 = setInterval(() => {
-            if (!isBgmPlaying || Game.isMuted) return;
-            const now = audioCtx.currentTime;
-            const pd = p.spd * 16 / 1000;
-            dChords[dci % 4].forEach(f => {
-                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-                o.type = 'sine'; o.frequency.value = f;
-                g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.10, now + 0.4);
-                g.gain.setValueAtTime(0.10, now + pd - 0.5); g.gain.exponentialRampToValueAtTime(0.001, now + pd);
-                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + pd);
-            });
-            dci++;
-        }, p.spd * 16);
-    }
+    // (V1의 드론/유령신음/고스트멜로디 2차 레이어는 wg5·wg6 프로필 전용이었다.
+    //  그 프로필들은 스테이지 4·5가 메탈 분기로 넘어가면서 도달 불가가 되어 함께 제거했다.
+    //  마왕성에 공허한 드론을 다시 넣고 싶으면 skull_V1/skull/js/audio.js 의 p.drone 블록을 참고할 것.)
 }

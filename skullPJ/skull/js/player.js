@@ -3,6 +3,13 @@
 // 방어구 maxHp 보너스가 이 값 위에 더해진다 (equip.js의 equipItem이 재계산)
 const PLAYER_BASE_MAX_HP = 100;
 
+// 스태미나 — 원래 V1 systems.js에 있었지만, 그 파일에서 실제로 쓰던 건 이 3개 상수뿐이고
+// 나머지(체간·패링·가드·모닥불 250여 줄)는 전부 미사용이라 파일째로 정리하고 여기로 옮겼다.
+// 가드/패링을 이식할 때는 skull_V1/skull/js/systems.js 를 참고할 것.
+const STAMINA_MAX   = 100;
+const STAMINA_REGEN = 0.45;  // 프레임당 자연회복
+const STAMINA_DASH  = 35;    // 회피 1회 소모 (유물 pDashCostMul로 배율 적용)
+
 const Player = {
     x: 160, y: 200, vx: 0, vy: 0,
     speed: 2.7,

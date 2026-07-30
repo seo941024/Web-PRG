@@ -23,10 +23,9 @@ const Game = {
     score: 0,
     // 스테이지 진행: 5테마(stageN) × 3라운드(roundN) = 총 15스테이지. 정의는 stage.js.
     kills: 0, stageN: 1, roundN: 1,
-    camShake: 0, hitStop: 0, invT: 0,
+    camShake: 0,
     isMuted: false,
     pClass: 1,            // 임시 기본값: 도적 (스프라이트 있는 직업)
-    difficulty: 0,
 
     // ── 영구 진행 (localStorage, 런을 넘어 유지) ──
     // 키 이름은 skull_V1과 동일하게 유지해서 기존 세이브를 그대로 이어 씀
@@ -40,7 +39,8 @@ const Game = {
     totalEliteKills: parseInt(localStorage.getItem("skull_eliteKills")) || 0,
 
     // 오브젝트 풀 (combat.js의 getObj가 사용)
-    bullets: [], eBullets: [], lasers: [], parts: [], texts: [], items: [],
+    // (V1의 bullets/lasers 풀은 플레이어 투사체·레이저용이었으나 탑다운에 호출처가 없어 제거)
+    eBullets: [], parts: [], texts: [], items: [],
     enemies: [],
     doors: [],   // 스테이지 진행용 문 — main.js의 buildRoom()이 방마다 새로 채움
     hazards: [], // 지면 장판(예고 → 폭발) — 화산/마왕 보스 패턴이 사용
@@ -94,7 +94,7 @@ const Game = {
 function resetRun() {
     Game.score = 0; Game.kills = 0;
     Game.stageN = 1; Game.roundN = 1;
-    Game.camShake = 0; Game.hitStop = 0;
+    Game.camShake = 0;
 
     Game.pDropRate = 0.35;
     Game.pEquipDropRate = 0.06;
@@ -126,7 +126,7 @@ function resetRun() {
     Player.hp = Player.maxHp;
 
     // 오브젝트 풀 전부 비우기 — 이전 런의 탄·장판이 남아 있으면 새 런 시작 즉시 피격됨
-    [Game.bullets, Game.eBullets, Game.lasers, Game.parts, Game.texts, Game.items, Game.enemies, Game.hazards]
+    [Game.eBullets, Game.parts, Game.texts, Game.items, Game.enemies, Game.hazards]
         .forEach(pool => pool.forEach(o => o.active = false));
 }
 

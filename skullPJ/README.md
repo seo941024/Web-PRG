@@ -102,44 +102,65 @@
 index.html 로드 순서 = 의존 순서. **데이터 레이어가 `main.js`보다 먼저 와야 한다**
 (`main.js`는 로드 직후 `buildRoom()`을 호출하므로):
 
+`skull/js/`에는 **실제로 로드되는 파일만** 둔다. index.html의 로드 순서 = 의존 순서.
+
 ```
 core.js        전역 상태 Game + resetRun()  (상태 전이도 주석 있음)
 input.js       dn() 유지형 / pr() 엣지형 입력
 camera.js      추적 카메라
 sprites.js     방향별 스프라이트 + 좌우반전 재사용
-audio.js       절차 생성 WebAudio (SFX 24 / BGM 8)
+audio.js       절차 생성 WebAudio (SFX / 테마별 BGM)
 ─ 데이터 레이어 ─
-stage.js       15스테이지 테마·레이아웃·몹 원형
+stage.js       15스테이지 테마·레이아웃·몹 원형 + getWg()
 equip.js       무기/방어구 풀·장착
 relic.js       유물 24종·추첨·선택 입력
 shop.js        영구강화 6종·구입·저장
 ─ 로직 ─
 combat.js      오브젝트 풀·hitE·드롭·장판·아이템
-systems.js     스태미나 상수만 사용 (함수는 미이식)
-player.js      이동·회피·4타 콤보·피격
-boss.js        보스 패턴 17종
+player.js      이동·회피·4타 콤보·피격 + 스태미나 상수
+boss.js        보스 패턴 17종 (선딜/실행/후딜)
 mob.js         몹 원형 5종 AI·처치 보상
 ─ 렌더 ─
-render_entities.js  월드 + 플레이 HUD + 미니맵 제외 전부
+render_entities.js  월드 + 플레이 HUD
 ui.js               메뉴/일시정지/사망/승리/유물/상점 + 미니맵
 cutscene.js         컷신 데이터·타이핑·렌더
 main.js             루프·상태머신·방 생성·진행
 ```
 
-미이식(연결 안 됨, 참고용): `upgrade_shop.js`(V1 유물 100+종 — 지금 `relic.js`는 그중 동작 가능한 것만 24종 재구성),
-`npc.js`, `render_ui.js`(직업선택 화면), `systems.js`의 함수들, `combat.js`의 `takeDmg()`(패링/가드).
-이들은 구 `Game.player` 구조에 얽혀 있어 참조만 `Player`로 바꿔선 안 되고, **좌표 규약도 다르다** —
-V1은 `e.x/e.y`가 좌상단 + `e.w/e.h`, 탑다운은 `e.x`=몸 중앙·`e.y`=발치 + `e.hb`.
-(실제로 `hitE`를 이식할 때 이 차이를 놓쳐서 데미지 숫자·타격 파티클이 NaN 좌표로 그려져 안 보이던 버그가 있었음)
+### V1에서 걷어낸 것 (2026-07-30 정리)
+탑다운 재구축 초기에 V1 파일을 통째로 복사해 왔는데, 상당수가 로드조차 되지 않거나
+호출하면 예외가 나는 죽은 코드였다. **원본은 전부 `skull_V1/`에 그대로 있으니 참고할 때 거기를 볼 것.**
+
+| 걷어낸 것 | 이유 |
+|---|---|
+| `systems.js` (파일) | 250여 줄 중 실제 사용은 스태미나 상수 3개뿐 → `player.js`로 옮김 |
+| `upgrade_shop.js`, `render_ui.js`, `story.js`, `npc.js` | index.html에 연결조차 안 됨 |
+| `_legacy_sidescroller/` (488K) | `skull_V1/skull`과 내용 동일한 부분집합 (고유 파일 0) |
+| `combat.js`의 `takeDmg()` (131줄) | 패링/가드/`Game.player` 전제라 호출 불가. 호출 시 예외 |
+| `spawnBullet` / `spawnLaser`, `Game.bullets` / `Game.lasers` | 플레이어 투사체·레이저 — 탑다운에 호출처 없음 |
+| `Game.difficulty` / `hitStop` / `invT` | 전부 죽은 `takeDmg()` 안에서만 쓰였음 |
+| `audio.js` `playSfx`의 클래스 0~18 분기 | 삭제된 직업(검사·조커·검성·마창사…)까지 포함, 실제 로스터는 0~5 |
+| `audio.js` `'skill'` SFX 블록 (58줄) | 탑다운에 스킬 시스템이 없어 호출처 없음 |
+| `audio.js` wg4/5/6 프로필 + 드론/유령 레이어 (330여 줄) | 스테이지 4·5가 메탈 분기로 early return → 도달 불가 |
+
+**아직 남긴 개념적 부채**: 몹/보스 스프라이트가 없어 도적 원화를 테마 색으로 틴트해 돌려쓰는 중.
+드롭 아이템도 도트 아이콘 대기 중이라 흰 네모 + 한글 이름표 플레이스홀더.
+
+### V1 코드를 참고할 때 주의 — 좌표 규약이 다르다
+V1은 `e.x/e.y`가 **좌상단** + `e.w/e.h`, 탑다운은 `e.x`=**몸 중앙**·`e.y`=**발치** + `e.hb`.
+실제로 `hitE`를 이식할 때 이 차이를 놓쳐서 데미지 숫자·타격 파티클이 NaN 좌표로 그려져
+화면에 아예 안 보이던 버그가 있었다. V1 코드를 가져올 때는 좌표부터 변환할 것.
 
 ### 다음 할 일 (우선순위 순)
 1. **보스·몹 전용 스프라이트** — 지금은 전부 도적 원화를 테마 색으로 틴트해 돌려쓰는 중(`drawDirSpriteTinted`).
    보스도 덩치·실루엣이 잡몹과 같아서 위압감이 없음. **현재 가장 큰 시각적 구멍**
-2. **성기사·마법사·버서커·발키리(단순화)·혈귀** 스프라이트 + `CLASS_PROFILE` 스탯 + 직업선택 화면
-3. 직업별 스킬(Shift) — 지금은 평타·회피·스프린트만 있음
-4. 패링/가드(V) 이식 — `combat.js`의 `takeDmg()`와 `systems.js`에 V1 구현이 남아 있음
-5. 이벤트 방(상인·도박 등) — V1 `upgrade_shop.js`의 `generateEventOptions()` 참고
-6. (아이디어, 후순위) **대시 공격** — Space 회피 중 C 누르면 돌진하며 찌르는 별도 모션. 걷기공격/러닝공격은
+2. **드롭 아이템 도트 아이콘** — 현재 흰 네모 + 한글 이름표. 교체 지점은 `render_entities.js`의 아이템 렌더 블록 한 곳
+3. **성기사·마법사·버서커·발키리(단순화)·혈귀** 스프라이트 + `CLASS_PROFILE` 스탯 + 직업선택 화면
+   (`audio.js`의 `atk` SFX에 클래스별 자리표시자를 미리 넣어둠)
+4. 직업별 스킬(Shift) — 지금은 평타·회피·스프린트만 있음. `audio.js`의 `'skill'` SFX도 같이 되살릴 것
+5. 패링/가드(V) 이식 — `skull_V1/skull/js/combat.js`의 `takeDmg()` + `systems.js` 참고
+6. 이벤트 방(상인·도박 등) — `skull_V1/skull/js/upgrade_shop.js`의 `generateEventOptions()` 참고
+7. (아이디어, 후순위) **대시 공격** — Space 회피 중 C 누르면 돌진하며 찌르는 별도 모션. 걷기공격/러닝공격은
    직업 수만큼 배로 늘어나서(직업×3~5종 애니) 지금은 스킵 — 대시공격 하나 정도만 나중에 추가 검토
 
 ### ✅ 채택된 최종 프롬프트 (앞으로 모든 직업 attack 생성에 이걸로 계속 쓸 것)

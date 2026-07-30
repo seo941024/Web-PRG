@@ -27,32 +27,13 @@ function resolveWalls(e, walls) {
     if (!test(e.x, e.y + e.vy)) e.y += e.vy; else e.vy = 0;
 }
 
-// 플레이어 투사체 생성 — sk: 관통 여부(Night Hollow 등에서 nhHitCount 추적)
-function spawnBullet(x, y, vx, vy, life, r, sk, dmg, col) {
-    const b = getObj(Game.bullets);
-    b.x = x; b.y = y; b.vx = vx; b.vy = vy;
-    b.life = life; b.maxLife = life; b.r = r; b.sk = sk; b.dmg = dmg;
-    b.col = col || null;
-    b.nhHitCount = 0; b.nhLastHit = {};
-    b.isCard = false; b.cardCol = null;
-    return b;
-}
-
-// 적 투사체 생성 — grav:중력 여부, unblockable:가드 불가, isArrow:화살형, isBomb:낙하 폭탄
-function spawnEBullet(x, y, vx, vy, life, r, dmg, grav=false, unblockable=false, isArrow=false, isBomb=false) {
+// 적 투사체 생성 — 보스 패턴과 원거리 몹이 사용.
+// (플레이어 투사체 spawnBullet / 레이저 spawnLaser는 V1 원거리 직업·보스용이었으나
+//  탑다운에서 호출처가 없어 제거. 필요해지면 skull_V1/skull/js/combat.js 참고)
+function spawnEBullet(x, y, vx, vy, life, r, dmg) {
     const b = getObj(Game.eBullets);
     b.x = x; b.y = y; b.vx = vx; b.vy = vy;
     b.life = life; b.r = r; b.dmg = dmg;
-    b.grav = grav; b.unblockable = unblockable; b.isArrow = isArrow; b.isBomb = isBomb;
-}
-
-// 레이저 생성 — life 동안 유지, hitTargets로 동일 대상 중복 피격 방지
-function spawnLaser(x, y, w, h, life, color, dmg, isPlayer=false, unblockable=false) {
-    const l = getObj(Game.lasers);
-    l.x = x; l.y = y; l.w = w; l.h = h;
-    l.life = life; l.maxLife = life; l.color = color; l.dmg = dmg;
-    l.isPlayer = isPlayer; l.unblockable = unblockable;
-    l.hitTargets = new Set();
 }
 
 // 파티클 생성 — 무작위 방향으로 튀어나감
@@ -316,140 +297,7 @@ function hitE(e, dmg, facing, isCrit, extraDmg = 0) {
         e.dead = true;
     }
 }
-
-// ⚠️ 미이식(호출 금지) — skull_V1 사이드스크롤 전용 플레이어 피격 처리.
-// 탑다운에서는 player.js의 hitPlayer()를 쓴다. 아래 코드는 Game.player·패링·가드·스태미나 등
-// 아직 탑다운에 없는 구조에 의존하므로 그대로 호출하면 예외가 난다.
-// (패링/가드 시스템을 나중에 이식할 때 참고 자료로만 남겨둠 — systems.js와 동일한 취급)
-function takeDmg(dmg, eObj, unblockable=false, noParry=false) {
-    const p = Game.player;
-    if (!p || p.dead) return;
-    // unblockable(낙사 등)이면 invT/dashT 무시
-    if (!unblockable && (Game.invT > 0 || p.dashT > 0)) return;
-    // 튜토리얼: 체력 무적 + 일반 피격과 동일한 85프레임 무적 부여
-    // 무적 간격이 너무 짧으면 TUTORIAL 텍스트가 도배되므로 정상 무적시간 적용
-    if (Game.isTutorial) {
-        Game.invT = 85;
-        p.kbT = 20;
-        p.vx  = (eObj ? (p.x < eObj.x ? -1 : 1) : -p.facing) * 4;
-        p.vy  = -3;
-        Game.camShake = 8;
-        addText(p.x, p.y - 20, "무적", "#88ffcc", 40, 13);
-        for (let i = 0; i < 8; i++) addPart(p.x + 7, p.y + 9, "#88ffcc", 18, 3);
-        return;
-    }
-
-    // 1. 패링 성공 (noParry면 패링 차단)
-    if (!unblockable && !noParry && p.parryT > 0) {
-        Game.hitStop = 8;
-        if (typeof playSfx === 'function') playSfx('parry');
-        Game.pMp = Math.min(Game.pMaxMp, Game.pMp + Game.pParryMp);
-        addText(p.x, p.y - 20, "패링!", "#ffff00", 50, 16);
-        // 패링 누적 카운터
-        Game.totalParryCount = (Game.totalParryCount || 0) + 1;
-        localStorage.setItem("skull_parryCount", Game.totalParryCount);
-        _checkUnlocks();
-// 보스: 체간 50 / 일반몹: 현재HP 30% + 즉시 기절
-        if (eObj) {
-            if (eObj.isBoss && typeof applyPoiseHit === 'function') {
-                applyPoiseHit(eObj, 50);
-            } else if (!eObj.isBoss) {
-                // 즉시 기절 먼저 (hitE가 stun 해제하지 않도록)
-                eObj.stun  = true;
-                eObj.stunT = 90;
-                eObj.vx    = 0;
-                eObj.kbT   = 90;
-                // 30% 확정 피해 — hitE 경유로 정상 사망 처리 보장
-                const parryDmg = Math.max(1, Math.floor(eObj.hp * 0.30));
-                if (typeof hitE === 'function') hitE(eObj, parryDmg, p.facing, false);
-                addText(eObj.x + eObj.w/2, eObj.y - 30, "기절!", "#ffee00", 60, 16);
-            }
-        }
-
-        p.vy  = -3; p.kbT = 12;
-        p.vx  = (eObj ? (p.x < eObj.x ? -1 : 1) : -p.facing) * 2;
-        Game.invT = 60;
-
-        if (eObj && !eObj.isBoss) { eObj.vx = (eObj.x < p.x ? -1 : 1) * 4; eObj.vy = -3; }
-        return;
-    }
-
-    // 2. 가드
-    if (!unblockable && p.guarding) {
-        // 가드 중 스태미나 추가 소모 — 연속 맞으면 가드 브레이크 유도
-        if (typeof consumeStamina === 'function') consumeStamina(20);
-        if ((p.stamina || 0) <= 0 && typeof _triggerGuardBreak === 'function') {
-            _triggerGuardBreak(p);
-            // 가드 브레이크 시엔 dmg 절반은 그냥 들어감
-            dmg = Math.floor(dmg * 0.5);
-        } else {
-            addText(p.x, p.y - 20, "가드", "#00ccff", 40, 14);
-            p.kbT = 15; p.vy = -3;
-            p.vx  = (eObj ? (p.x < eObj.x ? -1 : 1) : -p.facing) * 3;
-            if (eObj && !eObj.isBoss) { eObj.kbT = 15; eObj.vx = (eObj.x < p.x ? -1 : 1) * 2; eObj.vy = -2; }
-            if (typeof playSfx === 'function') playSfx('hit');
-            Game.invT = 60;
-            return;
-        }
-    }
-
-    // 3. 맨몸 피격 (방어력: 감소율 = def / (def + 60), 최대 70% 감소)
-    dmg = Math.floor(dmg * (Game.pDmgReduction || 1));
-    const _def = Game.pBaseDef || 0;
-    const _defRate = _def >= 0 ? _def / (_def + 60) : Math.max(-0.3, _def / 20);
-    dmg = Math.max(1, Math.floor(dmg * (1 - _defRate)));
-
-    p.kbT = 20;
-    p.vx  = (eObj ? (p.x < eObj.x ? -1 : 1) : -p.facing) * 5;
-    p.vy  = -4;
-    Game.hitStop = 15; Game.camShake = 20;
-    if (typeof playSfx === 'function') playSfx('dmg');
-    // 혈귀: 피격해도 콤보 유지 (혈기 스택 쌓기 & 연계 플레이 보상)
-    if (Game.pClass !== 6) { Game.comboCount = 0; Game.comboTimer = 0; }
-
-    // 낙사(unblockable)는 이미 invT를 무시하므로 일반 피격/환경 피해 무적 통일
-    const invDur = eObj ? 60 : 15;
-
-    // 가시 갑옷 반사
-    if (Game.pReflectDmg > 0 && eObj && !eObj.isBoss) hitE(eObj, Game.pReflectDmg, p.facing, false);
-
-    // 쉴드 먼저 차감
-    if (Game.pShield > 0) {
-        if (Game.pShield >= dmg) { Game.pShield -= dmg; dmg = 0; }
-        else { dmg -= Game.pShield; Game.pShield = 0; }
-    }
-
-    // 리게인 없음 — 즉시 hp 차감
-    if (dmg > 0) {
-        p.hp -= dmg;
-        addText(p.x, p.y - 20, `-${dmg}`, "#ff0000", 40, 22);
-        for (let i = 0; i < 20; i++) addPart(p.x + 7, p.y + 9, "#ff0000", 25, 4);
-        if (Game.runStats) Game.runStats.totalDmgTaken = (Game.runStats.totalDmgTaken || 0) + dmg;
-        // 혈귀 패시브: 피격 시 혈기 스택 증가 (최대 5, 각 +12% 공격력)
-        if (Game.pClass === 6) {
-            Game._bloodFuryStacks = Math.min(5, (Game._bloodFuryStacks || 0) + 1);
-            Game._bloodFuryTimer = 480; // 8초 지속
-            addText(p.x + 14, p.y - 10, `혈기 ${Game._bloodFuryStacks}`, "#cc2244", 40, 11);
-        }
-    }
-
-    Game.invT = invDur;
-
-    // 사망/부활 판정 — 즉각적으로
-    if (p.hp <= 0) {
-        if (Game.pRevive > 0) {
-            Game.pRevive--;
-            p.hp = Math.floor(Game.pMaxHp * (Game._reviveHpMul || 0.5));
-            addText(p.x, p.y - 30, "부활!", "#ffaa00", 60, 20);
-            if (typeof playSfx === 'function') playSfx('item');
-            for (let i = 0; i < 30; i++) addPart(p.x + 7, p.y + 9, "#ffaa00", 30, 5);
-        } else {
-            p.hp   = 0; p.dead = true;
-            Game.gs = "dead"; Game.deadTimer = 120;
-            if (typeof playSfx === 'function') playSfx('player_die');
-            for (let i = 0; i < 50; i++) addPart(p.x + 7, p.y + 9, "#ff0000", 40, 6);
-            if (typeof stopBGM === 'function') stopBGM();
-            if (typeof playBGM === 'function') playBGM('dead');
-        }
-    }
-}
+// 플레이어 피격 처리는 player.js의 hitPlayer()에 있다.
+// V1의 takeDmg()(패링/가드/리게인/부활 포함)는 Game.player 구조 전제라 탑다운에서 호출 불가였고,
+// 죽은 코드로 남아 혼란만 주므로 제거했다. 패링·가드를 이식할 때는
+// skull_V1/skull/js/combat.js 의 takeDmg()와 systems.js를 참고할 것.
