@@ -211,9 +211,38 @@ function renderRoom(walls) {
     ctx.fill();
 
     // 플레이어 스프라이트 (idle/walk 애니 재생, 무적 중 깜빡임)
+    // 전용 스프라이트가 없는 직업은 도적 원화(클래스1)에 직업 색을 입혀 구분한다.
     if (Player.invT <= 0 || Math.floor(Player.invT / 4) % 2 === 0) {
-        drawAnimSprite(ctx, Game.pClass, Player.animName, Player.facing, Player.animFrame, Player.x, Player.y);
+        const tint = classTint(Game.pClass);
+        if (tint) {
+            drawAnimSprite(ctx, 1, Player.animName, Player.facing, Player.animFrame, Player.x, Player.y);
+            drawDirSpriteTinted(ctx, 1, Player.facing, Player.x, Player.y, tint);
+        } else {
+            drawAnimSprite(ctx, Game.pClass, Player.animName, Player.facing, Player.animFrame, Player.x, Player.y);
+        }
     }
+
+    // 플레이어 투사체 (마법사·발키리 평타, 일부 스킬)
+    Game.pBullets.forEach(b => {
+        if (!b.active) return;
+        ctx.fillStyle = b.col;
+        ctx.shadowBlur = 8; ctx.shadowColor = b.col;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // 스킬 범위 링 — 남은 수명에 따라 퍼지며 사라짐
+    Game.skillFx.forEach(fx => {
+        const t = 1 - fx.life / fx.max;
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.9;
+        ctx.strokeStyle = fx.col; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.35 + t * 0.65), 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = (1 - t) * 0.18;
+        ctx.fillStyle = fx.col;
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.35 + t * 0.65), 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    });
 
     // 파티클
     Game.parts.forEach(pt => {
@@ -246,8 +275,8 @@ function renderRoom(walls) {
     // 게이지 폭·높이와 글씨를 전반적으로 키우고, 수치는 외곽선을 넣어 배경과 무조건 분리.
     const HX = 18, HY = 16, HW = 300;
     const hasShield = (Game.pShield || 0) > 0;
-    const BAR_H = 26, ST_H = 16, SH_H = 14;
-    const HH = 12 + BAR_H + 8 + ST_H + (hasShield ? 8 + SH_H : 0) + 12;
+    const BAR_H = 26, ST_H = 16, SH_H = 14, SK_H = 16;
+    const HH = 12 + BAR_H + 8 + ST_H + 8 + SK_H + (hasShield ? 8 + SH_H : 0) + 12;
     ctx.save();
     ctx.fillStyle = "rgba(10,8,18,0.80)";
     ctx.fillRect(HX, HY, HW, HH);
@@ -296,6 +325,26 @@ function renderRoom(walls) {
     ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, ST_H);
     gaugeLabel(`기력  ${Math.round(Player.stamina)}`, barX + 8, by + 12.5, 13, canDash ? "#fff8dc" : "#b9a06a");
     by += ST_H + 8;
+
+    // 스킬 게이지 — 쿨다운이 차오르는 걸 보여주고, 준비되면 직업 색으로 빛남
+    const prof = classProfile(Game.pClass);
+    const skReady = Player.skillCD <= 0;
+    const skRatio = skReady ? 1 : 1 - Player.skillCD / (Player.skillCDMax || prof.skillCD || 300);
+    const skCol = prof.tint || "#cc44ff";
+    ctx.fillStyle = "#150c22"; ctx.fillRect(barX, by, barW, SK_H);
+    const skGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    if (skReady) { skGrd.addColorStop(0, skCol); skGrd.addColorStop(1, "#ffffff"); }
+    else { skGrd.addColorStop(0, "#4a3a6a"); skGrd.addColorStop(1, "#6a4f9a"); }
+    ctx.fillStyle = skGrd; ctx.fillRect(barX, by, barW * skRatio, SK_H);
+    if (skReady && Math.floor(Game.frameCount / 14) % 2 === 0) {
+        ctx.strokeStyle = skCol; ctx.lineWidth = 2;
+    } else { ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; }
+    ctx.strokeRect(barX, by, barW, SK_H);
+    gaugeLabel(
+        skReady ? `[Shift] ${classSkill(Game.pClass).name}` : `${Math.ceil(Player.skillCD / 60)}초`,
+        barX + 8, by + 12.5, 12, skReady ? "#ffffff" : "#9a8cc0"
+    );
+    by += SK_H + 8;
 
     // 보호막 바 (유물 "불굴의 방벽" 보유 시에만)
     if (hasShield) {

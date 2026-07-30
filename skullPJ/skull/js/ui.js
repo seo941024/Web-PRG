@@ -27,11 +27,123 @@ let _menuBgImg = null;
 function updateMenu() {
     if (pr("Space", "Enter", "KeyC")) {
         if (typeof playSfx === 'function') playSfx('menu_select');
-        startCutscene("opening");
+        Game.classIdx = CLASS_IDS.indexOf(Game.pClass);
+        if (Game.classIdx < 0) Game.classIdx = 1;
+        Game.gs = "classSelect";
     }
     if (pr("KeyS")) { if (typeof playSfx === 'function') playSfx('menu_select'); openShop(); }
     if (pr("KeyM")) { Game.isMuted = !Game.isMuted; if (Game.isMuted && typeof stopBGM === 'function') stopBGM(); else if (typeof playBGM === 'function') playBGM('lobby'); }
 }
+
+// ── 직업 선택 ──────────────────────────────────────────────
+function updateClassSelect() {
+    const n = CLASS_IDS.length;
+    if (pr("ArrowLeft", "KeyA"))  { Game.classIdx = (Game.classIdx - 1 + n) % n; if (typeof playSfx === 'function') playSfx('menu_select'); }
+    if (pr("ArrowRight", "KeyD")) { Game.classIdx = (Game.classIdx + 1) % n;     if (typeof playSfx === 'function') playSfx('menu_select'); }
+    if (pr("Space", "Enter", "KeyC")) {
+        Game.pClass = CLASS_IDS[Game.classIdx];
+        // 선택한 직업 스프라이트/애니를 미리 로드 (도적 외에는 아직 파일이 없어 조용히 실패)
+        loadCharSprites(Game.pClass);
+        preloadAnims(Game.pClass, ["idle", "walk", "sprint", "attack"]);
+        if (typeof playSfx === 'function') playSfx('unlock');
+        startCutscene("opening");
+    }
+    if (pr("Escape", "KeyX")) { Game.gs = "menu"; }
+}
+
+function renderClassSelect() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#07040e";
+    ctx.fillRect(0, 0, CW, CH);
+
+    _uiText("직업 선택", CW / 2, 68, 34, "#ffcc44", "center", true, 14);
+    _uiText("← →  이동      SPACE  결정      ESC  뒤로", CW / 2, 94, 14, "#8e83ad", "center");
+
+    const id = CLASS_IDS[Game.classIdx];
+    const prof = classProfile(id);
+    const sk = classSkill(id);
+    const col = prof.tint || "#cc44ff";
+
+    // 상단: 직업 탭
+    const tabW = 150, gap = 10;
+    const totalW = CLASS_IDS.length * tabW + (CLASS_IDS.length - 1) * gap;
+    const sx = (CW - totalW) / 2;
+    CLASS_IDS.forEach((cid, i) => {
+        const p = classProfile(cid);
+        const x = sx + i * (tabW + gap);
+        const sel = i === Game.classIdx;
+        const c = p.tint || "#cc44ff";
+        ctx.save();
+        if (sel) { ctx.shadowBlur = 18; ctx.shadowColor = c; }
+        ctx.fillStyle = sel ? "rgba(26,18,40,0.96)" : "rgba(12,8,20,0.85)";
+        ctx.fillRect(x, 120, tabW, 54);
+        ctx.strokeStyle = c; ctx.lineWidth = sel ? 3 : 1.5;
+        ctx.strokeRect(x, 120, tabW, 54);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+        _uiText(p.name, x + tabW / 2, 154, sel ? 24 : 20, sel ? c : "#7d739c", "center", true, sel ? 8 : 0);
+    });
+
+    // 본문 패널
+    const px = 150, py = 200, pw = CW - 300, ph = 300;
+    _uiPanel(px, py, pw, ph, col);
+
+    _uiText(prof.name, px + 28, py + 44, 32, col, "left", true, 10);
+    _uiText(prof.desc, px + 28, py + 74, 15, "#c3b9dd", "left");
+
+    // 스탯 바 — 직업 간 차이가 한눈에 보이게 상대값으로 표시
+    const stats = [
+        ["체력",     prof.hpMul / 1.5],
+        ["공격력",   (prof.dmgMin + prof.dmgMax) / 2 / 30],
+        ["공격속도", prof.atkSpd / 2.1],
+        ["이동속도", prof.spdMul / 1.2],
+        ["치명타",   prof.crit / 0.4],
+        ["사거리",   Math.min(1, prof.range / 300)],
+    ];
+    stats.forEach((s, i) => {
+        const y = py + 112 + i * 28;
+        _uiText(s[0], px + 28, y + 12, 15, "#9a8cc0", "left");
+        const bx = px + 120, bw = 260;
+        ctx.fillStyle = "#1c1630"; ctx.fillRect(bx, y, bw, 15);
+        ctx.fillStyle = col;
+        ctx.fillRect(bx, y, bw * Math.max(0.06, Math.min(1, s[1])), 15);
+        ctx.strokeStyle = "#00000080"; ctx.lineWidth = 1.5; ctx.strokeRect(bx, y, bw, 15);
+    });
+
+    // 스킬 설명
+    const skx = px + 430;
+    _uiText("스킬  [Shift]", skx, py + 118, 15, "#9a8cc0", "left", true);
+    _uiText(sk.name, skx, py + 148, 24, col, "left", true, 8);
+    ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
+    ctx.fillStyle = "#c3b9dd";
+    ctx.textAlign = "left";
+    const desc = SKILL_DESC[id] || "";
+    let line = "", ly = py + 176;
+    desc.split(" ").forEach(w => {
+        const t = line ? line + " " + w : w;
+        if (ctx.measureText(t).width > pw - 470 && line) { ctx.fillText(line, skx, ly); line = w; ly += 22; }
+        else line = t;
+    });
+    if (line) ctx.fillText(line, skx, ly);
+    _uiText(`쿨다운 ${(prof.skillCD / 60).toFixed(1)}초`, skx, ly + 30, 13, "#8e83ad", "left");
+
+    if (prof.ranged) _uiText("※ 평타가 원거리 투사체", skx, ly + 54, 13, "#66ccff", "left", true);
+    if (prof.tint)   _uiText("※ 전용 스프라이트 대기 중 (색으로 임시 구분)", px + 28, py + ph - 18, 12, "#6e6390", "left");
+
+    if (Math.floor(Game.frameCount / 26) % 2 === 0) {
+        _uiText("▶  SPACE 로 시작  ◀", CW / 2, CH - 40, 20, col, "center", true, 10);
+    }
+}
+
+// 직업선택 화면에 띄우는 스킬 설명 (실제 동작은 skill.js)
+const SKILL_DESC = {
+    0: "주변 전체에 신성 충격파를 터뜨려 적을 밀어내고 1초간 무적이 된다. 위기 탈출기로도 쓸 수 있다.",
+    1: "바라보는 방향으로 순간이동한 뒤 전방을 5연타로 난도질한다. 이동 중 짧은 무적.",
+    2: "관통하는 냉기탄 5발을 부채꼴로 발사하고, 잠시 주변 적을 크게 느려지게 만든다.",
+    3: "대지를 내리쳐 넓은 원형에 강타를 넣고 적을 크게 밀어낸다. 자기 체력 8%를 소모한다.",
+    4: "전방 부채꼴로 12발을 빠르게 흩뿌린다. 탄 하나는 약하지만 몰아넣으면 강하다.",
+    5: "전방 광역을 베고, 명중한 적 수에 비례해 체력을 흡수한다.",
+};
 
 function renderMenu() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -196,8 +308,8 @@ function renderPause() {
     // 왼쪽: 스탯
     const px = 120, py = 120, pw = 440;
     _uiPanel(px, py, pw, 300);
-    _uiText("현재 스탯", px + 20, py + 30, 18, "#ffcc44", "left", true);
     const prof = classProfile(Game.pClass);
+    _uiText(`현재 스탯  —  ${prof.name}`, px + 20, py + 30, 18, prof.tint || "#ffcc44", "left", true);
     const rows = [
         ["체력", `${Math.ceil(Player.hp)} / ${Player.maxHp}`],
         ["공격력", `${prof.dmgMin + (Game.pAtkBonus || 0) + equipAtk()} ~ ${prof.dmgMax + (Game.pAtkBonus || 0) + equipAtk()}`],
@@ -206,7 +318,9 @@ function renderPause() {
         ["치명타 피해", `${Math.round((Game.pCritDmg || 2) * 100)}%`],
         ["공격속도", `${Math.round((1 + (Game.pAtkSpdBonus || 0) + equipAtkSpd()) * 100)}%`],
         ["이동속도", `${Math.round((1 + (Game.pMoveSpdBonus || 0) + equipMoveSpd()) * 100)}%`],
+        ["흡혈", `${Math.round((Game.pLifesteal || 0) * 100)}%`],
         ["보호막", `${Math.round(Game.pShield || 0)}`],
+        ["스킬", Player.skillCD > 0 ? `${Math.ceil(Player.skillCD / 60)}초 남음` : `${classSkill(Game.pClass).name} 준비`],
     ];
     rows.forEach((r, i) => {
         const y = py + 62 + i * 28;

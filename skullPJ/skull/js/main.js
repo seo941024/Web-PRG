@@ -49,6 +49,7 @@ function pickSpawnSpots(n, walls) {
 // stageN/roundN에 맞는 방을 새로 구성 — 기존 오브젝트 비우고 벽·문·적 재배치
 function buildRoom(stageN, roundN) {
     Game.enemies.forEach(e => e.active = false);
+    Game.pBullets.forEach(b => b.active = false);
     Game.eBullets.forEach(b => b.active = false);
     Game.parts.forEach(p => p.active = false);
     Game.texts.forEach(t => t.active = false);
@@ -180,7 +181,9 @@ function stepPlay() {
     const walls = collisionWalls();
     updatePlayer(walls);
     updateEnemies(walls);
+    updatePBullets(walls);
     updateEBullets(walls);
+    updateSkillPending();
     updateHazards();
     updateItems();
     updateDoors();
@@ -214,6 +217,9 @@ function step() {
     switch (Game.gs) {
         case "menu":
             updateMenu();
+            break;
+        case "classSelect":
+            updateClassSelect();
             break;
         case "shop":
             updateShop();
@@ -255,8 +261,9 @@ function step() {
 
 function render() {
     switch (Game.gs) {
-        case "menu":     renderMenu(); break;
-        case "shop":     renderShop(); break;
+        case "menu":        renderMenu(); break;
+        case "classSelect": renderClassSelect(); break;
+        case "shop":        renderShop(); break;
         case "cutscene": renderCutscene(); break;
         case "relic":
             // 유물 선택은 전투 화면 위에 겹쳐 보여주면 맥락이 이어짐

@@ -39,7 +39,7 @@ const Game = {
     totalEliteKills: parseInt(localStorage.getItem("skull_eliteKills")) || 0,
 
     // 오브젝트 풀 (combat.js의 getObj가 사용)
-    // (V1의 bullets/lasers 풀은 플레이어 투사체·레이저용이었으나 탑다운에 호출처가 없어 제거)
+    pBullets: [], // 플레이어 투사체 — 마법사·발키리 평타와 일부 스킬이 사용
     eBullets: [], parts: [], texts: [], items: [],
     enemies: [],
     doors: [],   // 스테이지 진행용 문 — main.js의 buildRoom()이 방마다 새로 채움
@@ -86,6 +86,12 @@ const Game = {
     // 방 입장 시 스테이지 이름을 띄우는 배너 (main.js의 buildRoom이 설정)
     bannerT: 0, bannerText: "",
 
+    // 스킬 (skill.js)
+    skillPending: [],  // 다단히트/연사용 지연 실행 큐
+    skillFx: [],       // 스킬 범위 링 이펙트
+    chillT: 0,         // 마법사 서릿발 감속 지속시간
+    classIdx: 1,       // 직업 선택 화면 커서 (기본 도적)
+
     frameCount: 0,
 };
 
@@ -112,33 +118,66 @@ function resetRun() {
 
     Game.equip = { weapon: null, armor: null };
     Game.relics = []; Game.relicChoices = []; Game.relicIdx = 0;
+    Game.skillPending = []; Game.skillFx = []; Game.chillT = 0;
 
-    // 플레이어 초기화 — 최대체력은 영구강화/유물이 위에 더해지므로 기본값에서 다시 시작
-    Player.maxHp = PLAYER_BASE_MAX_HP;
+    // 플레이어 초기화 — 최대체력은 직업 배율 → 영구강화 → 유물 순서로 쌓인다
+    const prof = classProfile(Game.pClass);
+    Player.maxHp = Math.round(PLAYER_BASE_MAX_HP * (prof.hpMul || 1));
+    Player.speed = PLAYER_BASE_SPEED * (prof.spdMul || 1);
     Player.dead = false;
     Player.stamina = STAMINA_MAX;
     Player.invT = 0; Player.kbT = 0; Player.dashT = 0; Player.dashCD = 0;
     Player.atkT = 0; Player.atkAnim = 0; Player.atkCD = 0;
     Player.combo = 0; Player.comboRestT = 0; Player.comboWindowT = 0;
     Player.animName = "idle"; Player.animFrame = 0; Player.animT = 0;
+    Player.skillCD = 0;
+    // 혈귀는 흡혈이 직업 고유 특성 — 유물 흡혈과 합산된다
+    Game.pLifesteal += (prof.innateLifesteal || 0);
 
     applyPermUpgrades();   // 영구강화 반영 (maxHp 등)
     Player.hp = Player.maxHp;
 
     // 오브젝트 풀 전부 비우기 — 이전 런의 탄·장판이 남아 있으면 새 런 시작 즉시 피격됨
-    [Game.eBullets, Game.parts, Game.texts, Game.items, Game.enemies, Game.hazards]
+    [Game.pBullets, Game.eBullets, Game.parts, Game.texts, Game.items, Game.enemies, Game.hazards]
         .forEach(pool => pool.forEach(o => o.active = false));
 }
 
-// 직업별 전투 프로필 (구 사이드스크롤 core.js의 pBaseAtkSpd/pRangeBonus 이식)
-// 도적: 매우 빠른 공속·짧은 사거리·높은 치명타 / 나머지는 값 들어오는 대로 채움
-// range는 애니 동작이 작아 보이는 것과 별개로 게임적 손맛을 위해 넉넉하게 잡음
-// (도적 기존 38 → 1.5배. 다른 직업 추가 시 자기 원래값의 2~3배 기준으로)
+// ── 직업 프로필 ────────────────────────────────────────────
+// 확정 로스터: 0 성기사 / 1 도적 / 2 마법사 / 3 버서커 / 4 발키리 / 5 혈귀
+// range는 애니 동작 크기와 별개로 게임적 손맛을 위해 넉넉하게 잡는다(도적 원래 38 → 50).
+//
+// ⚠️ 스프라이트는 아직 도적(1)만 있다. 나머지 직업은 도적 원화를 tint 색으로 구분해 돌려쓴다
+//    (몹과 같은 방식). 전용 스프라이트가 나오면 tint만 제거하면 된다.
+//
+// skill: Shift로 쓰는 직업 고유기. 구현은 skill.js의 CLASS_SKILLS.
 const CLASS_PROFILE = {
-    1: { atkSpd: 2.0, range: 50, atkCD: 20, dmgMin: 8, dmgMax: 13, crit: 0.35 }, // 도적 — TODO: 판정(50)에 맞게 동작이 더 크게 보이는 공격 애니로 나중에 교체
+    0: { name: "성기사", tint: "#ffd24a", desc: "느리지만 단단한 근접. 넓은 범위를 쓸어친다.",
+         atkSpd: 0.95, range: 62, atkCD: 34, dmgMin: 16, dmgMax: 22, crit: 0.12,
+         hpMul: 1.45, spdMul: 0.88, arc: 80, skillCD: 300 },
+    1: { name: "도적",   tint: null,      desc: "초고속 쌍단검. 치명타로 녹인다. 대신 약하다.",
+         atkSpd: 2.00, range: 50, atkCD: 20, dmgMin: 8,  dmgMax: 13, crit: 0.35,
+         hpMul: 0.85, spdMul: 1.15, arc: 60, skillCD: 240 },
+    2: { name: "마법사", tint: "#5ab6ff", desc: "원거리 관통 마법탄. 몸이 약해 거리 유지가 생명.",
+         atkSpd: 1.10, range: 300, atkCD: 30, dmgMin: 11, dmgMax: 16, crit: 0.18,
+         hpMul: 0.75, spdMul: 1.00, arc: 30, ranged: true, shotSpeed: 8.5, skillCD: 300 },
+    3: { name: "버서커", tint: "#ff5533", desc: "느리고 둔하지만 한 방이 무겁다. 체력이 깎일수록 강해진다.",
+         atkSpd: 0.80, range: 66, atkCD: 40, dmgMin: 24, dmgMax: 34, crit: 0.10,
+         hpMul: 1.30, spdMul: 0.86, arc: 90, rageDmg: true, skillCD: 330 },
+    4: { name: "발키리", tint: "#c9d4e6", desc: "빠른 연사 원거리. 탄 하나하나는 약하다.",
+         atkSpd: 1.85, range: 280, atkCD: 18, dmgMin: 6,  dmgMax: 10, crit: 0.25,
+         hpMul: 0.85, spdMul: 1.08, arc: 24, ranged: true, shotSpeed: 10, skillCD: 270 },
+    5: { name: "혈귀",   tint: "#cc1f4a", desc: "피를 마시며 싸운다. 공격이 곧 회복.",
+         atkSpd: 1.35, range: 56, atkCD: 26, dmgMin: 13, dmgMax: 19, crit: 0.22,
+         hpMul: 1.05, spdMul: 1.05, arc: 70, innateLifesteal: 0.22, skillCD: 285 },
 };
+const CLASS_IDS = [0, 1, 2, 3, 4, 5];
+
 function classProfile(id) {
-    return CLASS_PROFILE[id] || { atkSpd: 1.0, range: 26, atkCD: 34, dmgMin: 12, dmgMax: 18, crit: 0.2 };
+    return CLASS_PROFILE[id] || CLASS_PROFILE[1];
+}
+// 스프라이트 없는 직업은 도적 원화에 색을 입혀 구분 (전용 원화 생기면 이 함수만 null 반환하게)
+function classTint(id) {
+    return classProfile(id).tint;
 }
 
 function overlap(a, b) {

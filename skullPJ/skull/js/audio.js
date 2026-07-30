@@ -237,9 +237,45 @@ function playSfx(type) {
         osc('sine', 3520, 0.20, 0.10);
         noise(0.40, 0.15, 'bandpass', 2800);
     }
-    // 'skill'(직업 필살기) SFX는 아직 호출처가 없다 — 탑다운에 스킬 시스템이 없기 때문.
-    // V1의 클래스별 분기 58줄은 삭제된 직업(조커·헌터 등)까지 포함해 실제 로스터와 어긋났으므로 제거.
-    // 스킬을 구현할 때 skull_V1/skull/js/audio.js 의 'skill' 블록을 참고할 것.
+    else if (type === 'skill') {
+        // 직업 스킬 (skill.js의 tryPlayerSkill이 호출) — 확정 로스터 기준.
+        // 전부 저역 중심으로 잡아 다크 판타지 톤을 유지한다.
+        switch (Game.pClass) {
+            case 0: // 성기사 신성 충격파 — 종이 울리듯 퍼지는 저역 + 금속 잔향
+                sweep('sawtooth', 220, 34, 0.75, 0.55, 420);
+                osc('sine', 110, 0.40, 0.70);
+                osc('sine', 164.8, 0.22, 0.60);
+                noise(0.45, 0.30, 'lowpass', 900);
+                break;
+            case 1: // 도적 그림자 난무 — 공간 찢는 순간이동 + 다단 베임
+                noise(0.55, 0.05, 'bandpass', 2400);
+                sweep('sawtooth', 1500, 70, 0.45, 0.10, 320);
+                setTimeout(() => { if (audioCtx) { noise(0.35, 0.04, 'bandpass', 2000); } }, 90);
+                setTimeout(() => { if (audioCtx) { noise(0.30, 0.04, 'bandpass', 1700); } }, 170);
+                break;
+            case 2: // 마법사 서릿발 — 얼어붙는 공명 + 결정 파열
+                sweep('sine', 900, 120, 0.42, 0.50);
+                noise(0.35, 0.35, 'bandpass', 800);
+                osc('sine', 82, 0.32, 0.65);
+                break;
+            case 3: // 버서커 대지 강타 — 지반 붕괴
+                sweep('sawtooth', 70, 12, 0.95, 0.75, 650);
+                noise(0.70, 0.45, 'lowpass', 500);
+                osc('sine', 45, 0.50, 0.60);
+                break;
+            case 4: // 발키리 일제사격 — 연속 격발 (실제 탄은 skill.js가 프레임 단위로 뿌림)
+                noise(0.50, 0.03, 'bandpass', 2600);
+                sweep('sawtooth', 300, 40, 0.45, 0.14, 480);
+                break;
+            case 5: // 혈귀 혈참 — 젖은 대참격 + 흡수음
+                sweep('sawtooth', 260, 32, 0.80, 0.45, 560);
+                noise(0.60, 0.28, 'lowpass', 620);
+                setTimeout(() => { if (audioCtx) sweep('sine', 300, 90, 0.35, 0.40); }, 120);
+                break;
+            default:
+                sweep('sawtooth', 300, 45, 0.6, 0.4, 400);
+        }
+    }
     else if (type === 'dmg') {
         sweep('sawtooth', 200, 25, 0.8, 0.3, 450);
         noise(0.6, 0.3, 'bandpass', 800);

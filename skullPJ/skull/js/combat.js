@@ -27,13 +27,47 @@ function resolveWalls(e, walls) {
     if (!test(e.x, e.y + e.vy)) e.y += e.vy; else e.vy = 0;
 }
 
-// 적 투사체 생성 — 보스 패턴과 원거리 몹이 사용.
-// (플레이어 투사체 spawnBullet / 레이저 spawnLaser는 V1 원거리 직업·보스용이었으나
-//  탑다운에서 호출처가 없어 제거. 필요해지면 skull_V1/skull/js/combat.js 참고)
+// 적 투사체 생성 — 보스 패턴과 원거리 몹이 사용
 function spawnEBullet(x, y, vx, vy, life, r, dmg) {
     const b = getObj(Game.eBullets);
     b.x = x; b.y = y; b.vx = vx; b.vy = vy;
     b.life = life; b.r = r; b.dmg = dmg;
+}
+
+// 플레이어 투사체 생성 — 마법사·발키리 평타와 일부 스킬이 사용.
+// pierce: 추가 관통 횟수(0이면 첫 명중에 소멸). hitSet으로 같은 적 중복 타격을 막는다.
+function spawnPBullet(x, y, vx, vy, life, r, dmg, pierce, col) {
+    const b = getObj(Game.pBullets);
+    b.x = x; b.y = y; b.vx = vx; b.vy = vy;
+    b.life = life; b.r = r; b.dmg = dmg;
+    b.pierce = pierce || 0;
+    b.col = col || "#cceeff";
+    b.hitSet = new Set();
+    return b;
+}
+
+// 플레이어 투사체 갱신 — 벽에 막히고, 적에게 명중하면 hitE를 거친다(치명타·흡혈 등 공통 처리)
+function updatePBullets(walls) {
+    const prof = classProfile(Game.pClass);
+    Game.pBullets.forEach(b => {
+        if (!b.active) return;
+        b.x += b.vx; b.y += b.vy;
+        if (--b.life <= 0) { b.active = false; return; }
+        for (const w of walls) {
+            if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) { b.active = false; return; }
+        }
+        for (const e of Game.enemies) {
+            if (!e.active || e.dead || b.hitSet.has(e)) continue;
+            const dx = e.x - b.x, dy = (e.y - 14) - b.y;
+            const rr = b.r + Math.max(e.hb.w, e.hb.h) / 2 + 4;
+            if (dx * dx + dy * dy > rr * rr) continue;
+            b.hitSet.add(e);
+            const isCrit = Math.random() < (prof.crit + (Game.pCritBonus || 0) + equipCrit());
+            hitE(e, isCrit ? Math.round(b.dmg * (Game.pCritDmg || 2)) : b.dmg, b.vx >= 0 ? 1 : -1, isCrit);
+            for (let i = 0; i < 4; i++) addPart(b.x, b.y, b.col, 12, 3);
+            if (b.pierce-- <= 0) { b.active = false; return; }
+        }
+    });
 }
 
 // 파티클 생성 — 무작위 방향으로 튀어나감

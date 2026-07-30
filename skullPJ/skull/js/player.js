@@ -1,7 +1,8 @@
 // player.js — 플레이어 이동/대시 (탑다운). td/td.js 프로토타입을 정식 구조로 이식.
 
-// 방어구 maxHp 보너스가 이 값 위에 더해진다 (equip.js의 equipItem이 재계산)
+// 직업 배율(hpMul/spdMul)이 이 기준값에 곱해진다. 방어구·영구강화·유물은 그 위에 더해짐.
 const PLAYER_BASE_MAX_HP = 100;
+const PLAYER_BASE_SPEED = 2.7;
 
 // 스태미나 — 원래 V1 systems.js에 있었지만, 그 파일에서 실제로 쓰던 건 이 3개 상수뿐이고
 // 나머지(체간·패링·가드·모닥불 250여 줄)는 전부 미사용이라 파일째로 정리하고 여기로 옮겼다.
@@ -12,7 +13,8 @@ const STAMINA_DASH  = 35;    // 회피 1회 소모 (유물 pDashCostMul로 배�
 
 const Player = {
     x: 160, y: 200, vx: 0, vy: 0,
-    speed: 2.7,
+    speed: PLAYER_BASE_SPEED,   // resetRun()이 직업 배율을 적용해 덮어씀
+    skillCD: 0,                 // 직업 스킬 쿨다운 (skill.js)
     facing: "south",
     dashT: 0, dashCD: 0,
     hb: { w: 18, h: 12 }, // 발치 히트박스 (충돌용)
@@ -65,10 +67,23 @@ function tryPlayerAttack() {
     p.animName = "attack"; p.animFrame = 0; p.animT = 0;
     if (typeof playSfx === 'function') playSfx(p.combo === COMBO_MAX ? 'combo_high' : 'atk');
     const [dx, dy] = DIR_VEC[p.facing];
-    const range = prof.range, arc = 60; // 부채꼴 판정 반각(도)
-    // 판정 원점 = 캐릭터 위치 자체(몸 앞으로 안 밀어냄) — 안 그러면 적이 몸에 딱 붙었을 때
-    // 원점보다 뒤쪽(반대 각도)이 돼서 각도 검사에 걸려 영원히 안 맞는 데드존이 생김.
     const cx = p.x, cy = p.y;
+
+    // 원거리 직업(마법사·발키리)은 근접 부채꼴 대신 투사체를 발사한다
+    if (prof.ranged) {
+        const ang = Math.atan2(dy, dx);
+        const sp = prof.shotSpeed || 8;
+        // 발키리는 살짝 퍼지는 연사, 마법사는 정확한 관통탄
+        const spread = Game.pClass === 4 ? (Math.random() - 0.5) * 0.12 : 0;
+        const pierce = Game.pClass === 2 ? 2 : 0;
+        spawnPBullet(cx, cy - 14, Math.cos(ang + spread) * sp, Math.sin(ang + spread) * sp,
+            Math.round(prof.range / sp) + 10, 5, playerAtkDamage(prof), pierce, prof.tint || "#cceeff");
+        return;
+    }
+
+    // 근접 — 판정 원점은 캐릭터 위치 자체(몸 앞으로 안 밀어냄). 안 그러면 적이 몸에 딱 붙었을 때
+    // 원점보다 뒤쪽(반대 각도)이 돼서 각도 검사에 걸려 영원히 안 맞는 데드존이 생김.
+    const range = prof.range, arc = prof.arc || 60; // 부채꼴 판정 반각(도) — 직업별로 다름
     const pointBlank = 12; // 이 거리 이내는 각도 무관 무조건 명중 (밀착 시 넉백으로 분리 보장)
     let hitAny = false;
     Game.enemies.forEach(e => {
@@ -81,12 +96,9 @@ function tryPlayerAttack() {
             let da = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang))) * 180 / Math.PI;
             if (da > arc) return;
         }
-        let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1))
-                + (Game.pAtkBonus || 0) + equipAtk();
+        let dmg = playerAtkDamage(prof);
         // 피니시(4타)는 후딜이 긴 만큼 데미지 보너스 — 콤보 완주 보상 (유물로 배율 상승)
         if (p.combo === COMBO_MAX) dmg = Math.round(dmg * (Game.pFinisherMul || 1.7));
-        // 유물 "광포한 유전자": 잃은 체력 비율에 비례해 최대 +60%
-        if (Game.pLowHpDmg) dmg = Math.round(dmg * (1 + (1 - p.hp / p.maxHp) * 0.6));
         const isCrit = Math.random() < (prof.crit + (Game.pCritBonus || 0) + equipCrit());
         hitE(e, isCrit ? Math.round(dmg * (Game.pCritDmg || 2)) : dmg, dx >= 0 ? 1 : -1, isCrit);
         hitAny = true;
@@ -96,6 +108,18 @@ function tryPlayerAttack() {
     if (hitAny) {
         for (let i = 0; i < 4; i++) addPart(cx + (Math.random()-0.5)*12, cy + (Math.random()-0.5)*12, "#cceeff", 12, 2);
     }
+}
+
+// 평타 1타 기본 피해 — 직업 기본값 + 아이템/무기 가산 + 상황 배율.
+// 근접·원거리·스킬이 전부 여기를 거쳐야 밸런스가 한 곳에서 관리된다.
+function playerAtkDamage(prof) {
+    prof = prof || classProfile(Game.pClass);
+    let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1))
+            + (Game.pAtkBonus || 0) + equipAtk();
+    // 버서커 고유 특성 / 유물 "광포한 유전자" — 잃은 체력에 비례해 피해 증가
+    const rage = (prof.rageDmg ? 0.5 : 0) + (Game.pLowHpDmg ? 0.6 : 0);
+    if (rage > 0) dmg = Math.round(dmg * (1 + (1 - Player.hp / Player.maxHp) * rage));
+    return dmg;
 }
 
 // 플레이어 피격 — 패링/가드는 아직 미이식(V1 takeDmg 참고), 보호막·가시·부활 유물만 반영
@@ -167,8 +191,10 @@ function updatePlayer(walls) {
     }
     if (p.comboRestT > 0) p.comboRestT--;
     if (p.kbT > 0) { p.kbT--; p.x += p.vx; p.y += p.vy; p.vx *= 0.85; p.vy *= 0.85; }
+    if (p.skillCD > 0) p.skillCD--;
     if (p.dead) return;
     if (dn("KeyC") && p.kbT <= 0) tryPlayerAttack();
+    if (pr("ShiftLeft", "ShiftRight")) tryPlayerSkill();
 
     let mx = 0, my = 0;
     // 공격 중엔 스윙 전체(atkAnim) 동안 제자리 고정 — atkT(앞부분)만 잠그면 회수 동작 구간에서

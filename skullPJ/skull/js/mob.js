@@ -135,8 +135,9 @@ function updateEnemies(walls) {
         }
 
         const arch = e.arch || MOB_ARCHETYPES.melee;
-        // 유물 "한기의 오라": 플레이어 주변 적은 이동속도 30% 감소
-        const spd = (Game.pSlowAura && dist < 190) ? e.speed * 0.7 : e.speed;
+        // 감속: 유물 "한기의 오라"(항상) / 마법사 "서릿발"(지속시간 동안) — 둘 다 근접 범위에만 적용
+        const slowed = (Game.pSlowAura || Game.chillT > 0) && dist < 190;
+        const spd = slowed ? e.speed * (Game.chillT > 0 ? 0.55 : 0.7) : e.speed;
 
         if (e.state === "chase") {
             if (e.mtype === "ranged") {
