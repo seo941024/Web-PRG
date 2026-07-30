@@ -20,25 +20,29 @@ function _initMaster() {
 
     const inGain = audioCtx.createGain();     inGain.gain.value = 1.0;
     const hs     = audioCtx.createBiquadFilter();
-    hs.type = 'highshelf'; hs.frequency.value = 2600; hs.gain.value = -11;
+    // 고역 셸프만 확실히 눌러 "쨍한/장난감 같은" 성분을 제거한다.
+    hs.type = 'highshelf'; hs.frequency.value = 2800; hs.gain.value = -9;
     const lp     = audioCtx.createBiquadFilter();
-    lp.type = 'lowpass';   lp.frequency.value = 5200; lp.Q.value = 0.6;
+    // 로우패스는 5.2k에서 7k로 올림 — 5.2k는 타격음의 어택까지 먹어서 전체가 담요 덮은 듯 뭉갰다.
+    lp.type = 'lowpass';   lp.frequency.value = 7000; lp.Q.value = 0.5;
     const ls     = audioCtx.createBiquadFilter();
-    ls.type = 'lowshelf';  ls.frequency.value = 180;  ls.gain.value = 5.5;
+    ls.type = 'lowshelf';  ls.frequency.value = 180;  ls.gain.value = 5.0;
     const sat    = audioCtx.createWaveShaper();
-    sat.curve = _makeDistortion(1.4); sat.oversample = '2x';
-    const outGain = audioCtx.createGain();    outGain.gain.value = 0.82;
+    sat.curve = _makeDistortion(1.2); sat.oversample = '2x';
+    const outGain = audioCtx.createGain();    outGain.gain.value = 0.85;
 
     // 드라이 경로
     inGain.connect(hs); hs.connect(lp); lp.connect(ls); ls.connect(sat);
     sat.connect(outGain);
 
-    // 잔향 경로 — 석조 공간의 짧은 울림 (딜레이 + 감쇠 피드백 + 어두운 필터)
-    const dly = audioCtx.createDelay(1.0); dly.delayTime.value = 0.16;
-    const fb  = audioCtx.createGain();     fb.gain.value = 0.28;
-    const wet = audioCtx.createGain();     wet.gain.value = 0.20;
+    // 잔향 경로 — 석조 공간의 짧은 울림.
+    // 처음엔 160ms/피드백0.28/wet0.20로 잡았는데, 평타가 초당 여러 번 나가는 게임이라
+    // 꼬리가 서로 겹쳐 타격음이 뭉개졌다. 짧고 옅게(90ms/0.16/0.10) 줄여 공간감만 남긴다.
+    const dly = audioCtx.createDelay(1.0); dly.delayTime.value = 0.09;
+    const fb  = audioCtx.createGain();     fb.gain.value = 0.16;
+    const wet = audioCtx.createGain();     wet.gain.value = 0.10;
     const dlyLP = audioCtx.createBiquadFilter();
-    dlyLP.type = 'lowpass'; dlyLP.frequency.value = 2200;
+    dlyLP.type = 'lowpass'; dlyLP.frequency.value = 1800;
     sat.connect(dly);
     dly.connect(dlyLP); dlyLP.connect(fb); fb.connect(dly); // 피드백 루프
     dlyLP.connect(wet); wet.connect(outGain);
@@ -1270,47 +1274,56 @@ function playBGM(scene = 'play') {
         return;
     }
 
-    // ── 일반 스테이지 BGM: wg별 6가지 분위기 ────────────────────────────
-    // wg1: 고블린 숲  — G major 발랄한 모험 (빠름)
-    // wg2: 스켈레톤   — A minor 불길한 행진 (중간)
-    // wg3: 저주 성당  — E Phrygian 고딕 오르간 (느림)
-    // wg4: 마족 성채  — B Locrian 산업적 어둠 (공격)
-    // wg5: 마왕성 입구 — 드론 공허 (아주 느림)
-    // wg6: (위에서 별도 처리)
+    // ── 일반 스테이지 BGM: 테마별 분위기 ────────────────────────────────
+    // 전부 어두운 음계로 통일한다 (장음계·상승 선율은 다크 판타지와 정면으로 어긋남).
+    //   wg1 고블린 소굴  — D 에올리안(자연단음계) 둔중한 부족 행진
+    //   wg2 스켈레톤 요새 — A 프리지안(b2) 뼈 행진
+    //   wg3 언데드 무덤  — E 프리지안 고딕 오르간 + 합창 (아주 느림)
+    //   wg4 화산 지대    — 아래 _isBurning 메탈 분기에서 처리
+    //   wg5 마왕성       — 아래 _isBurning 메탈 분기 + 드론
+    //
+    // 음계 선택 이유: 프리지안의 b2(단2도)와 트라이톤은 장음계의 밝은 해결감을 원천적으로 없앤다.
+    // 음역도 전반적으로 한 옥타브 내려 무게를 실었다.
     const profiles = {
+        // wg1: 고블린 소굴 — 원래 "G major 발랄한 모험"이라 톤이 완전히 어긋났음.
+        // D 에올리안 + 템포 170→250ms로 늦추고, 밝은 하이햇 제거 후 묵직한 킥/스네어 행진으로 교체.
         1: {
-            spd: 170, melType:'triangle', bassType:'triangle', melVol:0.16, bassVol:0.11, hihat:true, hhVol:0.09, harmony:false,
-            mel:  [392,0,440,494, 587,494,440,0,  392,0,523,494, 440,0,392,0,
-                   494,523,587,0, 659,587,523,440, 494,440,392,0, 440,494,587,0],
-            bass: [196,0,0,0,    196,0,0,0,       196,0,0,0,     220,0,0,0,
-                   247,0,0,0,    220,0,0,0,        196,0,0,0,    196,0,0,0],
+            spd: 250, melType:'triangle', bassType:'triangle', melVol:0.14, bassVol:0.15,
+            snare:true, kickBeats:[0,6,12,16,22,28], snareBeats:[8,24],
+            mel:  [146.8,0,174.6,0,  164.8,0,146.8,0,  233.1,0,220,0,    174.6,0,164.8,0,
+                   146.8,0,130.8,0,  146.8,0,164.8,0,  174.6,0,146.8,0,  146.8,0,0,0],
+            bass: [73.4,0,0,0,  73.4,0,0,0,  58.3,0,0,0,  65.4,0,0,0,
+                   73.4,0,0,0,  73.4,0,0,0,  49.0,0,0,0,  73.4,0,0,0],
         },
-        // wg2: 언데드 평원 — A minor 불길한 행진 + 스네어 + 현악 패드
+        // wg2: 스켈레톤 요새 — A 프리지안(Bb 추가)으로 한 옥타브 내림. 기존 A minor보다 더 불길함.
         2: {
-            spd: 160, melType:'triangle', bassType:'sawtooth', melVol:0.13, bassVol:0.14, distBass:45,
+            spd: 200, melType:'triangle', bassType:'sawtooth', melVol:0.13, bassVol:0.16, distBass:45,
             snare:true, kickBeats:[0,8,16,24], snareBeats:[4,12,20,28],
-            mel:  [220,0,261,0, 247,220,0,196, 220,0,247,0, 294,0,261,247,
-                   220,0,175,196, 220,0,0,247, 261,247,220,0, 196,0,220,0,
-                   330,0,294,0, 261,247,0,220, 294,0,330,0, 349,0,294,261,
-                   220,0,196,175, 196,175,0,0, 220,247,261,0, 220,0,0,0],
-            bass: [110,0,0,0,  98,0,0,0,  110,0,0,0,  123,0,0,0,
-                   110,0,0,0,  98,0,0,0,  87,0,0,0,   110,0,0,0,
-                   165,0,0,0,  147,0,0,0, 165,0,0,0,  175,0,0,0,
-                   110,0,0,0,  98,0,0,0,  110,0,0,0,  110,0,0,0],
+            mel:  [220,0,233.1,0,   220,0,196,0,     174.6,0,164.8,0, 174.6,0,0,0,
+                   220,0,233.1,0,   261.6,0,233.1,0, 220,0,196,0,     220,0,0,0,
+                   174.6,0,164.8,0, 146.8,0,164.8,0, 174.6,0,196,0,   220,0,0,0,
+                   233.1,0,220,0,   196,0,174.6,0,   164.8,0,146.8,0, 110,0,0,0],
+            bass: [110,0,0,0,   110,0,0,0,   87.3,0,0,0, 87.3,0,0,0,
+                   110,0,0,0,   116.5,0,0,0, 110,0,0,0,  110,0,0,0,
+                   87.3,0,0,0,  82.4,0,0,0,  87.3,0,0,0, 110,0,0,0,
+                   116.5,0,0,0, 110,0,0,0,   82.4,0,0,0, 55,0,0,0],
         },
-        // wg3: 저주 성당 — E Phrygian 고딕 오르간 + 합창 + 타종
+        // wg3: 언데드 무덤 — E 프리지안 고딕 오르간. 한 옥타브 내리고 템포도 230→320ms로 늦춤.
         3: {
-            spd: 230, melType:'sine', bassType:'sine', melVol:0.10, bassVol:0.15,
+            spd: 320, melType:'sine', bassType:'sine', melVol:0.11, bassVol:0.17,
             organ:true, choir:true,
-            mel:  [165,0,175,196, 175,165,0,0,   196,0,220,0,   175,165,0,131,
-                   165,0,147,0,   131,0,165,175, 196,175,165,0, 147,0,131,0,
-                   220,0,196,0,   175,196,220,0, 247,0,220,196, 175,0,165,0,
-                   131,0,147,165, 175,165,131,0, 110,0,131,0,   165,0,0,0],
-            bass: [82,0,0,0,  87,0,0,0,   82,0,0,0,  65,0,0,0,
-                   82,0,0,0,  65,0,0,0,   82,0,0,0,  87,0,0,0,
-                   110,0,0,0, 98,0,0,0,   87,0,0,0,  82,0,0,0,
-                   65,0,0,0,  73,0,0,0,   82,0,0,0,  82,0,0,0],
+            mel:  [164.8,0,174.6,0, 164.8,0,146.8,0, 130.8,0,146.8,0, 164.8,0,0,0,
+                   174.6,0,196,0,   174.6,0,164.8,0, 146.8,0,130.8,0, 123.5,0,0,0,
+                   164.8,0,0,0,     174.6,0,164.8,0, 196,0,174.6,0,   164.8,0,0,0,
+                   130.8,0,123.5,0, 110,0,123.5,0,   130.8,0,146.8,0, 164.8,0,0,0],
+            bass: [82.4,0,0,0, 87.3,0,0,0, 82.4,0,0,0, 65.4,0,0,0,
+                   82.4,0,0,0, 65.4,0,0,0, 82.4,0,0,0, 87.3,0,0,0,
+                   55.0,0,0,0, 49.0,0,0,0, 43.7,0,0,0, 82.4,0,0,0,
+                   65.4,0,0,0, 73.4,0,0,0, 82.4,0,0,0, 82.4,0,0,0],
         },
+        // ⚠️ 아래 wg4·wg5·wg6 프로필은 현재 사용되지 않는다.
+        // 스테이지 4·5는 위쪽 _isBurning 메탈 분기에서 처리하고 early return 하므로 여기까지 오지 않음.
+        // skull_V1(월드 10개) 시절 자산이라 참고용으로만 남겨둠 — 메탈 분기를 걷어낼 때 되살릴 수 있다.
         // wg4: 마족 성채 — B Locrian 산업 어둠 + 킥 + 금속 타격 + 왜곡 기타
         4: {
             spd: 140, melType:'sawtooth', bassType:'sawtooth', melVol:0.12, bassVol:0.17,
@@ -1348,14 +1361,18 @@ function playBGM(scene = 'play') {
     const p = profiles[Math.min(wg, 6)] || profiles[1];
     const _isBurning = Game.stageN >= 4; // 화산지대·마왕성 = 메탈 계열
 
-    // 불타는 월드: 메탈 전용 BGM (일반 BGM 없이 기타+드럼만)
+    // 화산지대·마왕성: 메탈 전용 BGM (일반 BGM 없이 기타+드럼만)
+    // 원래 bRoots[min(wg,3)]로 인덱싱해서 wg4·wg5가 똑같은 트랙(root 82)을 쓰고 있었다.
+    // 두 테마를 확실히 구분: 화산은 빠르고 높게, 마왕성은 느리고 훨씬 낮게.
     if (_isBurning) {
-        const bRoots = [0, 110, 98, 82];
-        const bBPMs  = [0, 188, 168, 148];
-        const bRoot  = bRoots[Math.min(wg, 3)] || 110;
-        const bBPM   = bBPMs[Math.min(wg, 3)] || 168;
-        const bT     = Math.round(60000 / bBPM / 2);
-        const bRiff  = [1,0,1.498,0, 1,0,1.335,1.498, 1,0,0.89,0, 1.498,0,1,0];
+        const isCastle = wg >= STAGE_COUNT;              // 마왕성
+        const bRoot = isCastle ? 61.7 : 87.3;            // B1 / F2
+        const bBPM  = isCastle ? 128 : 156;
+        const bT    = Math.round(60000 / bBPM / 2);
+        // 프리지안 리프 — b2(1.0595)와 트라이톤(1.414)을 넣어 장음계 느낌을 원천 차단
+        const bRiff = isCastle
+            ? [1,1,1.0595,0,  1,0,1.414,0,     1,1,0.7937,0,  1.0595,0,1,0]
+            : [1,0,1.0595,0,  1,0,1.335,1.414, 1,0,0.8909,0,  1.498,0,1,0];
         let bri = 0;
         bgmInterval = setInterval(() => {
             if (!isBgmPlaying || Game.isMuted) { bri++; return; }

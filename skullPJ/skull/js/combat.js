@@ -185,14 +185,16 @@ function dropEquipItem(x, y, kind, tier) {
     return it;
 }
 
+// 드롭 아이템 표시용 — 도트 아이콘 완성 전까지는 name(한글 라벨)만 실제로 쓰인다.
+// col/label은 미니맵 등 잔여 참조용으로 남겨둠.
 const ITEM_STYLE = {
-    hp:            { col: "#33ff66", label: "H" },
-    atk_drop:      { col: "#ff5544", label: "A" },
-    def_drop:      { col: "#44aaff", label: "D" },
-    atk_spd_drop:  { col: "#ffdd44", label: "S" },
-    move_spd_drop: { col: "#44ffee", label: "M" },
-    weapon_drop:   { col: "#ff9c2b", label: "W" },
-    armor_drop:    { col: "#8fb4ff", label: "R" },
+    hp:            { col: "#33ff66", label: "H", name: "회복" },
+    atk_drop:      { col: "#ff5544", label: "A", name: "공격력" },
+    def_drop:      { col: "#44aaff", label: "D", name: "방어력" },
+    atk_spd_drop:  { col: "#ffdd44", label: "S", name: "공격속도" },
+    move_spd_drop: { col: "#44ffee", label: "M", name: "이동속도" },
+    weapon_drop:   { col: "#ff9c2b", label: "W", name: "무기" },
+    armor_drop:    { col: "#8fb4ff", label: "R", name: "방어구" },
 };
 
 // 아이템은 제자리에 떠 있다가 수명 만료 시 소멸, 플레이어가 닿으면 즉시 효과 적용 후 소멸.

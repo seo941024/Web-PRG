@@ -3,19 +3,23 @@
 // 예고 표시(render_entities.js)와 실제 발사가 같은 warnAng/warnKind를 참조하므로 방향이 어긋나지 않는다.
 //
 // 패턴 정의 형식:
-//   { name: 화면 표시 이름, warn: 선딜(프레임), dur: 실행 시간, kind: "dash" | "cast", exec(e, isP2) }
+//   { name, warn: 선딜, dur: 실행 시간, rec: 후딜(회복), kind: "dash" | "cast", exec(e, isP2) }
 //   kind "dash" → 실행 중 예고 각도로 돌진하며 몸통 판정 / "cast" → 제자리에서 발사만
-// phase2(HP 50% 이하)는 공통으로 선딜 -30%, 쿨다운 -35%가 걸리고 패턴별로 탄수·범위가 늘어난다.
+//
+// rec(후딜)이 이 파일의 난이도 조절 핵심이다. 큰 기술일수록 길게 줘서, 플레이어가
+// "지금이 때린다" 하고 들어갈 창을 확보한다. 후딜 없이 패턴이 연달아 나가면
+// 회피만 반복하게 되고 반격 리듬이 사라져 짜증만 남는다.
+// phase2에서도 REC_MIN 아래로는 절대 줄지 않는다.
 
 const BOSS_PATTERNS = {
     // ── 1. 고블린 킹 — 단순하고 읽기 쉬운 근접 위주. 첫 보스답게 학습용 ──
     1: [
         {
-            name: "철퇴 돌진", warn: 34, dur: 24, kind: "dash",
+            name: "철퇴 돌진", warn: 34, dur: 24, rec: 56, kind: "dash",
             exec: () => { Game.camShake = Math.max(Game.camShake || 0, 10); },
         },
         {
-            name: "회전 후려치기", warn: 30, dur: 12, kind: "cast",
+            name: "회전 후려치기", warn: 30, dur: 12, rec: 64, kind: "cast",
             exec: (e, isP2) => {
                 const amt = isP2 ? 16 : 11;
                 for (let i = 0; i < amt; i++) {
@@ -26,7 +30,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "돌 던지기", warn: 28, dur: 10, kind: "cast",
+            name: "돌 던지기", warn: 28, dur: 10, rec: 44, kind: "cast",
             exec: (e, isP2) => {
                 const count = isP2 ? 5 : 3;
                 for (let i = 0; i < count; i++) {
@@ -40,7 +44,7 @@ const BOSS_PATTERNS = {
     // ── 2. 스켈레톤 치프틴 — 원거리 압박 + 잡졸 소환. 엄폐물 활용을 강제 ──
     2: [
         {
-            name: "뼈 화살 일제사격", warn: 30, dur: 12, kind: "cast",
+            name: "뼈 화살 일제사격", warn: 30, dur: 12, rec: 48, kind: "cast",
             exec: (e, isP2) => {
                 const count = isP2 ? 9 : 6;
                 for (let i = 0; i < count; i++) {
@@ -50,7 +54,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "십자 뼈창", warn: 34, dur: 14, kind: "cast",
+            name: "십자 뼈창", warn: 34, dur: 14, rec: 72, kind: "cast",
             exec: (e, isP2) => {
                 // 축 4방향(+phase2는 대각 4방향 추가)으로 두꺼운 탄을 길게 뿜음
                 const dirs = isP2 ? 8 : 4;
@@ -65,7 +69,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "망자 소집", warn: 44, dur: 20, kind: "cast",
+            name: "망자 소집", warn: 44, dur: 20, rec: 96, kind: "cast",
             exec: (e, isP2) => {
                 // 자기 주변에 잡졸을 불러냄 — 문이 열리려면 소환된 몹까지 정리해야 함
                 const n = isP2 ? 3 : 2;
@@ -77,7 +81,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "돌격 창격", warn: 28, dur: 22, kind: "dash",
+            name: "돌격 창격", warn: 28, dur: 22, rec: 56, kind: "dash",
             exec: () => { Game.camShake = Math.max(Game.camShake || 0, 11); },
         },
     ],
@@ -85,7 +89,7 @@ const BOSS_PATTERNS = {
     // ── 3. 무덤의 군주 — 순간이동으로 거리를 무시하고, 장판으로 공간을 좁힌다 ──
     3: [
         {
-            name: "영혼 흡수", warn: 36, dur: 14, kind: "cast",
+            name: "영혼 흡수", warn: 36, dur: 14, rec: 54, kind: "cast",
             exec: (e, isP2) => {
                 // 느리지만 큰 유도성 탄 — 벽으로 끊거나 회피로 통과해야 함
                 const count = isP2 ? 5 : 3;
@@ -96,7 +100,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "저주의 봉인", warn: 40, dur: 18, kind: "cast",
+            name: "저주의 봉인", warn: 40, dur: 18, rec: 84, kind: "cast",
             exec: (e, isP2) => {
                 // 플레이어 주변 지면에 지연 폭발 장판을 여러 개 — 계속 움직이게 강제
                 const n = isP2 ? 5 : 3;
@@ -110,7 +114,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "그림자 도약", warn: 30, dur: 16, kind: "cast",
+            name: "그림자 도약", warn: 30, dur: 16, rec: 66, kind: "cast",
             exec: (e, isP2) => {
                 // 플레이어 등 뒤로 순간이동 후 전방위 탄막 — 근접 유지 플레이를 응징
                 for (let i = 0; i < 14; i++) addPart(e.x, e.y, "#b56bff", 20, 4);
@@ -132,14 +136,14 @@ const BOSS_PATTERNS = {
     // ── 4. 화산의 군주 — 나선 탄막 + 지면 폭발. 화면을 넓게 쓰게 만든다 ──
     4: [
         {
-            name: "화염 나선", warn: 32, dur: 40, kind: "cast",
+            name: "화염 나선", warn: 32, dur: 40, rec: 96, kind: "cast",
             exec: (e, isP2) => {
                 // 실행 시간 동안 계속 뿜는 방식 — updateBossAI의 sustain 훅에서 프레임마다 발사
                 e.sustain = { kind: "spiral", t: 0, dur: 40, arms: isP2 ? 3 : 2 };
             },
         },
         {
-            name: "용암 분출", warn: 38, dur: 20, kind: "cast",
+            name: "용암 분출", warn: 38, dur: 20, rec: 88, kind: "cast",
             exec: (e, isP2) => {
                 // 방 전역에 격자로 폭발 장판 — 안전지대를 읽고 이동해야 함
                 const n = isP2 ? 9 : 6;
@@ -155,7 +159,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "분화 돌진", warn: 26, dur: 30, kind: "dash",
+            name: "분화 돌진", warn: 26, dur: 30, rec: 76, kind: "dash",
             exec: (e) => {
                 // 돌진 경로에 불씨를 흘림 — 지나간 자리도 잠시 위험
                 e.sustain = { kind: "trail", t: 0, dur: 30 };
@@ -163,7 +167,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "폭염 파열", warn: 30, dur: 12, kind: "cast",
+            name: "폭염 파열", warn: 30, dur: 12, rec: 62, kind: "cast",
             exec: (e, isP2) => {
                 const waves = isP2 ? 2 : 1;
                 for (let w = 0; w < waves; w++) {
@@ -181,7 +185,7 @@ const BOSS_PATTERNS = {
     // ── 5. 마왕 — 앞선 테마들의 위협을 전부 섞은 최종 보스 ──
     5: [
         {
-            name: "왕관의 뇌격", warn: 34, dur: 20, kind: "cast",
+            name: "왕관의 뇌격", warn: 34, dur: 20, rec: 86, kind: "cast",
             exec: (e, isP2) => {
                 // 플레이어를 중심으로 십자 방향에 장판을 깔아 도망칠 축을 제한
                 const arms = isP2 ? 8 : 4;
@@ -197,7 +201,7 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "지옥의 문", warn: 36, dur: 16, kind: "cast",
+            name: "지옥의 문", warn: 36, dur: 16, rec: 94, kind: "cast",
             exec: (e, isP2) => {
                 // 2파 방사 — 1파 사이를 2파가 메워서 단순 직선 회피를 막음
                 const amt = isP2 ? 24 : 18;
@@ -214,14 +218,14 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "심연의 참격", warn: 26, dur: 28, kind: "dash",
+            name: "심연의 참격", warn: 26, dur: 28, rec: 74, kind: "dash",
             exec: (e) => {
                 e.sustain = { kind: "trail", t: 0, dur: 28 };
                 Game.camShake = Math.max(Game.camShake || 0, 16);
             },
         },
         {
-            name: "광란의 탄막", warn: 32, dur: 46, kind: "cast",
+            name: "광란의 탄막", warn: 32, dur: 46, rec: 112, kind: "cast",
             exec: (e, isP2) => {
                 e.sustain = { kind: "spiral", t: 0, dur: 46, arms: isP2 ? 4 : 3 };
                 addText(e.x, e.y - 50, "광란의 탄막!", "#ff0033", 55, 16);
@@ -232,6 +236,19 @@ const BOSS_PATTERNS = {
 
 function bossPatterns(stageN) {
     return BOSS_PATTERNS[stageN] || BOSS_PATTERNS[1];
+}
+
+// 후딜 하한 — phase2 단축 배율이 걸려도 이 아래로는 안 내려간다.
+// 0.5초는 도적 기준 4타 콤보를 한 사이클 넣을 수 있는 최소 창.
+const REC_MIN = 32;
+// phase2 후딜 배율 (너무 줄이면 반격 창이 사라져 회피만 반복하게 됨)
+const REC_P2_MUL = 0.78;
+// 콤보로 이어지는 패턴 사이 간격 — 0이면 두 기술이 겹쳐 보여 회피가 불가능해진다
+const COMBO_LINK_DELAY = 30;
+
+function bossRecovery(pat, isP2) {
+    const base = pat.rec || 50;
+    return Math.max(REC_MIN, Math.round(base * (isP2 ? REC_P2_MUL : 1)));
 }
 
 function updateBossAI(e, walls) {
@@ -266,11 +283,14 @@ function updateBossAI(e, walls) {
         if (dist > 70) { e.vx = (dx / dist) * e.speed; e.vy = (dy / dist) * e.speed; }
         else { e.vx *= 0.85; e.vy *= 0.85; }
         e.chaseT = (e.chaseT || 0) + 1;
-        if (e.chaseT > (isP2 ? 42 : 70)) {
+        if (e.chaseT > (isP2 ? 50 : 78)) {
             e.chaseT = 0;
-            // 패턴 순환 — phase2에서는 한 번에 두 패턴을 연달아 쓰도록 콤보 큐를 채움
             e.ap = ((e.ap === undefined ? -1 : e.ap) + 1) % pats.length;
-            if (isP2 && !e.comboQueue) e.comboQueue = [(e.ap + 1) % pats.length];
+            // phase2에서만, 그리고 매번이 아니라 절반 정도만 2연속 콤보를 건다.
+            // 항상 걸면 압박이 단조로워지고 반격 리듬을 잡을 수 없다.
+            if (isP2 && !e.comboQueue && Math.random() < 0.55) {
+                e.comboQueue = [(e.ap + 1) % pats.length];
+            }
             startBossPattern(e, pats[e.ap], isP2);
         }
     } else if (e.state === "windup") {
@@ -297,20 +317,32 @@ function updateBossAI(e, walls) {
         updateBossSustain(e, isP2);
         if (e.atkAnim <= 0) {
             e.sustain = null;
-            // phase2 콤보 큐가 남아 있으면 쿨다운 없이 바로 다음 패턴으로 이어감
+            // 콤보로 이어지더라도 짧은 간격은 반드시 둔다 — 예전엔 즉시 다음 패턴이 나가서
+            // 두 기술의 탄이 겹쳐 회피가 물리적으로 불가능했다.
+            if (e.comboQueue && e.comboQueue.length > 0) {
+                e.state = "recover";
+                e.recT = COMBO_LINK_DELAY;
+                e.recMax = COMBO_LINK_DELAY;
+            } else {
+                e.state = "recover";
+                e.recT = bossRecovery(pat, isP2);
+                e.recMax = e.recT;
+            }
+        }
+    } else if (e.state === "recover") {
+        // 후딜 — 제자리에 굳어 있고, 이 구간이 플레이어의 반격 창이다.
+        e.vx *= 0.82; e.vy *= 0.82;
+        e.recT--;
+        if (e.recT <= 0) {
             if (e.comboQueue && e.comboQueue.length > 0) {
                 e.ap = e.comboQueue.shift();
                 if (e.comboQueue.length === 0) e.comboQueue = null;
                 startBossPattern(e, pats[e.ap], isP2);
             } else {
-                e.state = "cooldown";
-                e.atkCD = Math.round((isP2 ? 30 : 46));
+                e.state = "chase";
+                e.chaseT = 0;
             }
         }
-    } else if (e.state === "cooldown") {
-        e.vx *= 0.8; e.vy *= 0.8;
-        e.atkCD--;
-        if (e.atkCD <= 0) e.state = "chase";
     }
 
     resolveWalls(e, walls);

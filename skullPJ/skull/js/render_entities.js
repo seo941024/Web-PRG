@@ -96,11 +96,29 @@ function renderRoom(walls) {
             }
             // 보스는 패턴 이름을 머리 위에 띄워 무엇이 오는지 읽히게
             if (e.isBoss && e.warnName) {
-                ctx.fillStyle = "#ffd76a"; ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
+                ctx.fillStyle = "#ffd76a"; ctx.font = "bold 14px SkullFont, NeoDunggeunmo, monospace";
                 ctx.textAlign = "center";
-                ctx.fillText(e.warnName, e.x, e.y - 62);
+                ctx.fillText(e.warnName, e.x, e.y - 64);
                 ctx.textAlign = "left";
             }
+        }
+
+        // 보스 후딜(빈틈) — 여기가 반격 창이라는 걸 플레이어가 읽을 수 있게 표시.
+        // 남은 시간에 비례해 줄어드는 청록 링 + "빈틈" 라벨.
+        if (e.isBoss && e.state === "recover" && e.recMax > 0) {
+            const t = e.recT / e.recMax;
+            ctx.save();
+            ctx.strokeStyle = "rgba(80,255,190,0.85)"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(e.x, e.y - 18, 14 + 16 * t, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = "rgba(80,255,190,0.12)";
+            ctx.beginPath(); ctx.arc(e.x, e.y - 18, 14 + 16 * t, 0, Math.PI * 2); ctx.fill();
+            if (Math.floor(Game.frameCount / 8) % 2 === 0) {
+                ctx.fillStyle = "#50ffbe"; ctx.font = "bold 14px SkullFont, NeoDunggeunmo, monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("빈틈!", e.x, e.y - 64);
+                ctx.textAlign = "left";
+            }
+            ctx.restore();
         }
 
         ctx.save();
@@ -158,38 +176,30 @@ function renderRoom(walls) {
         ctx.shadowBlur = 0;
     });
 
-    // 드롭 아이템 — 종류별 색 원 + 살짝 둥둥 뜨는 느낌, 만료 임박하면 깜빡임
-    // 장비(무기/방어구)는 마름모로 그리고 티어 색을 쓰며 이름표를 함께 띄워 구분한다.
+    // 드롭 아이템 — 임시 플레이스홀더.
+    // 도트 아이콘으로 교체 예정이므로 모양·색에 공들이지 않고, "무엇인지 읽히는지"만 신경 쓴다.
+    // 흰 네모 + 이름표. 소멸 임박하면 깜빡여서 곧 사라진다는 걸 알림.
     Game.items.forEach(it => {
         if (!it.active) return;
-        const style = ITEM_STYLE[it.type] || { col: "#ffffff", label: "?" };
+        if (it.life < 90 && Math.floor(it.life / 6) % 2 === 0) return;
+        const style = ITEM_STYLE[it.type] || { label: "?" };
         const bob = Math.sin((Game.frameCount + it.x) * 0.08) * 2;
-        if (it.life < 90 && Math.floor(it.life / 6) % 2 === 0) return; // 소멸 임박 깜빡임
-        const isEquip = !!it.equip;
-        const col = isEquip ? equipColor(it.equip) : style.col;
+        const label = it.equip ? equipDisplayName(it.equip) : (style.name || style.label);
         ctx.save();
         ctx.translate(it.x, it.y + bob);
-        ctx.fillStyle = "rgba(0,0,0,0.3)";
-        ctx.beginPath(); ctx.ellipse(0, 8, 7, 2.5, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = col;
-        ctx.shadowBlur = isEquip ? 12 : 8; ctx.shadowColor = col;
-        if (isEquip) {
-            // 마름모 — 일반 소모품(원)과 즉시 구분되게
-            ctx.beginPath();
-            ctx.moveTo(0, -9); ctx.lineTo(8, 0); ctx.lineTo(0, 9); ctx.lineTo(-8, 0);
-            ctx.closePath(); ctx.fill();
-        } else {
-            ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = "#000";
-        ctx.font = "bold 9px monospace"; ctx.textAlign = "center";
-        ctx.fillText(style.label, 0, 3);
-        if (isEquip) {
-            ctx.fillStyle = col;
-            ctx.font = "bold 9px SkullFont, NeoDunggeunmo, monospace";
-            ctx.fillText(equipDisplayName(it.equip), 0, -16);
-        }
+        // 네모 (테두리만 다르게 해서 장비/소모품 구분)
+        ctx.fillStyle = "#e8e8e8";
+        ctx.fillRect(-7, -7, 14, 14);
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
+        ctx.strokeRect(-7, -7, 14, 14);
+        if (it.equip) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(-10, -10, 20, 20); }
+        // 이름표 — 배경 없이도 읽히게 외곽선 처리
+        ctx.font = "bold 12px SkullFont, NeoDunggeunmo, monospace";
+        ctx.textAlign = "center";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.strokeText(label, 0, -15);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(label, 0, -15);
         ctx.textAlign = "left";
         ctx.restore();
     });
@@ -214,11 +224,14 @@ function renderRoom(walls) {
         ctx.globalAlpha = 1;
     });
 
-    // 플로팅 텍스트
+    // 플로팅 텍스트 (데미지 숫자 등) — SkullFont 적용 + 검은 외곽선으로 배경과 분리
     Game.texts.forEach(t => {
         if (!t.active) return;
-        ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px monospace`;
+        ctx.font = `bold ${t.size}px SkullFont, NeoDunggeunmo, monospace`;
         ctx.textAlign = "center";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.strokeText(t.text, t.x, t.y);
+        ctx.fillStyle = t.color;
         ctx.fillText(t.text, t.x, t.y);
         ctx.textAlign = "left";
     });
@@ -229,82 +242,110 @@ function renderRoom(walls) {
     if (Game.camShake > 0) Game.camShake--;
 
     // ── 플레이어 HUD 패널 (화면 고정) ──
-    const HX = 14, HY = 12, HW = 176;
+    // 1280×720 화면에서 이전 176×54 / 10px 글씨는 너무 작아 전투 중 확인이 불가능했다.
+    // 게이지 폭·높이와 글씨를 전반적으로 키우고, 수치는 외곽선을 넣어 배경과 무조건 분리.
+    const HX = 18, HY = 16, HW = 300;
     const hasShield = (Game.pShield || 0) > 0;
-    const HH = hasShield ? 66 : 54;   // 보호막이 있을 때만 칸을 늘림
+    const BAR_H = 26, ST_H = 16, SH_H = 14;
+    const HH = 12 + BAR_H + 8 + ST_H + (hasShield ? 8 + SH_H : 0) + 12;
     ctx.save();
-    ctx.fillStyle = "rgba(10,8,18,0.72)";
+    ctx.fillStyle = "rgba(10,8,18,0.80)";
     ctx.fillRect(HX, HY, HW, HH);
-    ctx.strokeStyle = "#5a3a8a"; ctx.lineWidth = 1.5;
-    ctx.shadowBlur = 6; ctx.shadowColor = "#7a4fc9aa";
+    ctx.strokeStyle = "#7a4fc9"; ctx.lineWidth = 2;
+    ctx.shadowBlur = 8; ctx.shadowColor = "#7a4fc9aa";
     ctx.strokeRect(HX, HY, HW, HH);
     ctx.shadowBlur = 0;
 
-    // HP 바
-    const barX = HX + 10, barW = HW - 20;
+    const barX = HX + 12, barW = HW - 24;
+    let by = HY + 12;
+
+    // 수치 텍스트를 게이지 위에 얹을 때 쓰는 공통 처리 (외곽선 → 채움)
+    const gaugeLabel = (txt, x, y, size, col) => {
+        ctx.font = `bold ${size}px SkullFont, NeoDunggeunmo, monospace`;
+        ctx.textAlign = "left";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.strokeText(txt, x, y);
+        ctx.fillStyle = col; ctx.fillText(txt, x, y);
+    };
+
+    // HP 바 — 가장 크게. 30% 이하면 테두리가 붉게 깜빡여 위험을 알림.
     const hpRatio = Math.max(0, Player.hp / Player.maxHp);
-    ctx.fillStyle = "#1a0808"; ctx.fillRect(barX, HY + 8, barW, 14);
+    ctx.fillStyle = "#1a0808"; ctx.fillRect(barX, by, barW, BAR_H);
     const hpGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
     hpGrd.addColorStop(0, "#ff6a4d"); hpGrd.addColorStop(1, "#c81e1e");
-    ctx.fillStyle = hpGrd; ctx.fillRect(barX, HY + 8, barW * hpRatio, 14);
-    ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 8, barW, 14);
-    ctx.fillStyle = "#ffe8e0"; ctx.font = "bold 10px SkullFont, NeoDunggeunmo, monospace";
-    ctx.textAlign = "left"; ctx.shadowBlur = 3; ctx.shadowColor = "#000";
-    ctx.fillText(`HP ${Math.max(0, Math.ceil(Player.hp))}/${Player.maxHp}`, barX + 4, HY + 18.5);
-    ctx.shadowBlur = 0;
+    ctx.fillStyle = hpGrd; ctx.fillRect(barX, by, barW * hpRatio, BAR_H);
+    const lowHp = hpRatio <= 0.3;
+    ctx.strokeStyle = lowHp && Math.floor(Game.frameCount / 10) % 2 === 0 ? "#ff5566" : "#00000090";
+    ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, BAR_H);
+    gaugeLabel(`HP  ${Math.max(0, Math.ceil(Player.hp))} / ${Player.maxHp}`, barX + 8, by + 18, 17, "#fff2ec");
+    by += BAR_H + 8;
 
-    // 스태미나 바 (회피 소모)
+    // 스태미나 바 (회피 소모) — 회피 가능 여부가 한눈에 보이게 부족하면 어둡게
     const stRatio = Player.stamina / STAMINA_MAX;
     const dashCost = STAMINA_DASH * (Game.pDashCostMul || 1);
-    ctx.fillStyle = "#1a1408"; ctx.fillRect(barX, HY + 26, barW, 9);
+    const canDash = Player.stamina >= dashCost;
+    ctx.fillStyle = "#1a1408"; ctx.fillRect(barX, by, barW, ST_H);
     const stGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    if (Player.stamina < dashCost) { stGrd.addColorStop(0, "#8a6a1a"); stGrd.addColorStop(1, "#5a4408"); }
+    if (!canDash) { stGrd.addColorStop(0, "#8a6a1a"); stGrd.addColorStop(1, "#5a4408"); }
     else { stGrd.addColorStop(0, "#ffe066"); stGrd.addColorStop(1, "#e8a020"); }
-    ctx.fillStyle = stGrd; ctx.fillRect(barX, HY + 26, barW * stRatio, 9);
-    ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 26, barW, 9);
+    ctx.fillStyle = stGrd; ctx.fillRect(barX, by, barW * stRatio, ST_H);
+    // 회피 1회분 지점에 눈금 — 언제 회피가 되는지 판단 가능
+    const dashMark = barX + barW * (dashCost / STAMINA_MAX);
+    ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(dashMark, by); ctx.lineTo(dashMark, by + ST_H); ctx.stroke();
+    ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, ST_H);
+    gaugeLabel(`기력  ${Math.round(Player.stamina)}`, barX + 8, by + 12.5, 13, canDash ? "#fff8dc" : "#b9a06a");
+    by += ST_H + 8;
 
     // 보호막 바 (유물 "불굴의 방벽" 보유 시에만)
     if (hasShield) {
-        ctx.fillStyle = "#0a1622"; ctx.fillRect(barX, HY + 39, barW, 8);
+        ctx.fillStyle = "#0a1622"; ctx.fillRect(barX, by, barW, SH_H);
         const shRatio = Math.min(1, Game.pShield / 60);
         const shGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
         shGrd.addColorStop(0, "#8fd6ff"); shGrd.addColorStop(1, "#3a8fd0");
-        ctx.fillStyle = shGrd; ctx.fillRect(barX, HY + 39, barW * shRatio, 8);
-        ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 39, barW, 8);
-        ctx.fillStyle = "#cfefff"; ctx.font = "bold 8px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(`방벽 ${Math.round(Game.pShield)}`, barX + 3, HY + 46);
-    }
-
-    // 콤보 표시
-    if (Player.combo > 0 && (Player.atkAnim > 0 || Player.comboWindowT > 0)) {
-        ctx.fillStyle = "#ffcc44"; ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
-        ctx.textAlign = "left"; ctx.shadowBlur = 4; ctx.shadowColor = "#aa6600";
-        ctx.fillText(`콤보 ${Player.combo}/${COMBO_MAX}`, barX, HY + HH - 6);
-        ctx.shadowBlur = 0;
+        ctx.fillStyle = shGrd; ctx.fillRect(barX, by, barW * shRatio, SH_H);
+        ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, SH_H);
+        gaugeLabel(`방벽  ${Math.round(Game.pShield)}`, barX + 8, by + 11.5, 12, "#dff2ff");
     }
     ctx.restore();
 
+    // ── 콤보 (화면 중앙 하단, 크게) ──
+    // HUD 구석의 11px 텍스트로는 전투 중에 절대 안 보였다.
+    if (Player.combo > 0 && (Player.atkAnim > 0 || Player.comboWindowT > 0)) {
+        ctx.save();
+        ctx.textAlign = "center";
+        const big = Player.combo === COMBO_MAX;
+        ctx.font = `bold ${big ? 34 : 26}px SkullFont, NeoDunggeunmo, monospace`;
+        ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        const txt = big ? `${Player.combo} 피니시!` : `${Player.combo} 콤보`;
+        ctx.strokeText(txt, CW / 2, CH - 78);
+        ctx.fillStyle = big ? "#ff8a3a" : "#ffcc44";
+        ctx.shadowBlur = big ? 16 : 8; ctx.shadowColor = big ? "#ff5500" : "#aa6600";
+        ctx.fillText(txt, CW / 2, CH - 78);
+        ctx.shadowBlur = 0;
+        ctx.textAlign = "left";
+        ctx.restore();
+    }
+
     // ── 장비 슬롯 + 유물 개수 (HP 패널 바로 아래) ──
     ctx.save();
-    ctx.font = "10px SkullFont, NeoDunggeunmo, monospace";
     ctx.textAlign = "left";
-    [["무기", Game.equip.weapon], ["방어구", Game.equip.armor]].forEach(([label, eq], i) => {
-        const ey = HY + HH + 14 + i * 15;
-        ctx.fillStyle = "#6e6390";
-        ctx.fillText(label, HX + 2, ey);
-        if (eq) {
-            ctx.fillStyle = equipColor(eq);
-            ctx.fillText(equipDisplayName(eq), HX + 44, ey);
-        } else {
-            ctx.fillStyle = "#4a4360";
-            ctx.fillText("— 없음 —", HX + 44, ey);
-        }
-    });
+    const infoRow = (label, value, valCol, y) => {
+        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.strokeText(label, HX + 4, y);
+        ctx.fillStyle = "#9a8cc0"; ctx.fillText(label, HX + 4, y);
+        ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
+        ctx.strokeText(value, HX + 66, y);
+        ctx.fillStyle = valCol; ctx.fillText(value, HX + 66, y);
+    };
+    let iy = HY + HH + 20;
+    infoRow("무기", Game.equip.weapon ? equipDisplayName(Game.equip.weapon) : "— 없음 —",
+        Game.equip.weapon ? equipColor(Game.equip.weapon) : "#5a5372", iy); iy += 19;
+    infoRow("방어구", Game.equip.armor ? equipDisplayName(Game.equip.armor) : "— 없음 —",
+        Game.equip.armor ? equipColor(Game.equip.armor) : "#5a5372", iy); iy += 19;
     if (Game.relics.length > 0) {
-        ctx.fillStyle = "#6e6390";
-        ctx.fillText("유물", HX + 2, HY + HH + 44);
-        ctx.fillStyle = "#ffcc44";
-        ctx.fillText(`◆ ${Game.relics.length}개  [ESC 확인]`, HX + 44, HY + HH + 44);
+        infoRow("유물", `${Game.relics.length}개  [ESC]`, "#ffcc44", iy);
     }
     ctx.restore();
 
@@ -313,18 +354,23 @@ function renderRoom(walls) {
     const bossRound = isBossRound(Game.roundN);
     ctx.save();
     ctx.textAlign = "right";
-    ctx.fillStyle = bossRound ? "#ff5555" : theme.palette.accent;
-    ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
-    ctx.shadowBlur = 4; ctx.shadowColor = bossRound ? "#ff2222" : theme.palette.accent;
-    ctx.fillText(
+    const rightX = CW - 18;
+    const outlined = (txt, y, size, col, glow) => {
+        ctx.font = `bold ${size}px SkullFont, NeoDunggeunmo, monospace`;
+        ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.88)";
+        ctx.strokeText(txt, rightX, y);
+        if (glow) { ctx.shadowBlur = glow; ctx.shadowColor = col; }
+        ctx.fillStyle = col; ctx.fillText(txt, rightX, y);
+        ctx.shadowBlur = 0;
+    };
+    outlined(
         `STAGE ${Game.stageN}-${Game.roundN}  ${theme.name}${bossRound ? "  [ BOSS ]" : ""}`,
-        CW - 14, 24
+        34, 20, bossRound ? "#ff5555" : theme.palette.accent, 6
     );
-    ctx.shadowBlur = 0;
-    ctx.font = "11px SkullFont, NeoDunggeunmo, monospace";
-    ctx.fillStyle = "#9a8cc0";
-    ctx.fillText(`진행 ${globalRound(Game.stageN, Game.roundN)} / ${STAGE_COUNT * ROUNDS_PER_STAGE}`, CW - 14, 40);
-    ctx.fillText(`점수 ${Game.score}   킬 ${Game.kills}   다크 쿼츠 ${Game.darkQuartz}`, CW - 14, 56);
+    outlined(`진행 ${globalRound(Game.stageN, Game.roundN)} / ${STAGE_COUNT * ROUNDS_PER_STAGE}`,
+        56, 14, "#b3a6d4");
+    outlined(`점수 ${Game.score}   킬 ${Game.kills}   쿼츠 ${Game.darkQuartz}`,
+        76, 14, "#b3a6d4");
     ctx.restore();
 
     // ── 방 입장 배너 ──
@@ -333,18 +379,20 @@ function renderRoom(walls) {
         ctx.save();
         ctx.globalAlpha = a;
         ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(8,5,14,0.72)";
-        ctx.fillRect(CW / 2 - 240, 74, 480, 46);
-        ctx.strokeStyle = theme.palette.accent; ctx.lineWidth = 1.5;
-        ctx.strokeRect(CW / 2 - 240, 74, 480, 46);
+        ctx.fillStyle = "rgba(8,5,14,0.80)";
+        ctx.fillRect(CW / 2 - 300, 96, 600, 64);
+        ctx.strokeStyle = theme.palette.accent; ctx.lineWidth = 2;
+        ctx.strokeRect(CW / 2 - 300, 96, 600, 64);
+        ctx.font = "bold 26px SkullFont, NeoDunggeunmo, monospace";
+        ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.strokeText(Game.bannerText || "", CW / 2, 128);
         ctx.fillStyle = theme.palette.accent;
-        ctx.font = "bold 18px SkullFont, NeoDunggeunmo, monospace";
-        ctx.shadowBlur = 8; ctx.shadowColor = theme.palette.accent;
-        ctx.fillText(Game.bannerText || "", CW / 2, 96);
+        ctx.shadowBlur = 10; ctx.shadowColor = theme.palette.accent;
+        ctx.fillText(Game.bannerText || "", CW / 2, 128);
         ctx.shadowBlur = 0;
-        ctx.fillStyle = "#8e83ad";
-        ctx.font = "10px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(theme.subtitle, CW / 2, 112);
+        ctx.fillStyle = "#a396c4";
+        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
+        ctx.fillText(theme.subtitle, CW / 2, 149);
         ctx.textAlign = "left";
         ctx.restore();
     }
@@ -356,10 +404,12 @@ function renderRoom(walls) {
         if (blink) {
             ctx.save();
             ctx.textAlign = "center";
+            ctx.font = "bold 20px SkullFont, NeoDunggeunmo, monospace";
+            ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+            ctx.strokeText("구역 정화 완료 — 동쪽 문으로 이동", CW / 2, CH - 30);
             ctx.fillStyle = "#3cdc78";
-            ctx.font = "bold 14px SkullFont, NeoDunggeunmo, monospace";
-            ctx.shadowBlur = 8; ctx.shadowColor = "#3cdc78";
-            ctx.fillText("구역 정화 완료 — 동쪽 문으로 이동", CW / 2, CH - 24);
+            ctx.shadowBlur = 10; ctx.shadowColor = "#3cdc78";
+            ctx.fillText("구역 정화 완료 — 동쪽 문으로 이동", CW / 2, CH - 30);
             ctx.shadowBlur = 0;
             ctx.restore();
         }
