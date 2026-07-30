@@ -195,11 +195,24 @@ const ITEM_STYLE = {
     armor_drop:    { col: "#8fb4ff", label: "R" },
 };
 
-// 아이템 등등 떠 있다가 수명 만료 시 소멸, 플레이어가 닿으면 즉시 효과 적용 후 소멸
+// 아이템은 제자리에 떠 있다가 수명 만료 시 소멸, 플레이어가 닿으면 즉시 효과 적용 후 소멸.
+// 유물 "끌어당기는 영혼"(pMagnet)이 있으면 일정 범위 안의 아이템이 플레이어를 향해 빨려온다.
 function updateItems() {
+    const magnetR = Game.pMagnet || 0;
     Game.items.forEach(it => {
         if (!it.active) return;
         if (--it.life <= 0) { it.active = false; return; }
+
+        if (magnetR > 0 && !Player.dead) {
+            const mdx = Player.x - it.x, mdy = Player.y - it.y;
+            const md = Math.hypot(mdx, mdy);
+            if (md < magnetR && md > 1) {
+                const pull = Math.min(5, 1.2 + (1 - md / magnetR) * 4);
+                it.x += (mdx / md) * pull;
+                it.y += (mdy / md) * pull;
+            }
+        }
+
         const pRect = { x: Player.x - Player.hb.w / 2, y: Player.y - Player.hb.h / 2, w: Player.hb.w, h: Player.hb.h };
         const iRect = { x: it.x - it.w / 2, y: it.y - it.h / 2, w: it.w, h: it.h };
         if (!Player.dead && overlap(pRect, iRect)) {
@@ -211,6 +224,7 @@ function updateItems() {
 
 function applyItemEffect(it) {
     const p = Player;
+    if (typeof playSfx === 'function') playSfx('item');
     if (it.type === "weapon_drop" || it.type === "armor_drop") {
         if (it.equip) equipItem(it.equip);
         return;
@@ -268,19 +282,27 @@ function hitE(e, dmg, facing, isCrit, extraDmg = 0) {
     // 치명타는 화면 멈춤(hitStop) 없이 가벼운 셰이크만 — 치명타율이 높은 도적에서 게임이 끊겨 보였음
     if (isCrit) Game.camShake = Math.max(Game.camShake || 0, 3);
 
-    // 넉백 — 플레이어 반대 방향으로 실제 벡터로 밀림
+    // 넉백 — 플레이어 반대 방향으로 실제 벡터로 밀림 (유물 "묵직한 스윙"이 배율 증가)
     if (!hasSuperArmor) {
         e.kbT = 10;
         const kx = e.x - Player.x, ky = e.y - Player.y;
         const kd = Math.hypot(kx, ky) || 1;
-        e.vx = (kx / kd) * 4;
-        e.vy = (ky / kd) * 4;
+        const kMul = 4 * (Game.pKnockbackMul || 1);
+        e.vx = (kx / kd) * kMul;
+        e.vy = (ky / kd) * kMul;
     }
 
     addText(e.x, e.y - 26, String(finalDmg), isCrit ? "#ffcc00" : "#ffffff", 40, isCrit ? 24 : 16);
     if (extraDmgAmt > 0) addText(e.x + 18, e.y - 12, "+" + extraDmgAmt, "#999999", 35, 10);
 
     for (let i = 0; i < 10; i++) addPart(e.x, e.y - 12, "#ff0000", 15, 3);
+    if (typeof playSfx === 'function') playSfx('hit');
+
+    // 유물 "피에 대한 갈증": 확률로 체력 회복
+    if (Game.pLifesteal > 0 && Math.random() < Game.pLifesteal && Player.hp < Player.maxHp) {
+        Player.hp = Math.min(Player.maxHp, Player.hp + 3);
+        addText(Player.x - 18, Player.y - 30, "+3", "#33ff66", 26, 11, -0.4, -1.3);
+    }
 
     if (e.hp <= 0) {
         e.hp = 0;

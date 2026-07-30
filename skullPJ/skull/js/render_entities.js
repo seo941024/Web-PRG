@@ -229,7 +229,9 @@ function renderRoom(walls) {
     if (Game.camShake > 0) Game.camShake--;
 
     // ── 플레이어 HUD 패널 (화면 고정) ──
-    const HX = 14, HY = 12, HW = 176, HH = 54;
+    const HX = 14, HY = 12, HW = 176;
+    const hasShield = (Game.pShield || 0) > 0;
+    const HH = hasShield ? 66 : 54;   // 보호막이 있을 때만 칸을 늘림
     ctx.save();
     ctx.fillStyle = "rgba(10,8,18,0.72)";
     ctx.fillRect(HX, HY, HW, HH);
@@ -253,23 +255,36 @@ function renderRoom(walls) {
 
     // 스태미나 바 (회피 소모)
     const stRatio = Player.stamina / STAMINA_MAX;
+    const dashCost = STAMINA_DASH * (Game.pDashCostMul || 1);
     ctx.fillStyle = "#1a1408"; ctx.fillRect(barX, HY + 26, barW, 9);
     const stGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    if (Player.stamina < STAMINA_DASH) { stGrd.addColorStop(0, "#8a6a1a"); stGrd.addColorStop(1, "#5a4408"); }
+    if (Player.stamina < dashCost) { stGrd.addColorStop(0, "#8a6a1a"); stGrd.addColorStop(1, "#5a4408"); }
     else { stGrd.addColorStop(0, "#ffe066"); stGrd.addColorStop(1, "#e8a020"); }
     ctx.fillStyle = stGrd; ctx.fillRect(barX, HY + 26, barW * stRatio, 9);
     ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 26, barW, 9);
+
+    // 보호막 바 (유물 "불굴의 방벽" 보유 시에만)
+    if (hasShield) {
+        ctx.fillStyle = "#0a1622"; ctx.fillRect(barX, HY + 39, barW, 8);
+        const shRatio = Math.min(1, Game.pShield / 60);
+        const shGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        shGrd.addColorStop(0, "#8fd6ff"); shGrd.addColorStop(1, "#3a8fd0");
+        ctx.fillStyle = shGrd; ctx.fillRect(barX, HY + 39, barW * shRatio, 8);
+        ctx.strokeStyle = "#00000080"; ctx.strokeRect(barX, HY + 39, barW, 8);
+        ctx.fillStyle = "#cfefff"; ctx.font = "bold 8px SkullFont, NeoDunggeunmo, monospace";
+        ctx.fillText(`방벽 ${Math.round(Game.pShield)}`, barX + 3, HY + 46);
+    }
 
     // 콤보 표시
     if (Player.combo > 0 && (Player.atkAnim > 0 || Player.comboWindowT > 0)) {
         ctx.fillStyle = "#ffcc44"; ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
         ctx.textAlign = "left"; ctx.shadowBlur = 4; ctx.shadowColor = "#aa6600";
-        ctx.fillText(`콤보 ${Player.combo}/${COMBO_MAX}`, barX, HY + 46);
+        ctx.fillText(`콤보 ${Player.combo}/${COMBO_MAX}`, barX, HY + HH - 6);
         ctx.shadowBlur = 0;
     }
     ctx.restore();
 
-    // ── 장비 슬롯 표시 (HP 패널 바로 아래) ──
+    // ── 장비 슬롯 + 유물 개수 (HP 패널 바로 아래) ──
     ctx.save();
     ctx.font = "10px SkullFont, NeoDunggeunmo, monospace";
     ctx.textAlign = "left";
@@ -285,6 +300,12 @@ function renderRoom(walls) {
             ctx.fillText("— 없음 —", HX + 44, ey);
         }
     });
+    if (Game.relics.length > 0) {
+        ctx.fillStyle = "#6e6390";
+        ctx.fillText("유물", HX + 2, HY + HH + 44);
+        ctx.fillStyle = "#ffcc44";
+        ctx.fillText(`◆ ${Game.relics.length}개  [ESC 확인]`, HX + 44, HY + HH + 44);
+    }
     ctx.restore();
 
     // ── 스테이지/라운드 표시 (화면 우측 상단) ──
@@ -329,7 +350,8 @@ function renderRoom(walls) {
     }
 
     // ── 문이 열렸을 때 안내 ──
-    if (Game.doors.length > 0 && Game.doors[0].open && Game.gs !== "win" && !Player.dead) {
+    // 사망/승리/일시정지 오버레이는 ui.js가 별도로 그린다 (여기서는 월드 + 플레이 HUD만 담당)
+    if (Game.doors.length > 0 && Game.doors[0].open && Game.gs === "play" && !Player.dead) {
         const blink = Math.floor(Game.frameCount / 24) % 2 === 0;
         if (blink) {
             ctx.save();
@@ -341,38 +363,5 @@ function renderRoom(walls) {
             ctx.shadowBlur = 0;
             ctx.restore();
         }
-    }
-
-    if (Game.gs === "win") {
-        ctx.fillStyle = "rgba(4,2,10,0.86)"; ctx.fillRect(0, 0, CW, CH);
-        ctx.save();
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#ffcc44"; ctx.font = "bold 46px SkullFont, NeoDunggeunmo, monospace";
-        ctx.shadowBlur = 24; ctx.shadowColor = "#ff8800";
-        ctx.fillText("마왕을 쓰러뜨렸다", CW / 2, CH / 2 - 30);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = "#cbb8ee"; ctx.font = "16px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(`15스테이지 완주  ·  점수 ${Game.score}  ·  처치 ${Game.kills}`, CW / 2, CH / 2 + 14);
-        const w = Game.equip.weapon, ar = Game.equip.armor;
-        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillStyle = "#8e83ad";
-        ctx.fillText(
-            `최종 장비: ${w ? equipDisplayName(w) : "없음"} / ${ar ? equipDisplayName(ar) : "없음"}`,
-            CW / 2, CH / 2 + 40
-        );
-        ctx.textAlign = "left";
-        ctx.restore();
-    } else if (Player.dead) {
-        ctx.fillStyle = "rgba(5,0,10,0.7)"; ctx.fillRect(0, 0, CW, CH);
-        ctx.save();
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#ff3344"; ctx.font = "bold 40px SkullFont, NeoDunggeunmo, monospace";
-        ctx.shadowBlur = 18; ctx.shadowColor = "#ff0000";
-        ctx.fillText("당신은 죽었습니다", CW/2, CH/2);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = "#8877aa"; ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(`STAGE ${Game.stageN}-${Game.roundN} 에서 쓰러짐`, CW/2, CH/2 + 34);
-        ctx.textAlign = "left";
-        ctx.restore();
     }
 }

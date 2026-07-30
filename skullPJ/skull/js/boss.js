@@ -281,6 +281,7 @@ function updateBossAI(e, walls) {
             e.state = "attack";
             e.atkAnim = pat.dur;
             e.sustain = null;
+            if (typeof playSfx === 'function') playSfx('boss_atk');
             pat.exec(e, isP2);
         }
     } else if (e.state === "attack") {

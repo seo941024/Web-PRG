@@ -56,6 +56,7 @@ function tryPlayerAttack() {
     p.atkT = Math.round(p.atkAnimMax * 0.6); // 이동 잠금은 스윙 앞부분만
     p.atkCD = Math.max(p.atkAnimMax, Math.round(prof.atkCD / effAtkSpd / COMBO_MAX));
     p.animName = "attack"; p.animFrame = 0; p.animT = 0;
+    if (typeof playSfx === 'function') playSfx(p.combo === COMBO_MAX ? 'combo_high' : 'atk');
     const [dx, dy] = DIR_VEC[p.facing];
     const range = prof.range, arc = 60; // 부채꼴 판정 반각(도)
     // 판정 원점 = 캐릭터 위치 자체(몸 앞으로 안 밀어냄) — 안 그러면 적이 몸에 딱 붙었을 때
@@ -75,10 +76,12 @@ function tryPlayerAttack() {
         }
         let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1))
                 + (Game.pAtkBonus || 0) + equipAtk();
-        // 피니시(4타)는 후딜이 긴 만큼 데미지 보너스 — 콤보 완주 보상
-        if (p.combo === COMBO_MAX) dmg = Math.round(dmg * 1.7);
-        const isCrit = Math.random() < (prof.crit + equipCrit());
-        hitE(e, isCrit ? dmg * 2 : dmg, dx >= 0 ? 1 : -1, isCrit);
+        // 피니시(4타)는 후딜이 긴 만큼 데미지 보너스 — 콤보 완주 보상 (유물로 배율 상승)
+        if (p.combo === COMBO_MAX) dmg = Math.round(dmg * (Game.pFinisherMul || 1.7));
+        // 유물 "광포한 유전자": 잃은 체력 비율에 비례해 최대 +60%
+        if (Game.pLowHpDmg) dmg = Math.round(dmg * (1 + (1 - p.hp / p.maxHp) * 0.6));
+        const isCrit = Math.random() < (prof.crit + (Game.pCritBonus || 0) + equipCrit());
+        hitE(e, isCrit ? Math.round(dmg * (Game.pCritDmg || 2)) : dmg, dx >= 0 ? 1 : -1, isCrit);
         hitAny = true;
     });
     // 타격 파티클 — 명중했을 때만, 개수·범위 축소(정신사나움 방지)
@@ -88,21 +91,54 @@ function tryPlayerAttack() {
     }
 }
 
-// 플레이어 피격 — 경량 버전 (마나/스태미나/패링 없는 상태의 임시 구현, 추후 시스템 확장 시 교체)
+// 플레이어 피격 — 패링/가드는 아직 미이식(V1 takeDmg 참고), 보호막·가시·부활 유물만 반영
 function hitPlayer(dmg, eObj) {
     const p = Player;
     if (p.dead || p.invT > 0 || p.dashT > 0) return;
     // 방어력 = 아이템 누적 + 방어구 보너스 (고정 감산, 최소 1 피해는 들어감)
     dmg = Math.max(1, dmg - (Game.pDefBonus || 0) - equipDef());
-    p.hp -= dmg;
+
+    // 유물 "가시 갑옷": 가해자에게 반사 — 장판/투사체처럼 실체가 없는 출처는 제외
+    if (Game.pThorns > 0 && eObj && eObj.active && !eObj.dead) {
+        hitE(eObj, Game.pThorns, 1, false);
+    }
+
+    // 보호막이 있으면 먼저 소모 (유물 "불굴의 방벽")
+    if (Game.pShield > 0) {
+        const absorbed = Math.min(Game.pShield, dmg);
+        Game.pShield -= absorbed;
+        dmg -= absorbed;
+        addText(p.x + 16, p.y - 34, `방벽 -${absorbed}`, "#66ccff", 32, 11);
+    }
+
+    if (dmg > 0) p.hp -= dmg;
     p.invT = 45; p.kbT = 12;
     const ex = p.x - (eObj ? eObj.x : p.x), ey = p.y - (eObj ? eObj.y : p.y);
     const d = Math.hypot(ex, ey) || 1;
     p.vx = (ex / d) * 4; p.vy = (ey / d) * 4;
     Game.camShake = 10;
-    addText(p.x, p.y - 20, "-" + dmg, "#ff4444", 35, 16);
-    for (let i = 0; i < 10; i++) addPart(p.x, p.y - 10, "#ff2222", 18, 3);
-    if (p.hp <= 0) { p.hp = 0; p.dead = true; }
+    if (typeof playSfx === 'function') playSfx('dmg');
+    if (dmg > 0) {
+        addText(p.x, p.y - 20, "-" + dmg, "#ff4444", 35, 16);
+        for (let i = 0; i < 10; i++) addPart(p.x, p.y - 10, "#ff2222", 18, 3);
+    }
+
+    if (p.hp <= 0) {
+        // 유물 "두 번째 생": 체력 50%로 부활
+        if (Game.pRevive > 0) {
+            Game.pRevive--;
+            p.hp = Math.round(p.maxHp * 0.5);
+            p.invT = 120;
+            addText(p.x, p.y - 40, "부활!", "#ffaa00", 70, 22);
+            for (let i = 0; i < 32; i++) addPart(p.x, p.y - 10, "#ffaa00", 34, 5);
+            Game.camShake = 24;
+            if (typeof playSfx === 'function') playSfx('unlock');
+        } else {
+            p.hp = 0; p.dead = true;
+            if (typeof playSfx === 'function') playSfx('player_die');
+            for (let i = 0; i < 40; i++) addPart(p.x, p.y - 10, "#ff0000", 40, 5);
+        }
+    }
 }
 
 const dashGhosts = [];
@@ -149,11 +185,14 @@ function updatePlayer(walls) {
     if (sprintHeld) sp *= 2;
 
     // 회피(구 대시): Space — 짧은 무적 突진 + 잔상, 스태미나 소모
+    // 유물 "유령 걸음"은 소모를 줄이고(pDashCostMul) 무적 시간을 늘린다(pDashInvBonus)
     if (p.dashCD > 0) p.dashCD--;
+    const dashCost = STAMINA_DASH * (Game.pDashCostMul || 1);
     if (dn("Space") && p.dashCD <= 0 && (mx !== 0 || my !== 0)) {
-        if (p.stamina >= STAMINA_DASH) {
-            p.stamina -= STAMINA_DASH;
-            p.dashT = 10; p.dashCD = 28;
+        if (p.stamina >= dashCost) {
+            p.stamina -= dashCost;
+            p.dashT = 10 + (Game.pDashInvBonus || 0); p.dashCD = 28;
+            if (typeof playSfx === 'function') playSfx('dash');
         } else if (p.staminaWarnT <= 0) {
             addText(p.x, p.y - 20, "스태미너 부족!", "#ff6600", 40, 11);
             p.staminaWarnT = 40;

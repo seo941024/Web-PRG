@@ -60,19 +60,41 @@ function onEnemyDeath(e) {
     Game.kills = (Game.kills || 0) + 1;
     if (e.isBoss) {
         Game.score += 500;
-        const dq = Math.floor(Math.random() * 15) + 20;
+        const dq = Math.round((Math.floor(Math.random() * 15) + 20) * (Game.pQuartzMul || 1));
         Game.darkQuartz = (Game.darkQuartz || 0) + dq;
-        localStorage.setItem("skull_quartz", Game.darkQuartz);
+        if (typeof saveProgress === 'function') saveProgress();
         addText(e.x, e.y - 60, `${e.bossName || "보스"} 격파!`, "#ffcc00", 100, 20);
         addText(e.x, e.y - 40, `다크 쿼츠 +${dq}`, "#dd44ff", 90, 15);
+        Game.camShake = Math.max(Game.camShake || 0, 30);
+        if (typeof playSfx === 'function') playSfx('boss_clear');
         // 스테이지 클리어 보상: 무기·방어구 확정 1개씩 + HP 회복 오브
         dropStageClearLoot(e);
     } else {
         Game.score += e.isElite ? 150 : 50;
+        if (e.isElite) {
+            // 엘리트는 소량의 다크 쿼츠도 떨어뜨림 — 한 런 안에서 상점 목표가 생기게
+            const dq = Math.round((Math.floor(Math.random() * 5) + 3) * (Game.pQuartzMul || 1));
+            Game.darkQuartz = (Game.darkQuartz || 0) + dq;
+            if (typeof saveProgress === 'function') saveProgress();
+            addText(e.x, e.y - 34, `다크 쿼츠 +${dq}`, "#dd44ff", 60, 12);
+        }
+        if (typeof playSfx === 'function') playSfx('enemy_die');
         dropLoot(e);
     }
     // 자폭형은 죽을 때도 터진다 — 근접으로 마무리할 때 위험 요소
     if (e.mtype === "bomber") explodeBomber(e);
+
+    // 유물 "죽음의 개화": 처치 지점에서 폭발해 주변 적에게 연쇄 피해
+    if (Game.pKillExplode > 0) {
+        const R = 70;
+        for (let i = 0; i < 16; i++) addPart(e.x, e.y - 8, "#cc66ff", 20, 4);
+        Game.enemies.forEach(o => {
+            if (!o.active || o.dead || o === e) return;
+            const dx = o.x - e.x, dy = o.y - e.y;
+            if (dx * dx + dy * dy < R * R) hitE(o, Game.pKillExplode, 1, false);
+        });
+    }
+
     const col = e.isElite ? "#ffcc33" : "#ff0000";
     for (let i = 0; i < (e.isBoss ? 40 : 20); i++) {
         addPart(e.x, e.y, Math.random() < 0.5 ? col : "#aa0000", 20 + Math.random() * 20, 4);
@@ -113,16 +135,18 @@ function updateEnemies(walls) {
         }
 
         const arch = e.arch || MOB_ARCHETYPES.melee;
+        // 유물 "한기의 오라": 플레이어 주변 적은 이동속도 30% 감소
+        const spd = (Game.pSlowAura && dist < 190) ? e.speed * 0.7 : e.speed;
 
         if (e.state === "chase") {
             if (e.mtype === "ranged") {
                 // 사거리 안에 들어오면 멈춰 조준, 너무 가까우면 뒤로 물러남
                 if (dist < arch.keepDist * 0.75) {
-                    e.vx = -(dx / dist) * e.speed * 1.3;
-                    e.vy = -(dy / dist) * e.speed * 1.3;
+                    e.vx = -(dx / dist) * spd * 1.3;
+                    e.vy = -(dy / dist) * spd * 1.3;
                 } else if (dist > arch.atkRange) {
-                    e.vx = (dx / dist) * e.speed;
-                    e.vy = (dy / dist) * e.speed;
+                    e.vx = (dx / dist) * spd;
+                    e.vy = (dy / dist) * spd;
                 } else {
                     e.vx = 0; e.vy = 0;
                 }
@@ -134,8 +158,8 @@ function updateEnemies(walls) {
                 if (dist < arch.atkRange) {
                     enterWindup(e, arch, dx, dy);
                 } else if (dist < 320) {
-                    e.vx = (dx / dist) * e.speed;
-                    e.vy = (dy / dist) * e.speed;
+                    e.vx = (dx / dist) * spd;
+                    e.vy = (dy / dist) * spd;
                 } else {
                     e.vx = 0; e.vy = 0; // 탐지 범위 밖이면 대기
                 }
@@ -145,6 +169,7 @@ function updateEnemies(walls) {
             e.warnT--;
             if (e.warnT <= 0) {
                 e.state = "attack";
+                if (typeof playSfx === 'function') playSfx(e.mtype === "ranged" ? 'mob_laser' : 'enemy_atk');
                 if (e.mtype === "ranged") {
                     fireMobShot(e, arch);
                     e.atkAnim = 8;

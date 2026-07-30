@@ -1,7 +1,9 @@
-// main.js — 탑다운 게임 루프 + 스테이지 진행
+// main.js — 게임 루프 + 상태머신 + 방 생성/진행
 // 총 15스테이지: 5테마(stageN 1~5) × 3라운드(roundN 1~3), 라운드 3은 보스방.
-// 테마·레이아웃·몹 구성·보스 스탯은 전부 stage.js에 데이터로 분리돼 있고, 여기서는 그걸 읽어
-// 방을 조립(buildRoom)하고 문 통과로 진행(nextStage)시키는 역할만 한다.
+// 테마·레이아웃·몹 구성·보스 스탯은 stage.js에 데이터로 분리돼 있고, 여기서는 그걸 읽어
+// 방을 조립(buildRoom)하고 상태 전이를 관리한다.
+//
+// 상태 전이도는 core.js의 Game 선언부 주석 참고.
 
 ctx.imageSmoothingEnabled = false; // 스프라이트는 표시 크기 그대로(1:1) 뽑아 선명하게
 
@@ -68,15 +70,14 @@ function buildRoom(stageN, roundN) {
 
     Game.doors = [{ x: 996, y: DOOR_Y - DOOR_H / 2, w: 24, h: DOOR_H, open: false }];
 
+    const theme = stageTheme(stageN);
     if (bossRound) {
         spawnEnemy(700, 500, { boss: true, stageN });
-        const theme = stageTheme(stageN);
         Game.bannerT = 150;
         Game.bannerText = `${theme.name} — ${theme.boss.name}`;
     } else {
         const spots = pickSpawnSpots(roundMobCount(stageN, roundN), baseWalls);
         spots.forEach(([sx, sy]) => spawnThemedEnemy(sx, sy, stageN, roundN));
-        const theme = stageTheme(stageN);
         Game.bannerT = 110;
         Game.bannerText = `STAGE ${stageN}-${roundN}  ${theme.name}`;
     }
@@ -88,35 +89,71 @@ function buildRoom(stageN, roundN) {
     Player.kbT = 0; Player.dashT = 0;
     Player.invT = 60;   // 입장 직후 1초 무적 — 스폰 즉시 피격 방지
     Game._doorLock = 40; // 새 방 스폰 직후 문 재트리거 방지
+    Game._clearSfxDone = false;
 }
 
-// 라운드 클리어 → 다음 라운드. 라운드 3(보스) 클리어 시 다음 스테이지.
-// 5스테이지 보스까지 잡으면 게임 클리어(win).
-function nextStage() {
-    Game.roundN++;
-    if (Game.roundN > ROUNDS_PER_STAGE) {
-        Game.roundN = 1;
-        Game.stageN++;
-        if (Game.stageN > STAGE_COUNT) {
-            Game.stageN = STAGE_COUNT;
-            Game.gs = "win";
-            return;
-        }
-        // 스테이지 사이 회복 — 다음 테마로 넘어갈 때 절반 체력 보정
-        Player.hp = Math.min(Player.maxHp, Player.hp + Math.round(Player.maxHp * 0.35));
+// 방 입장 — 보스방이면 등장 대사 컷신을 먼저 재생하고, 컷신이 끝나면 gs="play"가 된다
+function enterRound(stageN, roundN) {
+    buildRoom(stageN, roundN);
+    if (isBossRound(roundN)) {
+        startCutscene("boss", stageN);
+    } else {
+        Game.gs = "play";
+        if (typeof playBGM === 'function') playBGM('play');
     }
-    buildRoom(Game.stageN, Game.roundN);
+}
+
+// 새 런 시작 (메뉴 → 오프닝 컷신 종료 시, 또는 사망 후 R)
+function beginRun() {
+    resetRun();
+    enterRound(1, 1);
+}
+
+// 구역 정화 보상 유물 효과 (정화의 만찬 / 불굴의 방벽)
+function applyClearBonus() {
+    if (Game.pHealOnClear > 0 && Player.hp < Player.maxHp) {
+        Player.hp = Math.min(Player.maxHp, Player.hp + Game.pHealOnClear);
+        addText(Player.x, Player.y - 30, `+${Game.pHealOnClear} HP`, "#33ff66", 45, 13);
+    }
+    if (Game.pShieldOnClear > 0) {
+        Game.pShield += Game.pShieldOnClear;
+        addText(Player.x, Player.y - 46, `보호막 +${Game.pShieldOnClear}`, "#66ccff", 45, 13);
+    }
+}
+
+// 문 통과 시 호출 — 다음 라운드로. 보스 라운드였다면 처치 대사 → 유물 선택으로 분기.
+function nextStage() {
+    if (isBossRound(Game.roundN)) {
+        applyClearBonus();
+        startCutscene("bosskill", Game.stageN);
+        return;
+    }
+    applyClearBonus();
+    Game.roundN++;
+    enterRound(Game.stageN, Game.roundN);
+}
+
+// 유물 선택 완료 후 — 다음 스테이지 1라운드로 (relic.js가 호출)
+function advanceAfterRelic() {
+    Game.stageN++;
+    Game.roundN = 1;
+    // 스테이지 사이 회복 — 다음 테마로 넘어갈 때 절반 정도 보정
+    Player.hp = Math.min(Player.maxHp, Player.hp + Math.round(Player.maxHp * 0.35));
+    enterRound(Game.stageN, Game.roundN);
 }
 
 loadCharSprites(Game.pClass);
 preloadAnims(Game.pClass, ["idle", "walk", "sprint", "attack"]);
-
-buildRoom(Game.stageN, Game.roundN);
+if (typeof playBGM === 'function') playBGM('lobby');
 
 // 문 상태 갱신 + 통과 판정 — 모든 적이 죽으면 열리고, 열린 문에 닿으면 다음 스테이지로
 function updateDoors() {
     if (Game._doorLock > 0) Game._doorLock--;
     const allDead = !Game.enemies.some(e => e.active && !e.dead);
+    if (allDead && !Game._clearSfxDone) {
+        Game._clearSfxDone = true;
+        if (typeof playSfx === 'function') playSfx('clear');
+    }
     const pRect = { x: Player.x - Player.hb.w / 2, y: Player.y - Player.hb.h / 2, w: Player.hb.w, h: Player.hb.h };
     Game.doors.forEach(d => {
         d.open = allDead;
@@ -139,21 +176,110 @@ const STEP_MS = 1000 / 60;
 const MAX_STEPS_PER_FRAME = 5; // 탭 전환 등으로 너무 오래 멈췄다 돌아와도 한번에 폭주하지 않게 제한
 let lastTime = null, acc = 0;
 
+// 플레이 중에만 도는 로직
+function stepPlay() {
+    const walls = collisionWalls();
+    updatePlayer(walls);
+    updateEnemies(walls);
+    updateEBullets(walls);
+    updateHazards();
+    updateItems();
+    updateDoors();
+    updateCamera(Player);
+
+    // 유물: 재생하는 심핵 — 3초마다 회복
+    if (Game.pRegen > 0) {
+        Game.regenT++;
+        if (Game.regenT >= 180) {
+            Game.regenT = 0;
+            if (Player.hp < Player.maxHp) {
+                Player.hp = Math.min(Player.maxHp, Player.hp + Game.pRegen);
+                addText(Player.x, Player.y - 28, `+${Game.pRegen}`, "#66ff99", 30, 11);
+            }
+        }
+    }
+
+    // 사망 감지 — 상태 전이는 여기서만 (hitPlayer는 Player.dead만 세움)
+    if (Player.dead) {
+        Game.gs = "dead";
+        if (typeof stopBGM === 'function') stopBGM();
+        if (typeof playBGM === 'function') playBGM('dead');
+    }
+}
+
 function step() {
     Game.frameCount++;
     if (Game.bannerT > 0) Game.bannerT--;
-    if (Game.gs === "win") { updateFx(); return; }
-    const walls = collisionWalls();
-    if (!Player.dead) {
-        updatePlayer(walls);
-        updateEnemies(walls);
-        updateEBullets(walls);
-        updateHazards();
-        updateItems();
-        updateDoors();
+    if (typeof ensureAudioRunning === 'function') ensureAudioRunning();
+
+    switch (Game.gs) {
+        case "menu":
+            updateMenu();
+            break;
+        case "shop":
+            updateShop();
+            break;
+        case "cutscene":
+            updateCutscene();
+            break;
+        case "relic":
+            updateRelicSelect();
+            break;
+        case "paused":
+            if (pr("Escape")) { Game.gs = "play"; if (typeof playBGM === 'function') playBGM('play'); }
+            if (pr("KeyQ")) { Game.gs = "menu"; if (typeof stopBGM === 'function') stopBGM(); if (typeof playBGM === 'function') playBGM('lobby'); }
+            break;
+        case "dead":
+            if (pr("KeyR")) beginRun();
+            if (pr("Escape")) { Game.gs = "menu"; if (typeof stopBGM === 'function') stopBGM(); if (typeof playBGM === 'function') playBGM('lobby'); }
+            updateFx();
+            break;
+        case "win":
+            if (pr("Space", "Enter")) { Game.gs = "menu"; if (typeof playBGM === 'function') playBGM('lobby'); }
+            updateFx();
+            break;
+        case "play":
+            if (pr("Escape")) { Game.gs = "paused"; }
+            else {
+                stepPlay();
+                updateFx();
+            }
+            break;
     }
-    updateFx();
-    updateCamera(Player);
+
+    if (pr("KeyM") && Game.gs !== "menu") {
+        Game.isMuted = !Game.isMuted;
+        if (Game.isMuted && typeof stopBGM === 'function') stopBGM();
+    }
+    endFrameInput();
+}
+
+function render() {
+    switch (Game.gs) {
+        case "menu":     renderMenu(); break;
+        case "shop":     renderShop(); break;
+        case "cutscene": renderCutscene(); break;
+        case "relic":
+            // 유물 선택은 전투 화면 위에 겹쳐 보여주면 맥락이 이어짐
+            renderRoom(collisionWalls());
+            renderRelicSelect();
+            break;
+        case "paused":
+            renderRoom(collisionWalls());
+            renderPause();
+            break;
+        case "dead":
+            renderRoom(collisionWalls());
+            renderDead();
+            break;
+        case "win":
+            renderWin();
+            break;
+        default:
+            renderRoom(collisionWalls());
+            renderMinimap();
+            break;
+    }
 }
 
 function loop(now) {
@@ -168,6 +294,6 @@ function loop(now) {
         acc -= STEP_MS;
         steps++;
     }
-    renderRoom(collisionWalls());
+    render();
 }
 requestAnimationFrame(loop);

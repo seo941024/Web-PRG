@@ -21,6 +21,8 @@
       <span class="hkey">Z</span><span class="hlbl">스프린트</span>
       <span class="hkey">Space</span><span class="hlbl">회피</span>
       <span class="hkey">C</span><span class="hlbl">공격</span>
+      <span class="hkey">ESC</span><span class="hlbl">일시정지</span>
+      <span class="hkey">M</span><span class="hlbl">음소거</span>
     </div>
   </div>
 
@@ -29,18 +31,25 @@
   <script src="js/input.js"></script>
   <script src="js/camera.js"></script>
   <script src="js/sprites.js"></script>
-  <!-- 스테이지 데이터(테마·레이아웃·몹 원형) / 장비 데이터 — main.js보다 먼저 로드돼야 함 -->
+  <script src="js/audio.js"></script>
+  <!-- 데이터 레이어 — main.js가 로드 직후 방을 만들므로 반드시 그보다 먼저 -->
   <script src="js/stage.js"></script>
   <script src="js/equip.js"></script>
+  <script src="js/relic.js"></script>
+  <script src="js/shop.js"></script>
   <!-- 전투(오브젝트 풀·데미지 코어·드롭·장판) -->
   <script src="js/combat.js"></script>
   <!-- 스태미나 상수만 재사용(Game.player 종속 함수들은 아직 미사용) -->
   <script src="js/systems.js"></script>
-  <!-- 플레이어/적/렌더/루프 -->
+  <!-- 플레이어/적 -->
   <script src="js/player.js"></script>
   <script src="js/boss.js"></script>
   <script src="js/mob.js"></script>
+  <!-- 렌더/화면/컷신 -->
   <script src="js/render_entities.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/cutscene.js"></script>
+  <!-- 루프 (마지막) -->
   <script src="js/main.js"></script>
 </body>
 </html>
