@@ -29,7 +29,10 @@
   <script src="js/input.js"></script>
   <script src="js/camera.js"></script>
   <script src="js/sprites.js"></script>
-  <!-- 전투(오브젝트 풀·데미지 코어) -->
+  <!-- 스테이지 데이터(테마·레이아웃·몹 원형) / 장비 데이터 — main.js보다 먼저 로드돼야 함 -->
+  <script src="js/stage.js"></script>
+  <script src="js/equip.js"></script>
+  <!-- 전투(오브젝트 풀·데미지 코어·드롭·장판) -->
   <script src="js/combat.js"></script>
   <!-- 스태미나 상수만 재사용(Game.player 종속 함수들은 아직 미사용) -->
   <script src="js/systems.js"></script>

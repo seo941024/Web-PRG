@@ -77,6 +77,8 @@ function addItem(x, y, w, h, vy, life, type) {
     const i = getObj(Game.items);
     i.x = x; i.y = y; i.w = w; i.h = h;
     i.vy = vy; i.life = life; i.type = type;
+    i.equip = null; // 장비 드롭이면 dropEquipItem이 채움 — 재사용 슬롯의 이전 값이 남지 않게 초기화
+    return i;
 }
 
 // 적 투사체 이동/충돌 갱신 — 탑다운이라 grav/isArrow 등 사이드스크롤 전용 플래그는 무시하고 직선 이동만 처리
@@ -99,13 +101,58 @@ function updateEBullets(walls) {
     });
 }
 
+// ── 지면 장판(hazard) — 예고(warnT) 후 일정 시간(activeT) 동안 밟으면 피해 ──
+// 보스의 장판 패턴에 사용. 예고 링이 차오르는 동안은 무해하므로 미리 피할 수 있다.
+function spawnHazard(x, y, r, warnT, activeT, dmg, col) {
+    const h = getObj(Game.hazards);
+    h.x = x; h.y = y; h.r = r;
+    h.warnT = warnT; h.activeT = activeT; h.maxWarn = warnT;
+    h.dmg = dmg; h.col = col || "#ff6a1e";
+    h.tickCD = 0; h.blown = false;
+    return h;
+}
+
+function updateHazards() {
+    Game.hazards.forEach(h => {
+        if (!h.active) return;
+        if (h.warnT > 0) {
+            h.warnT--;
+            if (h.warnT === 0) {
+                // 폭발 순간 연출 — 이후 activeT 동안 잔불로 남아 계속 위험
+                h.blown = true;
+                for (let i = 0; i < 14; i++) addPart(h.x, h.y, h.col, 20, 4);
+                Game.camShake = Math.max(Game.camShake || 0, 6);
+            }
+            return;
+        }
+        if (h.tickCD > 0) h.tickCD--;
+        if (!Player.dead && h.tickCD <= 0) {
+            const dx = Player.x - h.x, dy = Player.y - h.y;
+            if (dx * dx + dy * dy < h.r * h.r) {
+                hitPlayer(h.dmg, { x: h.x, y: h.y });
+                h.tickCD = 30; // 같은 장판에 계속 서 있어도 0.5초마다 한 번만
+            }
+        }
+        if (--h.activeT <= 0) h.active = false;
+    });
+}
+
 // 몹 처치 시 아이템 드롭 — skull_V1 mob.js의 드롭 확률/타입 로직 이식(중력 낙하만 제거, 탑다운은 제자리에 둥둥)
-// isBoss/isElite면 확정 드롭, 그 외엔 Game.pDropRate 확률
+// 무기·방어구는 낮은 확률로만(엘리트는 상향), 나머지는 기존 스탯/HP 오브
 function dropLoot(e) {
-    if (!(Math.random() < Game.pDropRate || e.isBoss || e.isElite)) return;
+    // 장비 드롭 판정을 먼저 — 나오면 그것만 떨어뜨림
+    const equipChance = e.isElite ? 0.25 : Game.pEquipDropRate;
+    if (Math.random() < equipChance) {
+        const kind = Math.random() < 0.5 ? "weapon" : "armor";
+        // 티어는 현재 스테이지 기준, 엘리트는 한 단계 위가 나올 수도 있음
+        const tier = Game.stageN + (e.isElite && Math.random() < 0.4 ? 1 : 0);
+        dropEquipItem(e.x, e.y, kind, tier);
+        return;
+    }
+    if (!(Math.random() < Game.pDropRate || e.isElite)) return;
     let type = "hp";
     const roll = Math.random();
-    if (e.isBoss || e.isElite) {
+    if (e.isElite) {
         if (roll < 0.2) type = "atk_drop";
         else if (roll < 0.4) type = "def_drop";
         else if (roll < 0.6) type = "atk_spd_drop";
@@ -121,12 +168,31 @@ function dropLoot(e) {
     addItem(e.x, e.y, 10, 10, 0, 600, type);
 }
 
+// 스테이지(보스) 클리어 보상 — 무기·방어구 확정 1개씩 + 회복 오브
+function dropStageClearLoot(e) {
+    dropEquipItem(e.x - 40, e.y, "weapon", Game.stageN);
+    dropEquipItem(e.x + 40, e.y, "armor", Game.stageN);
+    addItem(e.x, e.y + 44, 10, 10, 0, 900, "hp");
+    addText(e.x, e.y - 78, "스테이지 클리어 보상!", "#ffcc00", 110, 14);
+}
+
+// 장비 아이템을 필드에 떨어뜨림 — 장비 데이터는 item.equip에 실어둔다
+function dropEquipItem(x, y, kind, tier) {
+    const eq = rollEquip(kind, tier);
+    if (!eq) return;
+    const it = addItem(x, y, 12, 12, 0, 900, kind === "weapon" ? "weapon_drop" : "armor_drop");
+    it.equip = eq;
+    return it;
+}
+
 const ITEM_STYLE = {
     hp:            { col: "#33ff66", label: "H" },
     atk_drop:      { col: "#ff5544", label: "A" },
     def_drop:      { col: "#44aaff", label: "D" },
     atk_spd_drop:  { col: "#ffdd44", label: "S" },
     move_spd_drop: { col: "#44ffee", label: "M" },
+    weapon_drop:   { col: "#ff9c2b", label: "W" },
+    armor_drop:    { col: "#8fb4ff", label: "R" },
 };
 
 // 아이템 등등 떠 있다가 수명 만료 시 소멸, 플레이어가 닿으면 즉시 효과 적용 후 소멸
@@ -145,6 +211,10 @@ function updateItems() {
 
 function applyItemEffect(it) {
     const p = Player;
+    if (it.type === "weapon_drop" || it.type === "armor_drop") {
+        if (it.equip) equipItem(it.equip);
+        return;
+    }
     if (it.type === "hp") {
         if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + 20); addText(p.x, p.y - 20, "+20 HP", "#33ff66", 40, 14); }
         else { Game.score += 20; addText(p.x, p.y - 20, "점수 +20", "#aaaaff", 40, 14); }
@@ -175,121 +245,58 @@ function updateFx() {
 }
 
 // 몬스터 피격 처리
-function hitE(e, dmg, facing, isCrit, extraDmg=0) {
+// 좌표 규약(탑다운): e.x = 몸 중앙 x, e.y = 발치 y. 스프라이트는 e.y 위로 그려지므로
+// 텍스트/파티클은 e.y에서 위로 띄운다. (V1 사이드스크롤의 e.w/e.h 기준 좌표를 쓰면 NaN이 됨)
+function hitE(e, dmg, facing, isCrit, extraDmg = 0) {
     if (e.dead) return;
-    // 골렘 stun 중: 데미지 완전 차단
-    if (e.isTutorialDummy && e.stun) return;
 
-    // 투명 구간 중 피해 무효
-    if (e.type === "phantom" && !e.visible) {
-        addText(e.x + e.w/2, e.y - 10, "빗나감", "#888", 25, 12);
-        return;
-    }
+    // 슈퍼아머(탱커·엘리트·보스)는 넉백 없이 맞음
+    const hasSuperArmor = !!e.superArmor;
 
-    // 방패병 가드 중: 정면 공격 70% 감소 — 스턴 상태면 가드 무효
-    if (e.type === "shield" && e.isGuarding && !e.stun) {
-        // facing > 0이면 오른쪽 공격 → e.facing < 0이면 방패가 왼쪽(공격 방향) → 막음
-        const isBlocked = (facing > 0 && e.facing < 0) || (facing < 0 && e.facing > 0);
-        if (isBlocked) {
-            dmg = Math.max(1, Math.floor(dmg * 0.3)); // 70% 감소, 최소 1
-            addText(e.x + e.w/2, e.y - 10, "막기", "#aaddff", 30, 11);
-        }
-    }
-
-    // 엘리트/슈퍼아머 몬스터는 넉백 없이 맞음
-    const hasSuperArmor = e.superArmor && !e.stun;
-
-    // 보스 그로기 상태면 처형(12% 확정피해) 시도
-    if (e.stun && e.isBoss && typeof executeEnemy === 'function') {
-        executeEnemy(e);
-        return;
-    }
-
-    // 일반 몹 피격 무적시간 — stun(기절) 상태면 무시
-    if (!e.isBoss && !e.stun) {
+    // 일반 몹 피격 무적시간 — 다단히트로 즉사하지 않게 짧게 둠
+    if (!e.isBoss) {
         if ((e.hitInv || 0) > 0) return;
         e.hitInv = 8;
     }
 
     const extraDmgAmt = Math.floor(dmg * extraDmg);
     const finalDmg = Math.floor(dmg + extraDmgAmt);
-    e.hp    -= finalDmg;
+    e.hp -= finalDmg;
+
     // 통일된 타격 피드백: 모든 직업·공격이 hitE를 거치므로 여기서 일관된 "손맛" 부여
-    //  - 치명타는 항상 히트스톱+셰이크로 묵직하게 (max라 연사 시 누적 안 됨)
-    e.flash  = isCrit ? 9 : 6;
-    // 치명타 피드백: 화면 멈춤(hitStop)은 치명타 100%에서 게임이 끊겨 제거 — 가벼운 셰이크만
-    if (isCrit) {
-        Game.camShake = Math.max(Game.camShake || 0, 3);
-    }
+    e.flash = isCrit ? 9 : 6;
+    // 치명타는 화면 멈춤(hitStop) 없이 가벼운 셰이크만 — 치명타율이 높은 도적에서 게임이 끊겨 보였음
+    if (isCrit) Game.camShake = Math.max(Game.camShake || 0, 3);
 
-    // 혈흔 데칼
-    if (typeof addBloodDecal === 'function') addBloodDecal(e.x + e.w/2, e.y + e.h - 4);
-
-
-    // 넉백 (슈퍼아머면 생략) — 탑다운: 플레이어 반대방향으로 실제 벡터 밀림
-    if (!e.isBoss && !hasSuperArmor) {
+    // 넉백 — 플레이어 반대 방향으로 실제 벡터로 밀림
+    if (!hasSuperArmor) {
         e.kbT = 10;
-        const kx = e.x - (typeof Player !== 'undefined' ? Player.x : e.x - facing);
-        const ky = e.y - (typeof Player !== 'undefined' ? Player.y : e.y);
+        const kx = e.x - Player.x, ky = e.y - Player.y;
         const kd = Math.hypot(kx, ky) || 1;
-        const kMul = e.isElite ? 2 : 4;
-        e.vx = (kx / kd) * kMul;
-        e.vy = (ky / kd) * kMul;
+        e.vx = (kx / kd) * 4;
+        e.vy = (ky / kd) * 4;
     }
 
-    addText(e.x + e.w/2, e.y - 10, dmg.toString(),
-        isCrit ? "#ffcc00" : "#ffffff", 40, isCrit ? 24 : 16);
-    if (extraDmgAmt > 0) addText(e.x + e.w/2 + 18, e.y + 6, "+" + extraDmgAmt, "#999999", 35, 10);
+    addText(e.x, e.y - 26, String(finalDmg), isCrit ? "#ffcc00" : "#ffffff", 40, isCrit ? 24 : 16);
+    if (extraDmgAmt > 0) addText(e.x + 18, e.y - 12, "+" + extraDmgAmt, "#999999", 35, 10);
 
-    for (let i = 0; i < 10; i++) addPart(e.x + e.w/2, e.y + e.h/2, "#ff0000", 15, 3);
+    for (let i = 0; i < 10; i++) addPart(e.x, e.y - 12, "#ff0000", 15, 3);
 
-    // 흡혈
-    if (Game.pLifestealChance > 0 && Math.random() < Game.pLifestealChance && Game.player.hp < Game.pMaxHp) {
-        Game.player.hp = Math.min(Game.pMaxHp, Game.player.hp + 2);
-        // 플레이어 왼쪽 위로 띄우고 좌상향 드리프트 — 적 머리 위 데미지 숫자와 겹침 방지
-        addText(Game.player.x - 18, Game.player.y - 26, "+흡혈", "#00ff66", 28, 11, -0.5, -1.4);
-    }
-    if (Game.pHealOnHit && Game.player.hp < Game.pMaxHp && Math.random() < 0.1) {
-        Game.player.hp = Math.min(Game.pMaxHp, Game.player.hp + 1);
-    }
-
-    // 사망 처리
     if (e.hp <= 0) {
         e.hp = 0;
-        // Splitter 분열 — dead 블록 전에 여기서 처리해야 안 증발함
-        if (e.type === "splitter" && !e.splitDone) {
-            e.splitDone = true;
-            for (let si = -1; si <= 1; si += 2) {
-                const se   = getObj(Game.enemies);
-                se.w       = 18; se.h = 38;  // w5~6 어둠기사 내부 발끝 y=19 → h=19*2=38
-                se.x       = e.x + (e.w/2 - se.w/2) + si * 20;
-                // 스폰 y: 부모 발끝 기준으로 자식 히트박스 발끝이 정확히 일치하도록
-                se.y       = e.y + e.h - se.h;
-                se.vx = si * 2.5; se.vy = -4;
-                se.hp      = Math.floor(e.maxHp * 0.3); se.maxHp = se.hp;
-                se.atk     = Math.floor(e.atk * 0.7);
-                se.type    = "melee"; se.isBoss = false; se.isElite = false;
-                se.facing  = si; se.fr = 0; se.frT = 0; se.flash = 0;
-                se.dead    = false; se.kbT = 8; se.warnT = 0; se.warnData = null;
-                se.atkAnim = 0; se.world = e.world; se.isGuarding = false; se.guardT = 0;
-                se.sI = 120; se.sT = 60; se.pDir = si; se.pT = 0; se.onGround = false;
-                se.id      = (typeof _enemyIdCounter !== 'undefined') ? _enemyIdCounter++ : Math.random();
-                se.splitDone = true;
-            }
-            addText(e.x + e.w/2, e.y - 15, "분열!", "#ff8800", 50, 14);
-        }
-        // 엘리트 처치 카운터
+        // 엘리트 처치 누적 (직업 해금 조건은 탑다운에 아직 미이식 — 카운터만 저장)
         if (e.isElite) {
             Game.totalEliteKills = (Game.totalEliteKills || 0) + 1;
             localStorage.setItem("skull_eliteKills", Game.totalEliteKills);
-            _checkUnlocks();
         }
         e.dead = true;
     }
 }
 
-// 플레이어 피격 처리 — 리게인 완전 삭제, 즉시 hp 차감
-// noParry=true 이면 패링은 차단하지만 가드는 허용 (몸박 피해용)
+// ⚠️ 미이식(호출 금지) — skull_V1 사이드스크롤 전용 플레이어 피격 처리.
+// 탑다운에서는 player.js의 hitPlayer()를 쓴다. 아래 코드는 Game.player·패링·가드·스태미나 등
+// 아직 탑다운에 없는 구조에 의존하므로 그대로 호출하면 예외가 난다.
+// (패링/가드 시스템을 나중에 이식할 때 참고 자료로만 남겨둠 — systems.js와 동일한 취급)
 function takeDmg(dmg, eObj, unblockable=false, noParry=false) {
     const p = Game.player;
     if (!p || p.dead) return;

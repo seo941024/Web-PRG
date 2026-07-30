@@ -1,12 +1,15 @@
 // player.js — 플레이어 이동/대시 (탑다운). td/td.js 프로토타입을 정식 구조로 이식.
 
+// 방어구 maxHp 보너스가 이 값 위에 더해진다 (equip.js의 equipItem이 재계산)
+const PLAYER_BASE_MAX_HP = 100;
+
 const Player = {
     x: 160, y: 200, vx: 0, vy: 0,
     speed: 2.7,
     facing: "south",
     dashT: 0, dashCD: 0,
     hb: { w: 18, h: 12 }, // 발치 히트박스 (충돌용)
-    hp: 100, maxHp: 100, dead: false,
+    hp: PLAYER_BASE_MAX_HP, maxHp: PLAYER_BASE_MAX_HP, dead: false,
     invT: 0, kbT: 0,
     atkT: 0, atkAnim: 0, atkCD: 0,
     combo: 0, comboRestT: 0, comboWindowT: 0, // 4타 콤보: 피니시 후 휴식(0.3초), 타 사이 재입력 대기창
@@ -40,7 +43,8 @@ function tryPlayerAttack() {
     if (p.atkT > 0 || p.atkCD > 0 || p.dashT > 0 || p.comboRestT > 0) return;
     p.comboWindowT = 0; // 재입력 성공 — 대기창 소모
     const prof = classProfile(Game.pClass);
-    const effAtkSpd = prof.atkSpd * (1 + (Game.pAtkSpdBonus || 0)); // atk_spd_drop 아이템 누적 반영
+    // 공속 = 직업 기본 × (1 + 아이템 누적 + 무기 보너스)
+    const effAtkSpd = prof.atkSpd * (1 + (Game.pAtkSpdBonus || 0) + equipAtkSpd());
     // 4타 콤보 — 4타째 이후 짧은 휴식(0.3초), 그 뒤 다시 1타부터
     p.combo = (p.combo % COMBO_MAX) + 1;
     if (p.combo === COMBO_MAX) p.comboRestT = COMBO_REST_FRAMES;
@@ -69,10 +73,11 @@ function tryPlayerAttack() {
             let da = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang))) * 180 / Math.PI;
             if (da > arc) return;
         }
-        let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1)) + (Game.pAtkBonus || 0);
+        let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1))
+                + (Game.pAtkBonus || 0) + equipAtk();
         // 피니시(4타)는 후딜이 긴 만큼 데미지 보너스 — 콤보 완주 보상
         if (p.combo === COMBO_MAX) dmg = Math.round(dmg * 1.7);
-        const isCrit = Math.random() < prof.crit;
+        const isCrit = Math.random() < (prof.crit + equipCrit());
         hitE(e, isCrit ? dmg * 2 : dmg, dx >= 0 ? 1 : -1, isCrit);
         hitAny = true;
     });
@@ -87,7 +92,8 @@ function tryPlayerAttack() {
 function hitPlayer(dmg, eObj) {
     const p = Player;
     if (p.dead || p.invT > 0 || p.dashT > 0) return;
-    dmg = Math.max(1, dmg - (Game.pDefBonus || 0)); // def_drop 아이템 누적 반영 (고정 감산, 최소 1)
+    // 방어력 = 아이템 누적 + 방어구 보너스 (고정 감산, 최소 1 피해는 들어감)
+    dmg = Math.max(1, dmg - (Game.pDefBonus || 0) - equipDef());
     p.hp -= dmg;
     p.invT = 45; p.kbT = 12;
     const ex = p.x - (eObj ? eObj.x : p.x), ey = p.y - (eObj ? eObj.y : p.y);
@@ -134,7 +140,8 @@ function updatePlayer(walls) {
     const dname = dirFromVec(mx, my);
     if (dname) p.facing = dname;
 
-    let sp = p.speed * (1 + (Game.pMoveSpdBonus || 0)); // move_spd_drop 아이템 누적 반영
+    // 이동속도 = 기본 × (1 + 아이템 누적 + 방어구 보너스)
+    let sp = p.speed * (1 + (Game.pMoveSpdBonus || 0) + equipMoveSpd());
     if (mx !== 0 && my !== 0) sp *= 0.707; // 대각선 정규화
 
     // 스프린트: Z 유지 — 이동속도 2배, 스태미나 소모 없음 (풀스프린트 애니 사용)

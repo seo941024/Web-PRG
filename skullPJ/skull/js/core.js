@@ -12,9 +12,10 @@ const CW = canvas.width, CH = canvas.height;
 const ZOOM = 2; // 게임 월드 확대 배율 — 정수 배율이라 도트가 균일하게 늘어나 완전히 선명함
 
 const Game = {
-    gs: "play",          // 임시: 메뉴 없이 바로 플레이 (메뉴/직업선택은 다음 단계에서 연결)
+    gs: "play",          // "play" | "win" — 메뉴/직업선택은 다음 단계에서 연결
     score: 0,
-    kills: 0, worldN: 1, levelN: 1,
+    // 스테이지 진행: 5테마(stageN) × 3라운드(roundN) = 총 15스테이지. 정의는 stage.js.
+    kills: 0, stageN: 1, roundN: 1,
     camShake: 0, hitStop: 0, invT: 0,
     isPaused: false, isMuted: false,
     pClass: 1,            // 임시 기본값: 도적 (스프라이트 있는 직업)
@@ -32,15 +33,23 @@ const Game = {
     // 오브젝트 풀 (combat.js의 getObj가 사용)
     bullets: [], eBullets: [], lasers: [], parts: [], texts: [], items: [],
     enemies: [],
-    doors: [], // 스테이지 진행용 문 — main.js의 buildRoom()이 방마다 새로 채움
+    doors: [],   // 스테이지 진행용 문 — main.js의 buildRoom()이 방마다 새로 채움
+    hazards: [], // 지면 장판(예고 → 폭발) — 화산/마왕 보스 패턴이 사용
 
     // 몹 처치 보상 — skull_V1(사이드스크롤) mob.js/upgrade_shop.js의 아이템 드롭·런 강화 구조를
     // 탑다운으로 이식. pDropRate 확률로 잡몹이 아이템 드롭, 보스는 확정 드롭 + 다크 퀴츠.
     pDropRate: 0.35,
+    pEquipDropRate: 0.06, // 잡몹에서 무기·방어구가 나올 확률 (엘리트는 별도 상향)
     pAtkBonus: 0,      // 평타 데미지 고정 가산 (atk_drop 아이템)
     pDefBonus: 0,      // 피격 데미지 고정 감산 (def_drop 아이템)
     pAtkSpdBonus: 0,   // 공격속도 배율 가산 (atk_spd_drop 아이템)
     pMoveSpdBonus: 0,  // 이동속도 배율 가산 (move_spd_drop 아이템)
+
+    // 장비 슬롯 (equip.js) — 무기·방어구 각 1개, 주우면 즉시 교체
+    equip: { weapon: null, armor: null },
+
+    // 방 입장 시 스테이지 이름을 띄우는 배너 (main.js의 buildRoom이 설정)
+    bannerT: 0, bannerText: "",
 
     frameCount: 0,
 };
