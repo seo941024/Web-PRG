@@ -5,6 +5,52 @@
 let audioCtx = null, noiseBuffer = null, isBgmPlaying = false;
 let bgmInterval = null, bgmInterval2 = null, bgmInterval3 = null;
 let currentBgmScene = '';
+let masterBus = null;   // 모든 소리가 여기로 들어온다 (다크 톤 보정 체인의 입력단)
+
+// ── 마스터 버스: 다크 판타지 톤 보정 ──────────────────────────
+// 개별 SFX를 하나하나 손보는 대신, 출력 직전에 공통으로 색을 입힌다.
+//   1) 고역 셸프 감쇠  — 밝고 쨍한 성분을 눌러 "장난감 같은" 느낌 제거
+//   2) 로우패스        — 초고역을 잘라 공기감을 둔탁하게
+//   3) 저역 셸프 부스트 — 무게감/음산함 확보
+//   4) 완만한 새추레이션 — 아날로그처럼 지저분하게 (테이프 느낌)
+//   5) 짧은 잔향(피드백 딜레이) — 지하실/석조 공간감
+// 개별 소리의 주파수 설계를 바꾸지 않고도 전체가 어두워지므로, 밸런스가 깨질 위험이 적다.
+function _initMaster() {
+    if (masterBus) return;
+
+    const inGain = audioCtx.createGain();     inGain.gain.value = 1.0;
+    const hs     = audioCtx.createBiquadFilter();
+    hs.type = 'highshelf'; hs.frequency.value = 2600; hs.gain.value = -11;
+    const lp     = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';   lp.frequency.value = 5200; lp.Q.value = 0.6;
+    const ls     = audioCtx.createBiquadFilter();
+    ls.type = 'lowshelf';  ls.frequency.value = 180;  ls.gain.value = 5.5;
+    const sat    = audioCtx.createWaveShaper();
+    sat.curve = _makeDistortion(1.4); sat.oversample = '2x';
+    const outGain = audioCtx.createGain();    outGain.gain.value = 0.82;
+
+    // 드라이 경로
+    inGain.connect(hs); hs.connect(lp); lp.connect(ls); ls.connect(sat);
+    sat.connect(outGain);
+
+    // 잔향 경로 — 석조 공간의 짧은 울림 (딜레이 + 감쇠 피드백 + 어두운 필터)
+    const dly = audioCtx.createDelay(1.0); dly.delayTime.value = 0.16;
+    const fb  = audioCtx.createGain();     fb.gain.value = 0.28;
+    const wet = audioCtx.createGain();     wet.gain.value = 0.20;
+    const dlyLP = audioCtx.createBiquadFilter();
+    dlyLP.type = 'lowpass'; dlyLP.frequency.value = 2200;
+    sat.connect(dly);
+    dly.connect(dlyLP); dlyLP.connect(fb); fb.connect(dly); // 피드백 루프
+    dlyLP.connect(wet); wet.connect(outGain);
+
+    outGain.connect(audioCtx.destination);
+    masterBus = inGain;
+}
+
+// 모든 노드가 여기로 연결된다 (마스터 준비 전이면 안전하게 직결)
+function _out() {
+    return masterBus || audioCtx.destination;
+}
 
 // AudioContext 및 노이즈 버퍼 초기화 — 최초 1회만 실행
 function initAudio() {
@@ -17,6 +63,7 @@ function initAudio() {
         for (let i = 0; i < bufferSize; i++) {
             output[i] = (Math.random() * 2 - 1) * (Math.random() < 0.15 ? 1.0 : 0.3);
         }
+        _initMaster();
     } catch(e) {}
 }
 
@@ -79,7 +126,7 @@ function playSfx(type) {
             dw.curve = _makeDistortion(dist);
             o.connect(dw); dw.connect(gn);
         } else { o.connect(gn); }
-        gn.connect(audioCtx.destination);
+        gn.connect(_out());
         o.start(now); o.stop(now + d);
     }
 
@@ -89,7 +136,7 @@ function playSfx(type) {
         const f = audioCtx.createBiquadFilter(); f.type = ft; f.frequency.value = ff;
         const gn = audioCtx.createGain();
         gn.gain.setValueAtTime(g, now); gn.gain.exponentialRampToValueAtTime(0.001, now + d);
-        s.connect(f); f.connect(gn); gn.connect(audioCtx.destination); s.start(now);
+        s.connect(f); f.connect(gn); gn.connect(_out()); s.start(now);
     }
 
     function sweep(t, f1, f2, g, d, dist = 0) {
@@ -104,7 +151,7 @@ function playSfx(type) {
             const dw = audioCtx.createWaveShaper(); dw.curve = _makeDistortion(dist);
             o.connect(dw); dw.connect(gn);
         } else { o.connect(gn); }
-        gn.connect(audioCtx.destination);
+        gn.connect(_out());
         o.start(now); o.stop(now + d);
     }
 
@@ -123,9 +170,11 @@ function playSfx(type) {
             noise(0.55, 0.06, 'bandpass', 3200);
             noise(0.25, 0.12, 'highpass', 6000);
         } else if (cls === 1) {
-            // 도적: 초고속 예리한 섬광 — 극단적 하강 슬라이스
-            sweep('sawtooth', 3600, 80, 0.22, 0.035, 180);
-            noise(0.70, 0.035, 'highpass', 5500);
+            // 도적(현재 유일한 플레이 직업): 쌍단검.
+            // 3600Hz 하강 슬라이스는 휘슬처럼 가늘어 "귀엽게" 들렸음 → 중저역 베임 + 젖은 임팩트로 교체
+            sweep('sawtooth', 1100, 90, 0.32, 0.055, 280);
+            noise(0.42, 0.045, 'bandpass', 1900);
+            noise(0.32, 0.07, 'lowpass', 520);
         } else if (cls === 2) {
             // 발키리: 총성 균열음 + 탄피
             noise(0.90, 0.025, 'highpass', 4500);
@@ -217,8 +266,10 @@ function playSfx(type) {
         noise(0.30, 0.06, 'bandpass', 700);
     }
     else if (type === 'mob_laser') {
-        sweep('sawtooth', 2200, 400, 0.4, 0.3, 300);
-        osc('sine', 1100, 0.15, 0.25);
+        // 적 원거리 발사: 밝은 SF 레이저(2200Hz) 대신 낮게 웅웅대는 저주 발사음
+        sweep('sawtooth', 760, 150, 0.36, 0.28, 420);
+        osc('sine', 180, 0.20, 0.26);
+        noise(0.25, 0.14, 'bandpass', 700);
     }
     else if (type === 'gun_shot') {
         noise(1.0, 0.025, 'highpass', 4500);
@@ -317,25 +368,33 @@ function playSfx(type) {
         osc('sine', 55, 0.3, 1.5);
     }
     else if (type === 'clear') {
-        [110, 138, 165, 220].forEach((f, i) => {
+        // 구역 정화: 상승(110→220) 대신 하강하는 낮은 조종 3연타 — 승리보다 정적
+        [220, 174, 131].forEach((f, i) => {
             setTimeout(() => {
                 if (!audioCtx) return;
-                sweep('sawtooth', f, f * 1.1, 0.35, 0.6, 150);
-                osc('sine', f * 2, 0.12, 0.5);
-            }, i * 120);
+                osc('sine', f, 0.24, 0.75);
+                osc('triangle', f / 2, 0.13, 0.85);
+                noise(0.14, 0.2, 'lowpass', 600);
+            }, i * 200);
         });
     }
     else if (type === 'item') {
-        [440, 660, 880].forEach((f, i) => setTimeout(() => { if (audioCtx) osc('square', f, 0.2, 0.15); }, i * 60));
-        setTimeout(() => { if (audioCtx) osc('triangle', 1320, 0.1, 0.2); }, 200);
+        // 습득: 밝은 상승 아르페지오(440-660-880)를 버리고, 낮은 종 한 번 + 마른 스침
+        // 단3도를 겹쳐 장화음의 명랑함을 지운다
+        osc('sine', 174, 0.24, 0.32);        // F3
+        osc('sine', 207, 0.13, 0.36);        // Ab3 (단3도)
+        noise(0.20, 0.05, 'lowpass', 900);
+        setTimeout(() => { if (audioCtx) osc('triangle', 116, 0.11, 0.38); }, 70);
     }
     else if (type === 'enemy_die') {
         sweep('sawtooth', 250, 35, 0.4, 0.18, 300);
         noise(0.6, 0.18, 'bandpass', 1200);
     }
     else if (type === 'combo_high') {
-        osc('sawtooth', 600,  0.4, 0.15, 300);
-        setTimeout(() => { if (audioCtx) osc('sawtooth', 1200, 0.3, 0.2, 300); }, 30);
+        // 콤보 피니시: 600/1200Hz 얇은 톤 대신 두꺼운 저역 임팩트 + 금속 마찰
+        sweep('sawtooth', 300, 45, 0.55, 0.24, 520);
+        noise(0.45, 0.10, 'bandpass', 1400);
+        osc('sine', 62, 0.42, 0.30);
     }
     else if (type === 'fatal_strike') {
         sweep('sawtooth', 400, 40, 1.0, 0.6, 700);
@@ -347,39 +406,43 @@ function playSfx(type) {
         sweep('sawtooth', 600, 80, 0.6, 0.15, 400);
     }
     else if (type === 'boss_clear') {
-        [110, 130, 165, 220, 196, 220, 262].forEach((f, i) => {
+        // 보스 격파: 7음 승리 팡파레를 버리고 무거운 조종(弔鐘) 3타 + 지반 붕괴 저음
+        sweep('sawtooth', 58, 13, 0.75, 1.3, 550);
+        [98, 98, 73.4].forEach((f, i) => {   // G2, G2, D2 — 하강 종결
             setTimeout(() => {
                 if (!audioCtx) return;
-                sweep('sawtooth', f, f * 1.05, 0.3, 0.5, 100);
-                osc('sine', f * 2, 0.1, 0.4);
-            }, i * 100);
+                osc('sine', f, 0.36, 1.5);
+                osc('triangle', f * 1.5, 0.15, 1.1);
+                noise(0.30, 0.35, 'lowpass', 500);
+            }, i * 400);
         });
-        sweep('sawtooth', 60, 15, 0.6, 0.5, 500);
     }
     else if (type === 'typing') {
-        // 기계식 타건음 — 클릭(noise) + 바디(low thud) + 고음 딱 소리
+        // 컷신 타이핑음 — 글자마다 울리므로 가장 귀에 남는 소리.
+        // 기계식 키보드 같은 고음 "딱딱"(5000Hz 노이즈 + 1800Hz 스퀘어)을
+        // 낮고 마른 뼈 두드림으로 바꿔 다크 판타지 톤에 맞춤.
         const t0 = audioCtx.currentTime;
-        // 타건 충격 노이즈 (딱)
+        // 마른 타점 (중역 노이즈 — 고역 쏘는 성분 제거)
         if (noiseBuffer) {
             const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer;
-            const hi = audioCtx.createBiquadFilter(); hi.type = 'highpass'; hi.frequency.value = 5000;
+            const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 1.2;
             const gn = audioCtx.createGain();
-            gn.gain.setValueAtTime(0.28, t0); gn.gain.exponentialRampToValueAtTime(0.001, t0 + 0.018);
-            src.connect(hi); hi.connect(gn); gn.connect(audioCtx.destination); src.start(t0);
+            gn.gain.setValueAtTime(0.16, t0); gn.gain.exponentialRampToValueAtTime(0.001, t0 + 0.020);
+            src.connect(bp); bp.connect(gn); gn.connect(_out()); src.start(t0);
         }
-        // 바디 저음 (두드림감)
+        // 바디 저음 (두드림감) — 조금 더 낮고 짧게
         if (noiseBuffer) {
             const src2 = audioCtx.createBufferSource(); src2.buffer = noiseBuffer;
-            const lo = audioCtx.createBiquadFilter(); lo.type = 'bandpass'; lo.frequency.value = 300; lo.Q.value = 1.5;
+            const lo = audioCtx.createBiquadFilter(); lo.type = 'bandpass'; lo.frequency.value = 190; lo.Q.value = 1.8;
             const gn2 = audioCtx.createGain();
-            gn2.gain.setValueAtTime(0.18, t0); gn2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.04);
-            src2.connect(lo); lo.connect(gn2); gn2.connect(audioCtx.destination); src2.start(t0);
+            gn2.gain.setValueAtTime(0.20, t0); gn2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.045);
+            src2.connect(lo); lo.connect(gn2); gn2.connect(_out()); src2.start(t0);
         }
-        // 고음 클릭 톤 (약하게)
+        // 톤 성분 — 저역에서 살짝만, 글자마다 미세하게 흔들려 기계적 반복감을 줄임
         const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-        o.type = 'square'; o.frequency.value = 1800 + Math.random() * 600;
-        g.gain.setValueAtTime(0.06, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.012);
-        o.connect(g); g.connect(audioCtx.destination); o.start(t0); o.stop(t0 + 0.012);
+        o.type = 'triangle'; o.frequency.value = 128 + Math.random() * 34;
+        g.gain.setValueAtTime(0.09, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.035);
+        o.connect(g); g.connect(_out()); o.start(t0); o.stop(t0 + 0.035);
     }
     else if (type === 'reload_click') {
         // 발키리 재장전 불가 — 찰칵(금속 클릭) 소리
@@ -391,42 +454,38 @@ function playSfx(type) {
             const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 8000; bp.Q.value = 6;
             const gn = audioCtx.createGain();
             gn.gain.setValueAtTime(0.35, t0); gn.gain.exponentialRampToValueAtTime(0.001, t0 + 0.025);
-            src.connect(hp); hp.connect(bp); bp.connect(gn); gn.connect(audioCtx.destination); src.start(t0);
+            src.connect(hp); hp.connect(bp); bp.connect(gn); gn.connect(_out()); src.start(t0);
         }
         // 금속 탁음 (낮은 딱)
         const o1 = audioCtx.createOscillator(); const g1 = audioCtx.createGain();
         o1.type = 'square'; o1.frequency.setValueAtTime(3200, t0); o1.frequency.exponentialRampToValueAtTime(1200, t0 + 0.015);
         g1.gain.setValueAtTime(0.18, t0); g1.gain.exponentialRampToValueAtTime(0.001, t0 + 0.018);
-        o1.connect(g1); g1.connect(audioCtx.destination); o1.start(t0); o1.stop(t0 + 0.02);
+        o1.connect(g1); g1.connect(_out()); o1.start(t0); o1.stop(t0 + 0.02);
         // 공명 잔향 (짧게)
         const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
         o2.type = 'sine'; o2.frequency.value = 900;
         g2.gain.setValueAtTime(0.06, t0 + 0.01); g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06);
-        o2.connect(g2); g2.connect(audioCtx.destination); o2.start(t0 + 0.01); o2.stop(t0 + 0.06);
+        o2.connect(g2); g2.connect(_out()); o2.start(t0 + 0.01); o2.stop(t0 + 0.06);
     }
 
     else if (type === 'unlock') {
-        // 해금: 상승 팡파레 + 반짝임
-        [220, 330, 440, 660, 880].forEach((f, i) => {
-            setTimeout(() => {
-                if (!audioCtx) return;
-                osc('sine', f, 0.22, 0.25);
-                if (i === 4) osc('triangle', f * 1.5, 0.12, 0.4);
-            }, i * 80);
-        });
-        setTimeout(() => { if (audioCtx) sweep('sawtooth', 880, 1760, 0.18, 0.5, 200); }, 380);
+        // 유물 획득/해금: 상승 팡파레를 버리고 낮은 성가풍 스웰 + 트라이톤 긴장
+        osc('sine', 110, 0.28, 0.95);        // A2
+        osc('sine', 164.8, 0.17, 0.95);      // E3 (완전5도)
+        noise(0.22, 0.5, 'lowpass', 700);
+        setTimeout(() => { if (audioCtx) osc('sine', 155.6, 0.15, 0.8); }, 170);  // Eb3 감5도 — 불길함
+        setTimeout(() => { if (audioCtx) sweep('sine', 220, 110, 0.18, 0.75); }, 340); // 하강으로 마감
     }
     else if (type === 'menu_select') {
-        // 메뉴 선택: 짧고 깔끔한 클릭음
-        const t0 = audioCtx.currentTime;
-        osc('sine', 660, 0.14, 0.08);
-        setTimeout(() => { if (audioCtx) osc('sine', 880, 0.08, 0.07); }, 50);
+        // 메뉴 이동: 맑은 벨(660/880) 대신 낮고 마른 석재 클릭
+        osc('triangle', 165, 0.17, 0.06);
+        noise(0.16, 0.03, 'lowpass', 1200);
     }
     else if (type === 'dash') {
-        // 대시: 공기 파열 + 마찰 파쇄음
-        noise(0.75, 0.035, 'highpass', 4500);
-        noise(0.45, 0.08, 'bandpass', 1800);
-        sweep('sawtooth', 1200, 80, 0.22, 0.07, 200);
+        // 회피: 고역 공기음을 줄이고 옷깃/뼈 마찰 쪽으로
+        noise(0.45, 0.04, 'bandpass', 2200);
+        noise(0.40, 0.09, 'lowpass', 700);
+        sweep('sawtooth', 520, 70, 0.24, 0.08, 260);
     }
     else if (type === 'plunge_land') {
         sweep('sawtooth', 160, 20, 0.85, 0.25, 500);
@@ -447,7 +506,7 @@ function playSfx(type) {
             const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
             o2.type = 'square'; o2.frequency.value = 850;
             g2.gain.setValueAtTime(0.14, t2); g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.05);
-            o2.connect(g2); g2.connect(audioCtx.destination); o2.start(t2); o2.stop(t2 + 0.05);
+            o2.connect(g2); g2.connect(_out()); o2.start(t2); o2.stop(t2 + 0.05);
         }, 95);
     }
 }
@@ -459,8 +518,9 @@ function playBGM(scene = 'play') {
     if (!audioCtx) unlockAudio(); if (!audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
+    // 같은 스테이지의 1·2라운드는 한 트랙을 이어 쓰고, 보스 라운드만 별도 트랙으로 전환
     const sceneId = scene === 'play'
-        ? `play_${Game.worldN}_${Game.levelN}`
+        ? `play_${Game.stageN}_${Game.roundN === ROUNDS_PER_STAGE ? 'boss' : 'norm'}`
         : scene;
     if (currentBgmScene === sceneId && isBgmPlaying) return;
 
@@ -487,7 +547,7 @@ function playBGM(scene = 'play') {
             gWind.gain.linearRampToValueAtTime(0.10, now + 3.0);
             gWind.gain.linearRampToValueAtTime(0.06, now + 7.0);
             gWind.gain.linearRampToValueAtTime(0, now + 9.0);
-            src.connect(filt); filt.connect(gWind); gWind.connect(audioCtx.destination);
+            src.connect(filt); filt.connect(gWind); gWind.connect(_out());
             src.start(now); src.stop(now + 9.0);
         }
         bgmInterval2 = setInterval(_windLayer, 8000);
@@ -519,7 +579,7 @@ function playBGM(scene = 'play') {
                 g.gain.linearRampToValueAtTime(vol, now + 0.6);
                 g.gain.setValueAtTime(vol, now + 2.8);
                 g.gain.exponentialRampToValueAtTime(0.001, now + 3.8);
-                o.connect(g); g.connect(audioCtx.destination);
+                o.connect(g); g.connect(_out());
                 o.start(now); o.stop(now + 3.8);
             });
             di++;
@@ -563,7 +623,7 @@ function playBGM(scene = 'play') {
                 g.gain.linearRampToValueAtTime(0.20, now + 0.25);
                 g.gain.setValueAtTime(0.20, now + 0.55);
                 g.gain.exponentialRampToValueAtTime(0.001, now + 1.7);
-                o.connect(dw); dw.connect(g); g.connect(audioCtx.destination);
+                o.connect(dw); dw.connect(g); g.connect(_out());
                 o.start(now); o.stop(now + 1.7);
                 // 옥타브 위 희미한 하모닉
                 const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
@@ -571,7 +631,7 @@ function playBGM(scene = 'play') {
                 g2.gain.setValueAtTime(0, now + 0.1);
                 g2.gain.linearRampToValueAtTime(0.045, now + 0.3);
                 g2.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
-                o2.connect(g2); g2.connect(audioCtx.destination);
+                o2.connect(g2); g2.connect(_out());
                 o2.start(now + 0.1); o2.stop(now + 1.5);
             }
             ps++;
@@ -588,7 +648,7 @@ function playBGM(scene = 'play') {
             g.gain.linearRampToValueAtTime(0.22, now + 1.2);
             g.gain.setValueAtTime(0.13, now + 3.8);
             g.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-            o.connect(g); g.connect(audioCtx.destination);
+            o.connect(g); g.connect(_out());
             o.start(now); o.stop(now + 5.5);
             // 저역 노이즈 (음산한 숨소리 느낌)
             if (noiseBuffer) {
@@ -599,7 +659,7 @@ function playBGM(scene = 'play') {
                 gn.gain.linearRampToValueAtTime(0.03, now + 1.5);
                 gn.gain.setValueAtTime(0.04, now + 3.5);
                 gn.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-                src.connect(filt); filt.connect(gn); gn.connect(audioCtx.destination); src.start(now);
+                src.connect(filt); filt.connect(gn); gn.connect(_out()); src.start(now);
             }
         }, 5200);
         return;
@@ -620,12 +680,12 @@ function playBGM(scene = 'play') {
             g.gain.setValueAtTime(0, now);
             g.gain.linearRampToValueAtTime(0.30, now + 0.3);
             g.gain.exponentialRampToValueAtTime(0.001, now + 2.6);
-            o.connect(dw); dw.connect(g); g.connect(audioCtx.destination);
+            o.connect(dw); dw.connect(g); g.connect(_out());
             o.start(now); o.stop(now + 2.6);
             const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
             o2.type = 'sine'; o2.frequency.value = freq * 1.5;
             g2.gain.setValueAtTime(0.06, now + 0.2); g2.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
-            o2.connect(g2); g2.connect(audioCtx.destination); o2.start(now + 0.2); o2.stop(now + 2.2);
+            o2.connect(g2); g2.connect(_out()); o2.start(now + 0.2); o2.stop(now + 2.2);
             ds++;
         }, 1400);
         bgmInterval2 = setInterval(() => {
@@ -634,7 +694,7 @@ function playBGM(scene = 'play') {
             const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
             o.type = 'sine'; o.frequency.value = 20.6;
             g.gain.setValueAtTime(0.16, now); g.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 5.5);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 5.5);
         }, 5600);
         return;
     }
@@ -652,7 +712,7 @@ function playBGM(scene = 'play') {
             g.gain.setValueAtTime(0, now);
             g.gain.linearRampToValueAtTime(0.22, now + 0.04);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.5);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 0.5);
             us++;
         }, 280);
         bgmInterval2 = setInterval(() => {
@@ -661,7 +721,7 @@ function playBGM(scene = 'play') {
             const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
             o.type = 'sine'; o.frequency.value = 130;
             g.gain.setValueAtTime(0.09, now); g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 1.1);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 1.1);
         }, 1120);
         return;
     }
@@ -680,11 +740,11 @@ function playBGM(scene = 'play') {
             g.gain.setValueAtTime(0, now);
             g.gain.linearRampToValueAtTime(0.2, now + 0.12);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.9);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 0.9);
             const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
             o2.type = 'triangle'; o2.frequency.value = freq * 2;
             g2.gain.setValueAtTime(0.06, now + 0.08); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-            o2.connect(g2); g2.connect(audioCtx.destination); o2.start(now + 0.08); o2.stop(now + 0.8);
+            o2.connect(g2); g2.connect(_out()); o2.start(now + 0.08); o2.stop(now + 0.8);
             es++;
         }, 380);
         bgmInterval2 = setInterval(() => {
@@ -694,7 +754,7 @@ function playBGM(scene = 'play') {
             const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
             o.type = 'sine'; o.frequency.value = bPad[Math.floor(es / 8) % 4];
             g.gain.setValueAtTime(0.11, now); g.gain.exponentialRampToValueAtTime(0.001, now + 2.8);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 2.8);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 2.8);
         }, 3040);
         return;
     }
@@ -734,14 +794,14 @@ function playBGM(scene = 'play') {
                 g.gain.linearRampToValueAtTime(0.18, now + 0.2);
                 g.gain.setValueAtTime(0.18, now + 0.5);
                 g.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
-                o.connect(dw); dw.connect(g); g.connect(audioCtx.destination);
+                o.connect(dw); dw.connect(g); g.connect(_out());
                 o.start(now); o.stop(now + 1.6);
                 // 옥타브 아래 하모닉
                 const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
                 o2.type = 'sine'; o2.frequency.value = freq * 0.5;
                 g2.gain.setValueAtTime(0, now); g2.gain.linearRampToValueAtTime(0.08, now + 0.3);
                 g2.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
-                o2.connect(g2); g2.connect(audioCtx.destination);
+                o2.connect(g2); g2.connect(_out());
                 o2.start(now); o2.stop(now + 1.4);
             }
             ds++;
@@ -756,7 +816,7 @@ function playBGM(scene = 'play') {
             o.type = 'sine'; o.frequency.value = df;
             g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.12, now + 1.5);
             g.gain.setValueAtTime(0.12, now + 3.5); g.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
-            o.connect(g); g.connect(audioCtx.destination);
+            o.connect(g); g.connect(_out());
             o.start(now); o.stop(now + 5.0);
             if (noiseBuffer) {
                 const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer;
@@ -764,7 +824,7 @@ function playBGM(scene = 'play') {
                 const gn = audioCtx.createGain();
                 gn.gain.setValueAtTime(0, now); gn.gain.linearRampToValueAtTime(0.06, now + 2.0);
                 gn.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
-                src.connect(filt); filt.connect(gn); gn.connect(audioCtx.destination); src.start(now);
+                src.connect(filt); filt.connect(gn); gn.connect(_out()); src.start(now);
             }
         }, 4800);
         return;
@@ -813,7 +873,7 @@ function playBGM(scene = 'play') {
                 g.gain.linearRampToValueAtTime(0.22, now + 0.015);
                 g.gain.setValueAtTime(0.18, now + 0.30);
                 g.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
-                o.connect(g); g.connect(audioCtx.destination);
+                o.connect(g); g.connect(_out());
                 o.start(now); o.stop(now + 1.4);
 
                 const o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
@@ -821,14 +881,14 @@ function playBGM(scene = 'play') {
                 g2.gain.setValueAtTime(0, now + 0.005);
                 g2.gain.linearRampToValueAtTime(0.055, now + 0.015);
                 g2.gain.exponentialRampToValueAtTime(0.001, now + 0.70);
-                o2.connect(g2); g2.connect(audioCtx.destination);
+                o2.connect(g2); g2.connect(_out());
                 o2.start(now + 0.005); o2.stop(now + 0.70);
 
                 const o3 = audioCtx.createOscillator(), g3 = audioCtx.createGain();
                 o3.type = 'sine'; o3.frequency.value = mf * 4;
                 g3.gain.setValueAtTime(0.018, now);
                 g3.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-                o3.connect(g3); g3.connect(audioCtx.destination);
+                o3.connect(g3); g3.connect(_out());
                 o3.start(now); o3.stop(now + 0.18);
             }
 
@@ -840,7 +900,7 @@ function playBGM(scene = 'play') {
                 gh.gain.linearRampToValueAtTime(0.09, now + 0.14);
                 gh.gain.setValueAtTime(0.07, now + 0.35);
                 gh.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-                oh.connect(gh); gh.connect(audioCtx.destination);
+                oh.connect(gh); gh.connect(_out());
                 oh.start(now + 0.04); oh.stop(now + 1.1);
 
                 // 내성 옥타브 위 (투명한 공기감)
@@ -849,7 +909,7 @@ function playBGM(scene = 'play') {
                 gh2.gain.setValueAtTime(0, now + 0.06);
                 gh2.gain.linearRampToValueAtTime(0.030, now + 0.16);
                 gh2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-                oh2.connect(gh2); gh2.connect(audioCtx.destination);
+                oh2.connect(gh2); gh2.connect(_out());
                 oh2.start(now + 0.06); oh2.stop(now + 0.65);
             }
 
@@ -880,7 +940,7 @@ function playBGM(scene = 'play') {
                 g.gain.linearRampToValueAtTime(padVols[ci], now + 0.65);
                 g.gain.setValueAtTime(padVols[ci], now + dur - 0.75);
                 g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-                o.connect(g); g.connect(audioCtx.destination);
+                o.connect(g); g.connect(_out());
                 o.start(now); o.stop(now + dur);
             });
 
@@ -892,7 +952,7 @@ function playBGM(scene = 'play') {
                 ga.gain.setValueAtTime(0, now + delay);
                 ga.gain.linearRampToValueAtTime(0.016, now + delay + 0.008);
                 ga.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.55);
-                oa.connect(ga); ga.connect(audioCtx.destination);
+                oa.connect(ga); ga.connect(_out());
                 oa.start(now + delay); oa.stop(now + delay + 0.55);
             });
 
@@ -919,7 +979,7 @@ function playBGM(scene = 'play') {
             g.gain.linearRampToValueAtTime(0.18, now + 0.10);
             g.gain.setValueAtTime(0.12, now + dur - 0.20);
             g.gain.exponentialRampToValueAtTime(0.001, now + dur + 0.10);
-            o.connect(g); g.connect(audioCtx.destination);
+            o.connect(g); g.connect(_out());
             o.start(now); o.stop(now + dur + 0.10);
 
             // 베이스 2배음 (따뜻한 보디감)
@@ -928,7 +988,7 @@ function playBGM(scene = 'play') {
             g2.gain.setValueAtTime(0, now);
             g2.gain.linearRampToValueAtTime(0.07, now + 0.08);
             g2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.7);
-            o2.connect(g2); g2.connect(audioCtx.destination);
+            o2.connect(g2); g2.connect(_out());
             o2.start(now); o2.stop(now + dur * 0.7);
 
             bs++;
@@ -938,9 +998,9 @@ function playBGM(scene = 'play') {
     }
 
     // ── 전투 BGM ─────────────────────────────────────────────────────────
-    const isBoss      = scene === 'play' && Game.levelN === 3;
+    const isBoss      = scene === 'play' && Game.roundN === ROUNDS_PER_STAGE;
     const wg          = typeof getWg === 'function' ? getWg() : 1;
-    const isFinalBoss = Game.worldN === 10 && isBoss;
+    const isFinalBoss = Game.stageN === STAGE_COUNT && isBoss;   // 마왕성 보스
 
     const midi = n => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -952,13 +1012,13 @@ function playBGM(scene = 'play') {
         o.frequency.setValueAtTime(110, now);
         o.frequency.exponentialRampToValueAtTime(42, now + 0.07);
         g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
-        o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.30);
+        o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 0.30);
         if (noiseBuffer) {
             const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer;
             const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 200;
             const gN = audioCtx.createGain();
             gN.gain.setValueAtTime(vol * 0.45, now); gN.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-            src.connect(lp); lp.connect(gN); gN.connect(audioCtx.destination); src.start(now);
+            src.connect(lp); lp.connect(gN); gN.connect(_out()); src.start(now);
         }
     }
     function _snare(vol) {
@@ -968,12 +1028,12 @@ function playBGM(scene = 'play') {
             const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 1.0;
             const g = audioCtx.createGain();
             g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
-            src.connect(bp); bp.connect(g); g.connect(audioCtx.destination); src.start(now);
+            src.connect(bp); bp.connect(g); g.connect(_out()); src.start(now);
         }
         const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
         o2.type = 'triangle'; o2.frequency.value = 165;
         g2.gain.setValueAtTime(vol * 0.5, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-        o2.connect(g2); g2.connect(audioCtx.destination); o2.start(now); o2.stop(now + 0.07);
+        o2.connect(g2); g2.connect(_out()); o2.start(now); o2.stop(now + 0.07);
     }
     function _hihat(vol) {
         if (!noiseBuffer) return;
@@ -982,7 +1042,7 @@ function playBGM(scene = 'play') {
         const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
         const g = audioCtx.createGain();
         g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        src.connect(hp); hp.connect(g); g.connect(audioCtx.destination); src.start(now);
+        src.connect(hp); hp.connect(g); g.connect(_out()); src.start(now);
     }
     function _bassNote(freq, vol, dur) {
         const now = audioCtx.currentTime;
@@ -990,12 +1050,12 @@ function playBGM(scene = 'play') {
         o.type = 'sawtooth'; o.frequency.value = freq; dw.curve = _makeDistortion(170);
         g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(vol, now + 0.035);
         g.gain.setValueAtTime(vol, now + dur * 0.65); g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-        o.connect(dw); dw.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + dur);
+        o.connect(dw); dw.connect(g); g.connect(_out()); o.start(now); o.stop(now + dur);
         const oS = audioCtx.createOscillator(); const gS = audioCtx.createGain();
         oS.type = 'sine'; oS.frequency.value = freq * 0.5;
         gS.gain.setValueAtTime(0, now); gS.gain.linearRampToValueAtTime(vol * 0.55, now + 0.05);
         gS.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.75);
-        oS.connect(gS); gS.connect(audioCtx.destination); oS.start(now); oS.stop(now + dur);
+        oS.connect(gS); gS.connect(_out()); oS.start(now); oS.stop(now + dur);
     }
     // 일렉기타 파워코드: 톱니파+강왜곡, root+5th 레이어
     function _guitar(freq, vol, dur) {
@@ -1007,7 +1067,7 @@ function playBGM(scene = 'play') {
             const v = i === 0 ? vol : vol * 0.50;
             g.gain.setValueAtTime(v, now); g.gain.setValueAtTime(v * 0.72, now + 0.022);
             g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-            o.connect(dw); dw.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + dur);
+            o.connect(dw); dw.connect(g); g.connect(_out()); o.start(now); o.stop(now + dur);
         });
     }
 
@@ -1021,13 +1081,13 @@ function playBGM(scene = 'play') {
             o.frequency.setValueAtTime(34, now);
             o.frequency.exponentialRampToValueAtTime(22, now + 1.8);
             g.gain.setValueAtTime(0.24, now); g.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 3.0);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 3.0);
             if (noiseBuffer) {
                 const src2 = audioCtx.createBufferSource(); src2.buffer = noiseBuffer;
                 const lp2 = audioCtx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 65;
                 const gN2 = audioCtx.createGain();
                 gN2.gain.setValueAtTime(0.18, now); gN2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-                src2.connect(lp2); lp2.connect(gN2); gN2.connect(audioCtx.destination); src2.start(now);
+                src2.connect(lp2); lp2.connect(gN2); gN2.connect(_out()); src2.start(now);
             }
         }
         function _ghostMoan() {
@@ -1039,7 +1099,7 @@ function playBGM(scene = 'play') {
             o.frequency.linearRampToValueAtTime(70 + Math.random() * 25, now + 4.2);
             go.gain.setValueAtTime(0, now); go.gain.linearRampToValueAtTime(0.05, now + 1.2);
             go.gain.setValueAtTime(0.05, now + 3.5); go.gain.linearRampToValueAtTime(0, now + 4.8);
-            o.connect(go); go.connect(audioCtx.destination); o.start(now); o.stop(now + 5.0);
+            o.connect(go); go.connect(_out()); o.start(now); o.stop(now + 5.0);
             const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer; src.loop = true;
             const bp1 = audioCtx.createBiquadFilter(); bp1.type = 'bandpass'; bp1.Q.value = 22;
             const bp2 = audioCtx.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 730; bp2.Q.value = 5;
@@ -1048,7 +1108,7 @@ function playBGM(scene = 'play') {
             bp1.frequency.linearRampToValueAtTime(230, now + 5.0);
             gn.gain.setValueAtTime(0, now); gn.gain.linearRampToValueAtTime(0.11, now + 1.2);
             gn.gain.setValueAtTime(0.11, now + 3.8); gn.gain.linearRampToValueAtTime(0, now + 5.2);
-            src.connect(bp1); bp1.connect(bp2); bp2.connect(gn); gn.connect(audioCtx.destination);
+            src.connect(bp1); bp1.connect(bp2); bp2.connect(gn); gn.connect(_out());
             src.start(now); src.stop(now + 5.5);
         }
         bgmInterval  = setInterval(_deathBass, 2800); _deathBass();
@@ -1123,7 +1183,7 @@ function playBGM(scene = 'play') {
         }, T * 2);
 
         // 불타는 보스 전용: 카오틱 크로매틱 슬라이드 레이어
-        const _isBurningBoss = Game.worldN % 2 === 0 && Game.worldN >= 2 && Game.worldN <= 6;
+        const _isBurningBoss = Game.stageN >= 4; // 화산지대·마왕성 = 메탈 계열
         if (_isBurningBoss) {
             bgmInterval3 = setInterval(() => {
                 if (!isBgmPlaying || Game.isMuted) return;
@@ -1137,7 +1197,7 @@ function playBGM(scene = 'play') {
                     o.frequency.setValueAtTime(f * 1.05, now);
                     o.frequency.exponentialRampToValueAtTime(f * 0.96, now + T * 3 / 1000);
                     g.gain.setValueAtTime(0.10, now); g.gain.exponentialRampToValueAtTime(0.001, now + T * 3 / 1000);
-                    o.connect(dw); dw.connect(g); g.connect(audioCtx.destination);
+                    o.connect(dw); dw.connect(g); g.connect(_out());
                     o.start(now); o.stop(now + T * 3 / 1000);
                 });
                 if (noiseBuffer) {
@@ -1145,7 +1205,7 @@ function playBGM(scene = 'play') {
                     const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500;
                     const gn = audioCtx.createGain();
                     gn.gain.setValueAtTime(0.13, now); gn.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
-                    src.connect(hp); hp.connect(gn); gn.connect(audioCtx.destination); src.start(now);
+                    src.connect(hp); hp.connect(gn); gn.connect(_out()); src.start(now);
                 }
             }, T * 5);
         }
@@ -1168,7 +1228,7 @@ function playBGM(scene = 'play') {
             gWind.gain.linearRampToValueAtTime(0.10, now + 3.0);
             gWind.gain.linearRampToValueAtTime(0.06, now + 7.0);
             gWind.gain.linearRampToValueAtTime(0, now + 9.0);
-            src.connect(filt); filt.connect(gWind); gWind.connect(audioCtx.destination);
+            src.connect(filt); filt.connect(gWind); gWind.connect(_out());
             src.start(now); src.stop(now + 9.0);
         }
         bgmInterval2 = setInterval(_w6Wind, 8000); _w6Wind();
@@ -1189,7 +1249,7 @@ function playBGM(scene = 'play') {
             g.gain.linearRampToValueAtTime(0.12, now + 1.0);
             g.gain.setValueAtTime(0.10, now + 3.8);
             g.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-            o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 5.8);
+            o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 5.8);
             if (noiseBuffer) {
                 const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer;
                 const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 100;
@@ -1197,7 +1257,7 @@ function playBGM(scene = 'play') {
                 gn.gain.setValueAtTime(0, now);
                 gn.gain.linearRampToValueAtTime(0.04, now + 1.2);
                 gn.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
-                src.connect(lp); lp.connect(gn); gn.connect(audioCtx.destination); src.start(now);
+                src.connect(lp); lp.connect(gn); gn.connect(_out()); src.start(now);
             }
             w6mi++;
         }
@@ -1286,7 +1346,7 @@ function playBGM(scene = 'play') {
         },
     };
     const p = profiles[Math.min(wg, 6)] || profiles[1];
-    const _isBurning = Game.worldN % 2 === 0 && Game.worldN >= 2 && Game.worldN <= 6;
+    const _isBurning = Game.stageN >= 4; // 화산지대·마왕성 = 메탈 계열
 
     // 불타는 월드: 메탈 전용 BGM (일반 BGM 없이 기타+드럼만)
     if (_isBurning) {
@@ -1335,13 +1395,13 @@ function playBGM(scene = 'play') {
             } else { om.connect(gm); }
             gm.gain.setValueAtTime(0, now); gm.gain.linearRampToValueAtTime(p.melVol, now + 0.03);
             gm.gain.exponentialRampToValueAtTime(0.001, now + nd);
-            gm.connect(audioCtx.destination); om.start(now); om.stop(now + nd);
+            gm.connect(_out()); om.start(now); om.stop(now + nd);
             if (p.organ) {
                 [[2,0.50],[3,0.25],[4,0.12]].forEach(([r,v]) => {
                     const oo = audioCtx.createOscillator(); const gg = audioCtx.createGain();
                     oo.type = 'sine'; oo.frequency.value = mf * r;
                     gg.gain.setValueAtTime(p.melVol * v, now); gg.gain.exponentialRampToValueAtTime(0.001, now + nd * 0.9);
-                    oo.connect(gg); gg.connect(audioCtx.destination); oo.start(now); oo.stop(now + nd * 0.9);
+                    oo.connect(gg); gg.connect(_out()); oo.start(now); oo.stop(now + nd * 0.9);
                 });
             }
             if (p.harmony) {
@@ -1349,7 +1409,7 @@ function playBGM(scene = 'play') {
                 oh.type = 'square'; oh.frequency.value = mf * 1.26;
                 gh.gain.setValueAtTime(0, now); gh.gain.linearRampToValueAtTime(p.melVol * 0.50, now + 0.03);
                 gh.gain.exponentialRampToValueAtTime(0.001, now + nd);
-                oh.connect(gh); gh.connect(audioCtx.destination); oh.start(now); oh.stop(now + nd);
+                oh.connect(gh); gh.connect(_out()); oh.start(now); oh.stop(now + nd);
             }
         }
 
@@ -1364,7 +1424,7 @@ function playBGM(scene = 'play') {
             const bd = p.spd * 1.6 / 1000;
             gb.gain.setValueAtTime(0, now); gb.gain.linearRampToValueAtTime(p.bassVol, now + 0.04);
             gb.gain.exponentialRampToValueAtTime(0.001, now + bd);
-            gb.connect(audioCtx.destination); ob.start(now); ob.stop(now + bd);
+            gb.connect(_out()); ob.start(now); ob.stop(now + bd);
         }
 
         if (p.hihat && si % 2 === 1) _hihat(p.hhVol || 0.10);
@@ -1381,7 +1441,7 @@ function playBGM(scene = 'play') {
             wgn.gain.linearRampToValueAtTime(wvol, wnow + 0.35);
             wgn.gain.setValueAtTime(wvol * (0.75 + Math.random() * 0.25), wnow + 1.1);
             wgn.gain.linearRampToValueAtTime(0, wnow + 2.2);
-            wsrc.connect(whp); whp.connect(wlp); wlp.connect(wgn); wgn.connect(audioCtx.destination);
+            wsrc.connect(whp); whp.connect(wlp); wlp.connect(wgn); wgn.connect(_out());
             wsrc.start(wnow); wsrc.stop(wnow + 2.2);
         }
         // wg2 스네어 + 킥
@@ -1393,7 +1453,7 @@ function playBGM(scene = 'play') {
                 bp.frequency.value = 220; bp.Q.value = 1.2;
                 const gs = audioCtx.createGain();
                 gs.gain.setValueAtTime(0.22, now); gs.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-                src.connect(bp); bp.connect(gs); gs.connect(audioCtx.destination);
+                src.connect(bp); bp.connect(gs); gs.connect(_out());
                 src.start(now); src.stop(now + 0.14);
             }
         }
@@ -1404,7 +1464,7 @@ function playBGM(scene = 'play') {
             bp.frequency.value = 900; bp.Q.value = 5;
             const gm2 = audioCtx.createGain();
             gm2.gain.setValueAtTime(0.18, now); gm2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-            src.connect(bp); bp.connect(gm2); gm2.connect(audioCtx.destination);
+            src.connect(bp); bp.connect(gm2); gm2.connect(_out());
             src.start(now); src.stop(now + 0.22);
         }
         si++;
@@ -1423,13 +1483,13 @@ function playBGM(scene = 'play') {
             od.type = 'sine'; od.frequency.value = df;
             gd.gain.setValueAtTime(0, now); gd.gain.linearRampToValueAtTime(0.28, now + 1.8);
             gd.gain.setValueAtTime(0.28, now + 3.5); gd.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
-            od.connect(gd); gd.connect(audioCtx.destination); od.start(now); od.stop(now + 5.5);
+            od.connect(gd); gd.connect(_out()); od.start(now); od.stop(now + 5.5);
             // 2배음 윙윙 레이어
             const od2 = audioCtx.createOscillator(); const gd2 = audioCtx.createGain();
             od2.type = 'sine'; od2.frequency.value = df * 2;
             gd2.gain.setValueAtTime(0, now); gd2.gain.linearRampToValueAtTime(0.10, now + 2.2);
             gd2.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
-            od2.connect(gd2); gd2.connect(audioCtx.destination); od2.start(now); od2.stop(now + 5.0);
+            od2.connect(gd2); gd2.connect(_out()); od2.start(now); od2.stop(now + 5.0);
             if (p.ghost && noiseBuffer) {
                 // "우..." 망자 포르만트 노이즈
                 const src = audioCtx.createBufferSource(); src.buffer = noiseBuffer; src.loop = true;
@@ -1439,7 +1499,7 @@ function playBGM(scene = 'play') {
                 bpg.frequency.linearRampToValueAtTime(280 + Math.random() * 45, now + 3.5);
                 gng.gain.setValueAtTime(0, now); gng.gain.linearRampToValueAtTime(0.06, now + 1.8);
                 gng.gain.setValueAtTime(0.06, now + 5.0); gng.gain.linearRampToValueAtTime(0, now + 7.2);
-                src.connect(bpg); bpg.connect(gng); gng.connect(audioCtx.destination);
+                src.connect(bpg); bpg.connect(gng); gng.connect(_out());
                 src.start(now); src.stop(now + 7.5);
                 // 가끔 들리는 괴물 비명 (~60% 확률)
                 if (Math.random() < 0.60) {
@@ -1451,7 +1511,7 @@ function playBGM(scene = 'play') {
                     sbp.frequency.linearRampToValueAtTime(360, now + 2.10);
                     sgn.gain.setValueAtTime(0, now); sgn.gain.linearRampToValueAtTime(0.10, now + 0.22);
                     sgn.gain.setValueAtTime(0.10, now + 1.65); sgn.gain.linearRampToValueAtTime(0, now + 2.30);
-                    ssrc.connect(sbp); sbp.connect(sgn); sgn.connect(audioCtx.destination);
+                    ssrc.connect(sbp); sbp.connect(sgn); sgn.connect(_out());
                     ssrc.start(now); ssrc.stop(now + 2.6);
                     // 저음 성도 레이어
                     const so = audioCtx.createOscillator(); const sgo = audioCtx.createGain();
@@ -1462,7 +1522,7 @@ function playBGM(scene = 'play') {
                     const sdw = audioCtx.createWaveShaper(); sdw.curve = _makeDistortion(80);
                     sgo.gain.setValueAtTime(0, now); sgo.gain.linearRampToValueAtTime(0.09, now + 0.32);
                     sgo.gain.setValueAtTime(0.09, now + 1.55); sgo.gain.linearRampToValueAtTime(0, now + 2.30);
-                    so.connect(sdw); sdw.connect(sgo); sgo.connect(audioCtx.destination); so.start(now); so.stop(now + 2.6);
+                    so.connect(sdw); sdw.connect(sgo); sgo.connect(_out()); so.start(now); so.stop(now + 2.6);
                 }
             }
         }, 4800);
@@ -1482,13 +1542,13 @@ function playBGM(scene = 'play') {
                     og.frequency.linearRampToValueAtTime(gf, now + 0.6);
                     gg.gain.setValueAtTime(0, now); gg.gain.linearRampToValueAtTime(0.11, now + 0.18);
                     gg.gain.setValueAtTime(0.11, now + 0.55); gg.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-                    og.connect(gg); gg.connect(audioCtx.destination); og.start(now); og.stop(now + 1.1);
+                    og.connect(gg); gg.connect(_out()); og.start(now); og.stop(now + 1.1);
                     // 5도 위 화음
                     const og2 = audioCtx.createOscillator(); const gg2 = audioCtx.createGain();
                     og2.type = 'sine'; og2.frequency.value = gf * 1.498;
                     gg2.gain.setValueAtTime(0, now); gg2.gain.linearRampToValueAtTime(0.05, now + 0.25);
                     gg2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-                    og2.connect(gg2); gg2.connect(audioCtx.destination); og2.start(now); og2.stop(now + 0.9);
+                    og2.connect(gg2); gg2.connect(_out()); og2.start(now); og2.stop(now + 0.9);
                 }
             }, p.spd * 2);
         }
@@ -1504,7 +1564,7 @@ function playBGM(scene = 'play') {
                 o.type = 'triangle'; o.frequency.value = f;
                 g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.06, now + 0.07);
                 g.gain.exponentialRampToValueAtTime(0.001, now + 0.80);
-                o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.80);
+                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + 0.80);
             });
             ci++;
         }, p.spd * 8);
@@ -1534,7 +1594,7 @@ function playBGM(scene = 'play') {
                 o.detune.value = (i - 1) * 4; // 약간의 두께
                 g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.055, now + 0.5);
                 g.gain.setValueAtTime(0.055, now + pd - 0.6); g.gain.exponentialRampToValueAtTime(0.001, now + pd);
-                o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + pd);
+                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + pd);
             });
             sc++;
         }, p.spd * 16);
@@ -1562,7 +1622,7 @@ function playBGM(scene = 'play') {
                     oc.type = 'triangle'; oc.frequency.value = cf;
                     gc.gain.setValueAtTime(0, now); gc.gain.linearRampToValueAtTime(0.07, now + 0.02);
                     gc.gain.exponentialRampToValueAtTime(0.001, now + p.spd * 1.4 / 1000);
-                    oc.connect(gc); gc.connect(audioCtx.destination); oc.start(now); oc.stop(now + p.spd * 1.4 / 1000);
+                    oc.connect(gc); gc.connect(_out()); oc.start(now); oc.stop(now + p.spd * 1.4 / 1000);
                 }
             }, p.spd);
         }
@@ -1581,13 +1641,13 @@ function playBGM(scene = 'play') {
                 o.detune.value = (vi - 1) * 7;
                 g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.065, now + 0.8);
                 g.gain.setValueAtTime(0.065, now + pd - 0.6); g.gain.exponentialRampToValueAtTime(0.001, now + pd);
-                o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + pd);
+                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + pd);
                 // 3배음 (choir 음색 두께)
                 const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
                 o2.type = 'sine'; o2.frequency.value = f * 3;
                 g2.gain.setValueAtTime(0, now); g2.gain.linearRampToValueAtTime(0.018, now + 0.6);
                 g2.gain.exponentialRampToValueAtTime(0.001, now + pd * 0.8);
-                o2.connect(g2); g2.connect(audioCtx.destination); o2.start(now); o2.stop(now + pd * 0.8);
+                o2.connect(g2); g2.connect(_out()); o2.start(now); o2.stop(now + pd * 0.8);
             });
             chi++;
         }, p.spd * 14);
@@ -1612,7 +1672,7 @@ function playBGM(scene = 'play') {
                     ob.type = 'sine'; ob.frequency.value = f;
                     gb.gain.setValueAtTime(0.18, now + i * 0.04);
                     gb.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
-                    ob.connect(gb); gb.connect(audioCtx.destination);
+                    ob.connect(gb); gb.connect(_out());
                     ob.start(now + i * 0.04); ob.stop(now + 3.5);
                 });
             }, p.spd * 28);
@@ -1639,7 +1699,7 @@ function playBGM(scene = 'play') {
                 o.type = 'sine'; o.frequency.value = f;
                 g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.10, now + 0.4);
                 g.gain.setValueAtTime(0.10, now + pd - 0.5); g.gain.exponentialRampToValueAtTime(0.001, now + pd);
-                o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + pd);
+                o.connect(g); g.connect(_out()); o.start(now); o.stop(now + pd);
             });
             dci++;
         }, p.spd * 16);

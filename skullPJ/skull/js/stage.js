@@ -213,3 +213,9 @@ function roundObstacles(stageN, roundN) {
 function roundMobCount(stageN, roundN) {
     return 2 + roundN + Math.floor((stageN - 1) / 2);
 }
+
+// audio.js가 BGM 트랙을 고르는 데 쓰는 "월드 그룹" 번호.
+// V1에서는 월드 10개를 5그룹으로 묶었지만, 지금은 테마가 5개라 1:1로 대응된다.
+function getWg() {
+    return Math.min(Math.max(Game.stageN, 1), STAGE_COUNT);
+}
