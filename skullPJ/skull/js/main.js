@@ -123,11 +123,12 @@ function applyClearBonus() {
 }
 
 // 문 통과 시 호출 — 다음 라운드로.
-// 보스 라운드는 updateDoors()에서 처치 즉시 컷신으로 넘기므로 여기까지 오지 않는다(방어적으로만 남겨둠).
 function nextStage() {
     if (isBossRound(Game.roundN)) {
-        applyClearBonus();
-        startCutscene("bosskill", Game.stageN);
+        // 보스방: 처치 직후에 이미 대사가 나왔고 보상도 바닥에 뿌려져 있다.
+        // 전리품을 챙길 시간을 준 뒤, 문을 지나는 이 시점에 비로소 유물 선택으로 넘어간다.
+        // (applyClearBonus는 처치 시점에 이미 적용됨 — 여기서 다시 부르면 이중 적용)
+        openRelicSelect();
         return;
     }
     applyClearBonus();

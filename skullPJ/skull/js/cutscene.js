@@ -173,9 +173,14 @@ function _cutsceneEnd(type, stageN) {
         Game.camShake = 0;
         if (typeof playBGM === 'function') playBGM('play');
     } else if (type === "bosskill") {
-        // 마지막 스테이지 보스면 엔딩으로, 아니면 유물 선택
-        if (stageN >= STAGE_COUNT) startCutscene("ending");
-        else openRelicSelect();
+        // 마지막 스테이지 보스면 곧바로 엔딩.
+        // 그 외에는 **방으로 돌아간다** — 보스가 떨어뜨린 무기·방어구·HP 오브를 주울 시간이 필요하고,
+        // 유물 선택은 동쪽 문을 지날 때(main.js nextStage) 넘어간다.
+        // (예전엔 대사가 끝나자마자 유물 → 다음 스테이지로 넘어가 전리품을 못 챙겼다)
+        if (stageN >= STAGE_COUNT) { startCutscene("ending"); return; }
+        Game.gs = "play";
+        Game.camShake = 0;
+        if (typeof playBGM === 'function') playBGM('play');
     } else if (type === "ending") {
         // 엔딩 후 성적 요약 화면 → SPACE로 메뉴 복귀 (main.js의 "win" 분기)
         Game.gs = "win";
