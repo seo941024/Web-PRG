@@ -32,6 +32,9 @@ function spawnEnemy(x, y, opts) {
         e.hb = { ...b.hb };
         e.hp = b.hp; e.maxHp = b.hp; e.atk = b.atk; e.speed = b.speed;
         e.tint = b.tint; e.bossName = b.name;
+        // 보스 전용 도트 조회 키 — sprites/raw/boss<stageN>/ 아래를 찾는다.
+        // 없으면 sprites.js가 자동으로 도적(1) 원화+tint로 대체한다 (spriteClassOf 폴백 재사용).
+        e.spriteKey = "boss" + opts.stageN;
         e.superArmor = true; // 보스는 넉백에 밀리지 않음
         return e;
     }

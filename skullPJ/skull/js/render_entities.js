@@ -131,8 +131,15 @@ function renderRoom(walls) {
         ctx.save();
         if (e.flash > 0) ctx.filter = "brightness(2) saturate(0)";
         // 보스는 원화보다 크게 그려 위압감을 준다 (히트박스 e.hb는 그대로 — 시각 크기만 확대)
-        drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333",
-            e.isBoss ? BOSS_SPRITE_SCALE : 1);
+        if (e.isBoss && e.spriteKey) {
+            // 전용 도트가 있으면 idle 숨쉬기 애니를 재생(없으면 정지 포즈로 자동 폴백),
+            // 그리고 틴트 없이 원색 그대로. 남의 원화를 빌려 쓸 때만 tint를 입힌다.
+            const hasOwnArt = spriteClassOf(e.spriteKey) === e.spriteKey;
+            drawAnimSprite(ctx, e.spriteKey, e.animName || "idle", e.facing, e.animFrame || 0,
+                e.x, e.y, hasOwnArt ? null : (e.tint || "#ff3333"), BOSS_SPRITE_SCALE);
+        } else {
+            drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333", 1);
+        }
         ctx.restore();
 
         // 엘리트 표식 — 발밑 금색 링

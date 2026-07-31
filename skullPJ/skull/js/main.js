@@ -74,6 +74,10 @@ function buildRoom(stageN, roundN) {
 
     const theme = stageTheme(stageN);
     if (bossRound) {
+        // 보스 전용 도트(sprites/raw/boss<stageN>/)가 있으면 미리 로드해둔다.
+        // 없는 스테이지는 그냥 404 나고 sprites.js가 도적 원화+tint로 자동 대체한다.
+        loadCharSprites("boss" + stageN);
+        preloadAnims("boss" + stageN, ["idle"]);
         spawnEnemy(700, 500, { boss: true, stageN });
         Game.bannerT = 150;
         Game.bannerText = `${theme.name} — ${theme.boss.name}`;

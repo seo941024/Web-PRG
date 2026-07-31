@@ -455,9 +455,19 @@ function bossRecovery(pat, isP2) {
     return Math.max(REC_MIN, Math.round(base * (isP2 ? REC_P2_MUL : 1)));
 }
 
+// 보스 숨쉬기(idle) 애니 재생 속도 — 플레이어 attack처럼 fps 개념 없이 그냥 느긋하게 고정
+const BOSS_IDLE_FPS = 6;
+
 function updateBossAI(e, walls) {
     if ((e.hitInv || 0) > 0) e.hitInv--;
     if (e.flash > 0) e.flash--;
+
+    // idle 숨쉬기 애니 진행 — 다른 동작(공격 실행 등) 애니가 생기기 전까지는 항상 idle을 돌린다.
+    // 프레임 수를 모르면(아직 안 뽑은 보스) 그냥 넘어가고, drawAnimSprite가 정지 포즈로 폴백한다.
+    e.animName = "idle";
+    e.animT = (e.animT || 0) + 1;
+    const idleFc = animFrameCount("idle");
+    if (e.animT >= 60 / BOSS_IDLE_FPS) { e.animT = 0; e.animFrame = ((e.animFrame || 0) + 1) % idleFc; }
 
     // 넉백은 슈퍼아머로 막지만, 혹시 걸렸다면 관성 처리만 하고 패턴은 멈춤
     if ((e.kbT || 0) > 0) {

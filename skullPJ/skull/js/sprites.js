@@ -62,16 +62,17 @@ function resolveDirImage(classId, dir) {
 }
 
 // 발치 기준(x,y)에 방향 스프라이트를 그림. 없으면 placeholder 사각형.
-function drawDirSprite(ctx, classId, dir, x, y, tint) {
+function drawDirSprite(ctx, classId, dir, x, y, tint, scale) {
     const r = resolveDirImage(classId, dir);
+    const sc = scale || 1;
     if (!r) {
         // placeholder: 스프라이트 없는 직업 임시 표시
         ctx.fillStyle = "#555a";
-        ctx.fillRect(x - 10, y - 30, 20, 30);
+        ctx.fillRect(x - 10 * sc, y - 30 * sc, 20 * sc, 30 * sc);
         return;
     }
     const { img, flip } = r;
-    const dw = img.naturalWidth, dh = img.naturalHeight;
+    const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
     const dx = x - dw / 2, dy = y - dh * SPRITE_FEET_RATIO;
     ctx.save();
     if (flip) {
@@ -89,11 +90,16 @@ function drawDirSprite(ctx, classId, dir, x, y, tint) {
     ctx.restore();
 }
 
-// 같은 원화를 색만 다르게 틴트해서 그림 — 새 아트 없이 적 변형을 공짜로 뽑는 용도
+// 같은 원화를 색만 다르게 틴트해서 그림 — 새 아트 없이 적 변형을 공짜로 뽑는 용도.
+// tintColor가 없으면(null/undefined) 틴트 없이 원화 그대로 그린다 —
+// 전용 도트가 있는 보스는 이미 색이 맞으므로 덧칠하면 오히려 탁해진다.
 function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor, scale) {
     const r = resolveDirImage(classId, dir);
     const sc = scale || 1;
-    if (!r) { ctx.fillStyle = tintColor + "cc"; ctx.beginPath(); ctx.arc(x, y - 14 * sc, 10 * sc, 0, Math.PI * 2); ctx.fill(); return; }
+    if (!r) {
+        if (tintColor) { ctx.fillStyle = tintColor + "cc"; ctx.beginPath(); ctx.arc(x, y - 14 * sc, 10 * sc, 0, Math.PI * 2); ctx.fill(); }
+        return;
+    }
     const { img, flip } = r;
     // 배율은 발치(x, y)를 기준으로 커진다 — 커져도 바닥에 붙어 있어야 하므로
     const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
@@ -101,12 +107,14 @@ function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor, scale) {
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
     const dx = x - dw / 2, dy = y - dh * SPRITE_FEET_RATIO;
     ctx.drawImage(img, dx, dy, dw, dh);
-    ctx.globalCompositeOperation = "source-atop";
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = tintColor;
-    ctx.fillRect(dx, dy, dw, dh);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "source-over";
+    if (tintColor) {
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = tintColor;
+        ctx.fillRect(dx, dy, dw, dh);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+    }
     ctx.restore();
 }
 
@@ -145,8 +153,9 @@ function feetRatioFor(animName) { return ANIM_FEET_RATIO[animName] || SPRITE_FEE
 
 // 프레임 애니 렌더
 // 1순위 그 방향 원화 → 2순위 반대편 좌우반전 → 3순위 정지 포즈
-function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint) {
+function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint, scale) {
     const srcClass = spriteClassOf(classId); // 전용 도트 없으면 도적 원화로
+    const sc = scale || 1;
     const pick = (d) => {
         const e = loadAnim(srcClass, animName, d);
         const im = e.frames[frameIndex % (e.frameCount || ANIM_FRAME_COUNT)];
@@ -155,10 +164,10 @@ function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint) {
     let img = pick(dir), flip = false;
     if (!img && MIRROR_MAP[dir]) { img = pick(MIRROR_MAP[dir]); flip = !!img; }
     if (!img) {
-        drawDirSprite(ctx, classId, dir, x, y, tint); // 폴백: 정지 포즈
+        drawDirSprite(ctx, classId, dir, x, y, tint, sc); // 폴백: 정지 포즈
         return;
     }
-    const dw = img.naturalWidth, dh = img.naturalHeight;
+    const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
     const dx = x - dw / 2, dy = y - dh * feetRatioFor(animName);
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
