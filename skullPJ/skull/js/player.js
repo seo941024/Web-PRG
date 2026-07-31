@@ -237,7 +237,12 @@ function updatePlayer(walls) {
 
     if (p.dashT > 0) {
         p.dashT--; sp = 8;
-        if (p.dashT % 2 === 0) dashGhosts.push({ x: p.x, y: p.y, facing: p.facing, life: 16, max: 16 });
+        // 잔상도 그 순간의 애니 프레임을 그대로 남긴다 (정지 포즈로 남으면 본체와 자세가 달라 어색)
+        if (p.dashT % 2 === 0) dashGhosts.push({
+            x: p.x, y: p.y, facing: p.facing,
+            anim: p.animName, frame: p.animFrame,
+            life: 16, max: 16,
+        });
     }
     for (let i = dashGhosts.length - 1; i >= 0; i--) { if (--dashGhosts[i].life <= 0) dashGhosts.splice(i, 1); }
 
@@ -253,8 +258,10 @@ function updatePlayer(walls) {
         const progress = 1 - p.atkAnim / (p.atkAnimMax || 1);
         p.animFrame = Math.min(segStart + segSize - 1, segStart + Math.floor(progress * segSize));
     } else {
-        const moving = (mx !== 0 || my !== 0) && p.dashT <= 0;
-        const targetAnim = moving ? (sprintHeld ? "sprint" : "walk") : "idle";
+        // 회피(대시) 중에는 달리는 모션을 그대로 유지 — 예전엔 idle로 빠져서 정자세로 미끄러졌다
+        const moving = (mx !== 0 || my !== 0);
+        const targetAnim = p.dashT > 0 ? "sprint"
+            : (moving ? (sprintHeld ? "sprint" : "walk") : "idle");
         if (p.animName !== targetAnim) { p.animName = targetAnim; p.animT = 0; p.animFrame = 0; }
 
         const fc = animFrameCount(p.animName);

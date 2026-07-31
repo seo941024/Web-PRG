@@ -62,10 +62,11 @@ function renderRoom(walls) {
         ctx.strokeRect(d.x, d.y, d.w, d.h);
     });
 
-    // 대시 잔상
+    // 대시 잔상 — 남길 때의 애니 프레임 그대로 (본체와 자세가 어긋나지 않게)
     for (const g of dashGhosts) {
         ctx.globalAlpha = (g.life / g.max) * 0.45;
-        drawDirSprite(ctx, Game.pClass, g.facing, g.x, g.y);
+        if (g.anim) drawAnimSprite(ctx, Game.pClass, g.anim, g.facing, g.frame || 0, g.x, g.y);
+        else drawDirSprite(ctx, Game.pClass, g.facing, g.x, g.y);
         ctx.globalAlpha = 1;
     }
 
@@ -361,18 +362,21 @@ function renderRoom(walls) {
     }
     ctx.restore();
 
-    // ── 콤보 (화면 중앙 하단, 크게) ──
-    // HUD 구석의 11px 텍스트로는 전투 중에 절대 안 보였다.
-    if (Player.combo > 0 && (Player.atkAnim > 0 || Player.comboWindowT > 0)) {
+    // ── 히트 콤보 (화면 중앙 하단, 크게) ──
+    // 표시 기준은 "실제로 맞힌 횟수"(Game.hitCombo)다. Player.combo는 허공을 쳐도 올라가는
+    // 4타 스윙 순번이라 콤보로 띄우면 안 됨 — 대신 피니시 스윙일 때만 문구를 강조한다.
+    const hc = Game.hitCombo || 0;
+    if (hc >= 2) {
         ctx.save();
         ctx.textAlign = "center";
-        const big = Player.combo === COMBO_MAX;
+        const finisher = Player.combo === COMBO_MAX && Player.atkAnim > 0;
+        const big = hc >= 10 || finisher;
         ctx.font = `bold ${big ? 34 : 26}px SkullFont, NeoDunggeunmo, monospace`;
         ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        const txt = big ? `${Player.combo} 피니시!` : `${Player.combo} 콤보`;
+        const txt = finisher ? `${hc} 히트  피니시!` : `${hc} 히트`;
         ctx.strokeText(txt, UW / 2, UH - 78);
-        ctx.fillStyle = big ? "#ff8a3a" : "#ffcc44";
-        ctx.shadowBlur = big ? 16 : 8; ctx.shadowColor = big ? "#ff5500" : "#aa6600";
+        ctx.fillStyle = finisher ? "#ff8a3a" : (hc >= 10 ? "#ffdd55" : "#ffcc44");
+        ctx.shadowBlur = big ? 16 : 8; ctx.shadowColor = finisher ? "#ff5500" : "#aa6600";
         ctx.fillText(txt, UW / 2, UH - 78);
         ctx.shadowBlur = 0;
         ctx.textAlign = "left";
@@ -458,10 +462,10 @@ function renderRoom(walls) {
             ctx.textAlign = "center";
             ctx.font = "bold 20px SkullFont, NeoDunggeunmo, monospace";
             ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-            ctx.strokeText("구역 정화 완료 — 동쪽 문으로 이동", UW / 2, UH - 30);
+            ctx.strokeText("적을 모두 쓰러뜨렸다 — 동쪽 문이 열렸다", UW / 2, UH - 30);
             ctx.fillStyle = "#3cdc78";
             ctx.shadowBlur = 10; ctx.shadowColor = "#3cdc78";
-            ctx.fillText("구역 정화 완료 — 동쪽 문으로 이동", UW / 2, UH - 30);
+            ctx.fillText("적을 모두 쓰러뜨렸다 — 동쪽 문이 열렸다", UW / 2, UH - 30);
             ctx.shadowBlur = 0;
             ctx.restore();
         }

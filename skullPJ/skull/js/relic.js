@@ -50,7 +50,7 @@ const RELICS = [
       apply: g => { g.pCritDmg += 0.8; } },         // 훅: player.js tryPlayerAttack
     { id: "ghost_step",  rarity: "rare", name: "유령 걸음",         desc: "회피 스태미나 소모 -40%, 무적 시간 증가",
       apply: g => { g.pDashCostMul *= 0.6; g.pDashInvBonus += 10; } }, // 훅: player.js updatePlayer
-    { id: "clear_feast", rarity: "rare", name: "정화의 만찬",       desc: "구역 정화 시 체력 20 회복",
+    { id: "clear_feast", rarity: "rare", name: "정화의 만찬",       desc: "적을 전멸시키면 체력 20 회복",
       apply: g => { g.pHealOnClear += 20; } },      // 훅: main.js nextStage
     { id: "war_forge",   rarity: "rare", name: "전쟁의 화로",       desc: "공격력 +8, 공격속도 +8%",
       apply: g => { g.pAtkBonus += 8; g.pAtkSpdBonus += 0.08; } },
@@ -62,7 +62,7 @@ const RELICS = [
       apply: g => { g.pKillExplode += 22; } },      // 훅: mob.js onEnemyDeath
     { id: "second_life", rarity: "legendary", name: "두 번째 생",   desc: "사망 시 체력 50%로 1회 부활",
       apply: g => { g.pRevive += 1; } },            // 훅: player.js hitPlayer
-    { id: "aegis_clear", rarity: "legendary", name: "불굴의 방벽",  desc: "구역 정화 시 보호막 30 획득",
+    { id: "aegis_clear", rarity: "legendary", name: "불굴의 방벽",  desc: "적을 전멸시키면 보호막 30 획득",
       apply: g => { g.pShieldOnClear += 30; } },    // 훅: main.js nextStage / player.js hitPlayer
     { id: "titan_blood", rarity: "legendary", name: "거인의 피",    desc: "최대 체력 +60, 방어력 +6 (즉시 회복)",
       apply: g => { Player.maxHp += 60; Player.hp = Math.min(Player.maxHp, Player.hp + 60); g.pDefBonus += 6; } },

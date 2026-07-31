@@ -1,26 +1,34 @@
-// sprites.js — 방향별 스프라이트 로드 + 좌우 반전 최적화
-// PixelLab 생성 비용 절감: 5방향(south, south-east, east, north-east, north)만 실제로 뽑고,
-// west/south-west/north-west는 east/south-east/north-east를 코드에서 좌우 반전해 재사용.
-// (8방향 전부 생성 대비 크레딧 37.5% 절감)
+// sprites.js — 방향별 스프라이트 로드 + 좌우 반전 폴백
+//
+// 원칙: **해당 방향의 실제 원화가 있으면 그걸 쓰고, 없을 때만 반대편을 좌우 반전해서 대신 쓴다.**
+// PixelLab 크레딧을 아끼려면 5방향(south, south-east, east, north-east, north)만 뽑아도 되고,
+// 그 경우 west 계열은 자동으로 반전 폴백이 걸린다. 8방향을 다 뽑았다면 반전 없이 원화가 그대로 나온다
+// (망토·무기처럼 좌우 비대칭인 요소가 뒤집히지 않아 더 자연스러움).
 
 const SPRITE_BASE = "sprites/raw"; // 후처리 완료되면 "sprites/characters"로 교체
 // 발치 정렬 비율 — PIL로 실측(콘텐츠 하단 ratio ≈0.73~0.75). 이전 0.82는 감으로 잡은 값이라 캐릭터가 그림자 위로 떠 보였음.
 const SPRITE_FEET_RATIO = 0.75;
 
-// 실제로 파일이 있는 5방향과, 그걸 반전해서 만들 3방향의 매핑
-const REAL_DIRS = ["south", "south-east", "east", "north-east", "north"];
+const ALL_DIRS = ["south", "south-east", "east", "north-east", "north", "north-west", "west", "south-west"];
+// 원화가 없을 때 대신 좌우 반전해 쓸 짝
 const MIRROR_MAP = { "west": "east", "south-west": "south-east", "north-west": "north-east" };
+// 최소 보장 방향 — 로딩 완료 판정 기준
+const REAL_DIRS = ["south", "south-east", "east", "north-east", "north"];
 
 const CharSprites = {}; // { [classId]: { [dir]: HTMLImageElement, ready:bool } }
+
+// 이미지가 실제로 그릴 수 있는 상태인지
+function _imgOK(img) { return !!(img && img.complete && img.naturalWidth > 0); }
 
 function loadCharSprites(classId) {
     if (CharSprites[classId]) return CharSprites[classId];
     const entry = { ready: false, images: {}, loadedCount: 0 };
     CharSprites[classId] = entry;
-    REAL_DIRS.forEach(dir => {
+    // 8방향 전부 시도 — 없는 방향은 조용히 404 나고 반전 폴백으로 처리된다
+    ALL_DIRS.forEach(dir => {
         const img = new Image();
         img.onload = () => { entry.loadedCount++; entry.ready = entry.loadedCount >= REAL_DIRS.length; };
-        img.onerror = () => { /* 아직 안 뽑은 직업 — 조용히 무시, placeholder로 대체됨 */ };
+        img.onerror = () => { /* 아직 안 뽑은 방향/직업 — 반전 폴백 또는 placeholder */ };
         img.src = `${SPRITE_BASE}/${classId}/${dir}.png`;
         entry.images[dir] = img;
     });
@@ -31,13 +39,12 @@ function loadCharSprites(classId) {
 function resolveDirImage(classId, dir) {
     const entry = CharSprites[classId];
     if (!entry) return null;
-    if (REAL_DIRS.includes(dir)) {
-        const img = entry.images[dir];
-        return (img && img.complete && img.naturalWidth > 0) ? { img, flip: false } : null;
-    }
+    // 1순위 — 그 방향 원화 그대로
+    if (_imgOK(entry.images[dir])) return { img: entry.images[dir], flip: false };
+    // 2순위 — 반대편을 좌우 반전
     const src = MIRROR_MAP[dir];
-    const img = entry.images[src];
-    return (img && img.complete && img.naturalWidth > 0) ? { img, flip: true } : null;
+    if (src && _imgOK(entry.images[src])) return { img: entry.images[src], flip: true };
+    return null;
 }
 
 // 발치 기준(x,y)에 방향 스프라이트를 그림. 없으면 placeholder 사각형.
@@ -101,9 +108,9 @@ function loadAnim(classId, animName, dir) {
     return entry;
 }
 
-// classId의 idle/walk 애니를 5방향 모두 예약 로드 (없는 파일은 그냥 404, 문제 없음)
+// 애니를 8방향 모두 예약 로드 — 안 뽑은 방향은 그냥 404 나고 반전 폴백으로 처리된다
 function preloadAnims(classId, animNames) {
-    animNames.forEach(a => REAL_DIRS.forEach(d => loadAnim(classId, a, d)));
+    animNames.forEach(a => ALL_DIRS.forEach(d => loadAnim(classId, a, d)));
 }
 
 // 애니메이션별 발치 비율 — 캔버스 크기가 다른 애니(예: attack은 108px, idle/walk는 92px)는
@@ -111,13 +118,17 @@ function preloadAnims(classId, animNames) {
 const ANIM_FEET_RATIO = { attack: 0.713 };
 function feetRatioFor(animName) { return ANIM_FEET_RATIO[animName] || SPRITE_FEET_RATIO; }
 
-// 프레임 애니 렌더 — 준비 안 됐으면 정지 포즈(drawDirSprite)로 폴백
+// 프레임 애니 렌더
+// 1순위 그 방향 원화 → 2순위 반대편 좌우반전 → 3순위 정지 포즈
 function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y) {
-    const realDir = REAL_DIRS.includes(dir) ? dir : MIRROR_MAP[dir];
-    const flip = !REAL_DIRS.includes(dir);
-    const entry = loadAnim(classId, animName, realDir);
-    const img = entry.frames[frameIndex % (entry.frameCount || ANIM_FRAME_COUNT)];
-    if (!img || !img.complete || img.naturalWidth === 0) {
+    const pick = (d) => {
+        const e = loadAnim(classId, animName, d);
+        const im = e.frames[frameIndex % (e.frameCount || ANIM_FRAME_COUNT)];
+        return _imgOK(im) ? im : null;
+    };
+    let img = pick(dir), flip = false;
+    if (!img && MIRROR_MAP[dir]) { img = pick(MIRROR_MAP[dir]); flip = !!img; }
+    if (!img) {
         drawDirSprite(ctx, classId, dir, x, y); // 폴백: 정지 포즈
         return;
     }

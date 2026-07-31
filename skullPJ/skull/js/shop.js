@@ -63,17 +63,17 @@ function updateShop() {
         const u = PERM_UPGRADES[Game.shopIdx];
         const lvl = Game[u.key] || 0;
         if (lvl >= PERM_MAX_LVL) {
-            Game.shopMsg = { text: "이미 최대 레벨입니다", col: "#ff8866", t: 90 };
+            Game.shopMsg = { text: "더 올릴 수 없다", col: "#ff8866", t: 90 };
         } else {
             const cost = permCost(lvl);
             if (Game.darkQuartz < cost) {
-                Game.shopMsg = { text: `다크 쿼츠가 부족합니다 (${cost} 필요)`, col: "#ff8866", t: 90 };
+                Game.shopMsg = { text: `쿼츠가 모자란다 — ${cost} 필요`, col: "#ff8866", t: 90 };
                 if (typeof playSfx === 'function') playSfx('hit');
             } else {
                 Game.darkQuartz -= cost;
                 Game[u.key] = lvl + 1;
                 saveProgress();
-                Game.shopMsg = { text: `${u.name} Lv.${lvl + 1} 강화 완료!`, col: "#66ff99", t: 90 };
+                Game.shopMsg = { text: `${u.name} Lv.${lvl + 1} — 힘이 새겨졌다`, col: "#66ff99", t: 90 };
                 if (typeof playSfx === 'function') playSfx('unlock');
             }
         }

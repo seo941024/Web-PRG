@@ -39,6 +39,8 @@ const Game = {
     camShake: 0,
     isMuted: false,
     showKeys: false,      // [H] 조작법 오버레이 (열려 있는 동안 게임 정지)
+    // 히트 콤보 — 실제로 맞힌 횟수(허공 스윙은 안 셈). Player.combo(4타 스윙 순번)와 별개.
+    hitCombo: 0, hitComboT: 0, hitComboBest: 0,
     pClass: 1,            // 임시 기본값: 도적 (스프라이트 있는 직업)
 
     // ── 영구 진행 (localStorage, 런을 넘어 유지) ──
@@ -129,6 +131,7 @@ function resetRun() {
     Game.pKnockbackMul = 1; Game.pQuartzMul = 1;
     Game.pSlowAura = false; Game.pLowHpDmg = false;
     Game.regenT = 0;
+    Game.hitCombo = 0; Game.hitComboT = 0; Game.hitComboBest = 0;
 
     Game.equip = { weapon: null, armor: null };
     Game.relics = []; Game.relicChoices = []; Game.relicIdx = 0;

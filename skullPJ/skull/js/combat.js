@@ -262,7 +262,13 @@ function applyItemEffect(it) {
 }
 
 // 파티클/텍스트 풀 업데이트 (수명 감소·이동, 없으면 생성만 되고 영원히 화면에 안 나옴)
+// 마지막 타격 후 이 시간 안에 다시 맞히지 못하면 히트 콤보가 끊긴다 (1.5초)
+const HIT_COMBO_HOLD = 90;
+
 function updateFx() {
+    // 히트 콤보 유지 시간 — 다 되면 0으로 끊김
+    if (Game.hitComboT > 0 && --Game.hitComboT <= 0) Game.hitCombo = 0;
+
     Game.parts.forEach(pt => {
         if (!pt.active) return;
         pt.x += pt.vx; pt.y += pt.vy; pt.vx *= 0.9; pt.vy *= 0.9;
@@ -280,6 +286,13 @@ function updateFx() {
 // 텍스트/파티클은 e.y에서 위로 띄운다. (V1 사이드스크롤의 e.w/e.h 기준 좌표를 쓰면 NaN이 됨)
 function hitE(e, dmg, facing, isCrit, extraDmg = 0) {
     if (e.dead) return;
+
+    // 실제로 적을 맞혔을 때만 오르는 히트 카운터.
+    // Player.combo(4타 스윙 순번)와는 별개다 — 그건 허공을 쳐도 올라가는 "동작 단계"라
+    // 화면에 콤보로 띄우면 플레이어 기대와 어긋난다(허공에 휘둘렀는데 콤보가 쌓임).
+    Game.hitCombo = (Game.hitCombo || 0) + 1;
+    Game.hitComboT = HIT_COMBO_HOLD;
+    if (Game.hitCombo > (Game.hitComboBest || 0)) Game.hitComboBest = Game.hitCombo;
 
     // 슈퍼아머(탱커·엘리트·보스)는 넉백 없이 맞음
     const hasSuperArmor = !!e.superArmor;

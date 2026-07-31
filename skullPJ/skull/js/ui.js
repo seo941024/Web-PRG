@@ -149,8 +149,8 @@ function renderClassSelect() {
     if (line) ctx.fillText(line, skx, ly);
     _uiText(`쿨다운 ${(prof.skillCD / 60).toFixed(1)}초`, skx, ly + 30, 13, "#8e83ad", "left");
 
-    if (prof.ranged) _uiText("※ 평타가 원거리 투사체", skx, ly + 54, 13, "#66ccff", "left", true);
-    if (prof.tint)   _uiText("※ 전용 스프라이트 대기 중 (색으로 임시 구분)", px + 28, py + ph - 18, 12, "#6e6390", "left");
+    if (prof.ranged) _uiText("※ 기본 공격이 원거리다", skx, ly + 54, 13, "#66ccff", "left", true);
+    if (prof.tint)   _uiText("※ 전용 도트는 아직 없다 — 색으로 임시 구분", px + 28, py + ph - 18, 12, "#6e6390", "left");
 
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
         _uiText("▶  SPACE 로 시작  ◀", UW / 2, UH - 40, 20, col, "center", true, 10);
@@ -210,8 +210,8 @@ function renderRelicSelect() {
     ctx.fillStyle = "rgba(4,2,10,0.9)";
     ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("유물을 하나 선택하라", UW / 2, 96, 30, "#ffcc44", "center", true, 14);
-    _uiText("이번 런에만 유지된다", UW / 2, 124, 13, "#8e83ad", "center");
+    _uiText("유물을 하나 골라라", UW / 2, 96, 30, "#ffcc44", "center", true, 14);
+    _uiText("이번 탐험 동안만 남는다", UW / 2, 124, 13, "#8e83ad", "center");
 
     const cards = Game.relicChoices;
     const cw = 260, ch = 300, gap = 34;
@@ -507,7 +507,7 @@ function renderPause() {
 
     _uiText(`유물 (${Game.relics.length})`, qx + 20, py + 130, 18, "#ffcc44", "left", true);
     if (Game.relics.length === 0) {
-        _uiText("아직 없음 — 보스를 격파하면 획득", qx + 24, py + 158, 13, "#4a4360");
+        _uiText("아직 없다 — 보스를 쓰러뜨리면 얻는다", qx + 24, py + 158, 13, "#4a4360");
     } else {
         Game.relics.forEach((r, i) => {
             // 2열로 배치 (최대 12개까지 표시)
@@ -531,7 +531,7 @@ function renderDead() {
     ctx.fillStyle = "rgba(6,0,10,0.88)";
     ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("당신은 죽었습니다", UW / 2, UH / 2 - 90, 46, "#ff3344", "center", true, 22);
+    _uiText("쓰러졌다", UW / 2, UH / 2 - 90, 46, "#ff3344", "center", true, 22);
 
     const theme = stageTheme();
     _uiText(`STAGE ${Game.stageN}-${Game.roundN}  ${theme.name} 에서 쓰러짐`,
