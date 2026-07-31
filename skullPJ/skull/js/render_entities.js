@@ -65,8 +65,9 @@ function renderRoom(walls) {
     // 대시 잔상 — 남길 때의 애니 프레임 그대로 (본체와 자세가 어긋나지 않게)
     for (const g of dashGhosts) {
         ctx.globalAlpha = (g.life / g.max) * 0.45;
-        if (g.anim) drawAnimSprite(ctx, Game.pClass, g.anim, g.facing, g.frame || 0, g.x, g.y);
-        else drawDirSprite(ctx, Game.pClass, g.facing, g.x, g.y);
+        const gt = classTint(Game.pClass);
+        if (g.anim) drawAnimSprite(ctx, Game.pClass, g.anim, g.facing, g.frame || 0, g.x, g.y, gt);
+        else drawDirSprite(ctx, Game.pClass, g.facing, g.x, g.y, gt);
         ctx.globalAlpha = 1;
     }
 
@@ -146,27 +147,8 @@ function renderRoom(walls) {
         if (e.isBoss) { ctx.strokeStyle = "#ffcc33aa"; ctx.lineWidth = 1; ctx.strokeRect(e.x - hpw/2, hpy, hpw, 4); }
     });
 
-    // 플레이어 공격 스윙 이펙트 — 몸통 높이 기준 채워진 부채꼴 (판정 각도 60도와 정확히 일치)
-    if (Player.atkAnim > 0) {
-        const prof = classProfile(Game.pClass);
-        const [dx, dy] = DIR_VEC[Player.facing];
-        const baseAng = Math.atan2(dy, dx);
-        const t = 1 - Player.atkAnim / (Player.atkAnimMax || 1); // 0→1, 실제 재생 중인 애니 길이와 동기화
-        const spreadRad = 60 * Math.PI / 180;
-        const apexOff = 16; // 몸 중앙이 아니라 몸 밖으로 나가서 시작 (안 그러면 캐릭터 위에 겹쳐 보임)
-        ctx.save();
-        ctx.translate(Player.x + dx * apexOff, Player.y - 20 + dy * apexOff);
-        ctx.fillStyle = `rgba(220,240,255,${0.5 * (1 - t)})`;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, prof.range, baseAng - spreadRad, baseAng + spreadRad);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - t)})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-    }
+    // (공격 판정 부채꼴 연출은 삭제 — 공격 모션이 있는데 반투명 부채꼴까지 겹치면
+    //  화면이 지저분하고 도트 감성이 깨진다. 타격감은 파티클·화면흔들림으로만.)
 
     // 적 투사체 (보스 패턴 등)
     Game.eBullets.forEach(b => {
@@ -183,24 +165,64 @@ function renderRoom(walls) {
     Game.items.forEach(it => {
         if (!it.active) return;
         if (it.life < 90 && Math.floor(it.life / 6) % 2 === 0) return;
-        const style = ITEM_STYLE[it.type] || { label: "?" };
+        // 아이템 — 예전엔 전부 똑같은 흰 네모라 뭘 줍는지 알 수 없었다.
+        // 종류별 색 + 기호 아이콘으로 바꾸고, 이름 아래에 실제 상승치를 같이 띄운다.
+        const style = ITEM_STYLE[it.type] || { label: "?", col: "#cccccc" };
         const bob = Math.sin((Game.frameCount + it.x) * 0.08) * 2;
+        const col = it.equip ? equipColor(it.equip) : style.col;
         const label = it.equip ? equipDisplayName(it.equip) : (style.name || style.label);
+        // 장비는 실제 옵션을, 소모품은 고정 상승치를 부제로
+        let sub = style.gain || "";
+        if (it.equip) {
+            const e = it.equip;
+            sub = e.kind === "weapon"
+                ? [e.atk ? `공 +${e.atk}` : "", e.atkSpd ? `속 +${Math.round(e.atkSpd * 100)}%` : "", e.crit ? `치명 +${Math.round(e.crit * 100)}%` : ""].filter(Boolean).join("  ")
+                : [e.def ? `방 +${e.def}` : "", e.maxHp ? `체력 +${e.maxHp}` : "", e.moveSpd ? `이속 +${Math.round(e.moveSpd * 100)}%` : ""].filter(Boolean).join("  ");
+        }
+
         ctx.save();
         ctx.translate(it.x, it.y + bob);
-        // 네모 (테두리만 다르게 해서 장비/소모품 구분)
-        ctx.fillStyle = "#e8e8e8";
-        ctx.fillRect(-7, -7, 14, 14);
-        ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
-        ctx.strokeRect(-7, -7, 14, 14);
-        if (it.equip) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(-10, -10, 20, 20); }
-        // 이름표 — 배경 없이도 읽히게 외곽선 처리
-        ctx.font = "bold 12px SkullFont, NeoDunggeunmo, monospace";
+
+        // 바닥 광원 — 어디에 떨어졌는지 눈에 띄게
+        const gr = ctx.createRadialGradient(0, 4, 1, 0, 4, 16);
+        gr.addColorStop(0, col + "55");
+        gr.addColorStop(1, col + "00");
+        ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.ellipse(0, 4, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 아이콘 — 마름모(장비는 한 겹 더 둘러 구분)
+        ctx.shadowBlur = 8; ctx.shadowColor = col;
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(0, -10); ctx.lineTo(9, 0); ctx.lineTo(0, 10); ctx.lineTo(-9, 0);
+        ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 2; ctx.stroke();
+        if (it.equip) {
+            ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, -15); ctx.lineTo(13, 0); ctx.lineTo(0, 15); ctx.lineTo(-13, 0);
+            ctx.closePath(); ctx.stroke();
+        }
+        // 기호
+        ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
         ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillText(style.label || "?", 0, 4);
+
+        // 이름 + 상승치 — 배경 없이도 읽히게 외곽선 처리
         ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.strokeText(label, 0, -15);
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(label, 0, -15);
+        ctx.font = "bold 12px SkullFont, NeoDunggeunmo, monospace";
+        ctx.strokeText(label, 0, -20);
+        ctx.fillStyle = col;
+        ctx.fillText(label, 0, -20);
+        if (sub) {
+            ctx.font = "bold 10px SkullFont, NeoDunggeunmo, monospace";
+            ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+            ctx.strokeText(sub, 0, -8);
+            ctx.fillStyle = "#e8e8f0";
+            ctx.fillText(sub, 0, -8);
+        }
         ctx.textAlign = "left";
         ctx.restore();
     });
@@ -211,16 +233,13 @@ function renderRoom(walls) {
     ctx.ellipse(Player.x, Player.y, 12, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 플레이어 스프라이트 (idle/walk 애니 재생, 무적 중 깜빡임)
-    // 전용 스프라이트가 없는 직업은 도적 원화(클래스1)에 직업 색을 입혀 구분한다.
+    // 플레이어 스프라이트 (애니 재생, 무적 중 깜빡임)
+    // 전용 도트가 없는 직업은 sprites.js가 도적 원화로 대체하고, 여기서 넘긴 직업 색을 덧입혀 구분한다.
+    // ⚠️ 예전엔 애니 스프라이트를 그린 뒤 정지 포즈(drawDirSpriteTinted)를 한 번 더 겹쳐 그려서
+    //    두 자세가 겹쳐 보였다 — 반드시 한 번만 그릴 것.
     if (Player.invT <= 0 || Math.floor(Player.invT / 4) % 2 === 0) {
-        const tint = classTint(Game.pClass);
-        if (tint) {
-            drawAnimSprite(ctx, 1, Player.animName, Player.facing, Player.animFrame, Player.x, Player.y);
-            drawDirSpriteTinted(ctx, 1, Player.facing, Player.x, Player.y, tint);
-        } else {
-            drawAnimSprite(ctx, Game.pClass, Player.animName, Player.facing, Player.animFrame, Player.x, Player.y);
-        }
+        drawAnimSprite(ctx, Game.pClass, Player.animName, Player.facing,
+            Player.animFrame, Player.x, Player.y, classTint(Game.pClass));
     }
 
     // 플레이어 투사체 (마법사·발키리 평타, 일부 스킬)
@@ -280,7 +299,8 @@ function renderRoom(walls) {
     const HX = 18, HY = 16, HW = 300;
     const hasShield = (Game.pShield || 0) > 0;
     const BAR_H = 26, ST_H = 16, SH_H = 14, SK_H = 16;
-    const HH = 12 + BAR_H + 8 + ST_H + 8 + SK_H + (hasShield ? 8 + SH_H : 0) + 12;
+    const STAT_H = 18; // 공/방/치명/속도 한 줄 — 아이템을 주웠을 때 뭐가 올랐는지 확인할 수 있어야 함
+    const HH = 12 + BAR_H + 8 + ST_H + 8 + SK_H + (hasShield ? 8 + SH_H : 0) + 8 + STAT_H + 10;
     ctx.save();
     ctx.fillStyle = "rgba(10,8,18,0.80)";
     ctx.fillRect(HX, HY, HW, HH);
@@ -359,6 +379,38 @@ function renderRoom(walls) {
         ctx.fillStyle = shGrd; ctx.fillRect(barX, by, barW * shRatio, SH_H);
         ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, SH_H);
         gaugeLabel(`방벽  ${Math.round(Game.pShield)}`, barX + 8, by + 11.5, 12, "#dff2ff");
+        by += SH_H + 8;
+    }
+
+    // ── 스탯 한 줄 (공격력 / 방어력 / 치명타 / 이동속도) ──
+    // 드롭 아이템으로 오르는 수치가 어디에도 안 보여서 "뭘 주운 건지 모르겠다"는 문제가 있었다.
+    {
+        const prof = classProfile(Game.pClass);
+        const atkLo = prof.dmgMin + (Game.pAtkBonus || 0) + equipAtk();
+        const atkHi = prof.dmgMax + (Game.pAtkBonus || 0) + equipAtk();
+        const def   = (Game.pDefBonus || 0) + equipDef();
+        const crit  = Math.round((prof.crit + (Game.pCritBonus || 0) + equipCrit()) * 100);
+        const spd   = Math.round((1 + (Game.pMoveSpdBonus || 0) + equipMoveSpd()) * 100);
+        const cells = [
+            ["공", `${atkLo}~${atkHi}`, "#ff8877"],
+            ["방", `${def}`,            "#7fc4ff"],
+            ["치명", `${crit}%`,        "#ff9ad5"],
+            ["이속", `${spd}%`,         "#7ff0e6"],
+        ];
+        let cx2 = barX;
+        cells.forEach(([lab, val, c]) => {
+            ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
+            ctx.textAlign = "left";
+            ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+            ctx.strokeText(lab, cx2, by + 13);
+            ctx.fillStyle = "#8e83ad"; ctx.fillText(lab, cx2, by + 13);
+            const lw = ctx.measureText(lab).width + 4;
+            ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
+            ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+            ctx.strokeText(val, cx2 + lw, by + 13);
+            ctx.fillStyle = c; ctx.fillText(val, cx2 + lw, by + 13);
+            cx2 += lw + ctx.measureText(val).width + 14;
+        });
     }
     ctx.restore();
 

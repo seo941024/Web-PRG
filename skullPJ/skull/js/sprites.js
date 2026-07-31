@@ -20,6 +20,16 @@ const CharSprites = {}; // { [classId]: { [dir]: HTMLImageElement, ready:bool } 
 // 이미지가 실제로 그릴 수 있는 상태인지
 function _imgOK(img) { return !!(img && img.complete && img.naturalWidth > 0); }
 
+// 아직 전용 도트가 없는 직업은 도적(1) 원화를 대신 쓴다.
+// (예전엔 파일이 없으면 회색 네모 placeholder가 떠서, 도적 외 직업은 캐릭터가 아예 안 보였다.
+//  직업 구분은 CLASS_PROFILE.tint 색으로 하고, 전용 도트가 나오면 이 폴백만 빠지면 됨)
+const SPRITE_FALLBACK_CLASS = 1;
+function spriteClassOf(classId) {
+    const e = CharSprites[classId];
+    if (e && ALL_DIRS.some(d => _imgOK(e.images[d]))) return classId;
+    return SPRITE_FALLBACK_CLASS;
+}
+
 function loadCharSprites(classId) {
     if (CharSprites[classId]) return CharSprites[classId];
     const entry = { ready: false, images: {}, loadedCount: 0 };
@@ -37,7 +47,11 @@ function loadCharSprites(classId) {
 
 // dir(8방향 이름)에 대해 실제로 그릴 이미지와 좌우반전 여부를 반환
 function resolveDirImage(classId, dir) {
-    const entry = CharSprites[classId];
+    let entry = CharSprites[classId];
+    // 전용 도트가 없는 직업이면 도적 원화로 대체 (없으면 로드까지 걸어둠)
+    if (!entry || !ALL_DIRS.some(d => _imgOK(entry.images[d]))) {
+        entry = CharSprites[SPRITE_FALLBACK_CLASS] || loadCharSprites(SPRITE_FALLBACK_CLASS);
+    }
     if (!entry) return null;
     // 1순위 — 그 방향 원화 그대로
     if (_imgOK(entry.images[dir])) return { img: entry.images[dir], flip: false };
@@ -48,7 +62,7 @@ function resolveDirImage(classId, dir) {
 }
 
 // 발치 기준(x,y)에 방향 스프라이트를 그림. 없으면 placeholder 사각형.
-function drawDirSprite(ctx, classId, dir, x, y) {
+function drawDirSprite(ctx, classId, dir, x, y, tint) {
     const r = resolveDirImage(classId, dir);
     if (!r) {
         // placeholder: 스프라이트 없는 직업 임시 표시
@@ -58,11 +72,20 @@ function drawDirSprite(ctx, classId, dir, x, y) {
     }
     const { img, flip } = r;
     const dw = img.naturalWidth, dh = img.naturalHeight;
+    const dx = x - dw / 2, dy = y - dh * SPRITE_FEET_RATIO;
     ctx.save();
     if (flip) {
         ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0);
     }
-    ctx.drawImage(img, x - dw / 2, y - dh * SPRITE_FEET_RATIO, dw, dh);
+    ctx.drawImage(img, dx, dy, dw, dh);
+    if (tint) { // 남의 원화를 빌려 쓸 때 직업 색으로 구분
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = tint;
+        ctx.fillRect(dx, dy, dw, dh);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+    }
     ctx.restore();
 }
 
@@ -120,22 +143,33 @@ function feetRatioFor(animName) { return ANIM_FEET_RATIO[animName] || SPRITE_FEE
 
 // 프레임 애니 렌더
 // 1순위 그 방향 원화 → 2순위 반대편 좌우반전 → 3순위 정지 포즈
-function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y) {
+function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint) {
+    const srcClass = spriteClassOf(classId); // 전용 도트 없으면 도적 원화로
     const pick = (d) => {
-        const e = loadAnim(classId, animName, d);
+        const e = loadAnim(srcClass, animName, d);
         const im = e.frames[frameIndex % (e.frameCount || ANIM_FRAME_COUNT)];
         return _imgOK(im) ? im : null;
     };
     let img = pick(dir), flip = false;
     if (!img && MIRROR_MAP[dir]) { img = pick(MIRROR_MAP[dir]); flip = !!img; }
     if (!img) {
-        drawDirSprite(ctx, classId, dir, x, y); // 폴백: 정지 포즈
+        drawDirSprite(ctx, classId, dir, x, y, tint); // 폴백: 정지 포즈
         return;
     }
     const dw = img.naturalWidth, dh = img.naturalHeight;
+    const dx = x - dw / 2, dy = y - dh * feetRatioFor(animName);
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
-    ctx.drawImage(img, x - dw / 2, y - dh * feetRatioFor(animName), dw, dh);
+    ctx.drawImage(img, dx, dy, dw, dh);
+    // 전용 도트가 없어 남의 원화를 빌려 쓰는 경우, 직업 색을 덧입혀 구분한다
+    if (tint) {
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = tint;
+        ctx.fillRect(dx, dy, dw, dh);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+    }
     ctx.restore();
 }
 

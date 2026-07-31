@@ -202,14 +202,15 @@ function dropEquipItem(x, y, kind, tier) {
 
 // 드롭 아이템 표시용 — 도트 아이콘 완성 전까지는 name(한글 라벨)만 실제로 쓰인다.
 // col/label은 미니맵 등 잔여 참조용으로 남겨둠.
+// label: 아이콘 안에 찍는 한 글자 / gain: 주우면 실제로 얼마나 오르는지(표시용, applyItemEffect와 값 일치)
 const ITEM_STYLE = {
-    hp:            { col: "#33ff66", label: "H", name: "회복" },
-    atk_drop:      { col: "#ff5544", label: "A", name: "공격력" },
-    def_drop:      { col: "#44aaff", label: "D", name: "방어력" },
-    atk_spd_drop:  { col: "#ffdd44", label: "S", name: "공격속도" },
-    move_spd_drop: { col: "#44ffee", label: "M", name: "이동속도" },
-    weapon_drop:   { col: "#ff9c2b", label: "W", name: "무기" },
-    armor_drop:    { col: "#8fb4ff", label: "R", name: "방어구" },
+    hp:            { col: "#33ff66", label: "＋", name: "회복",     gain: "+20 HP" },
+    atk_drop:      { col: "#ff5544", label: "⚔", name: "공격력",   gain: "+2" },
+    def_drop:      { col: "#44aaff", label: "◈", name: "방어력",   gain: "+1" },
+    atk_spd_drop:  { col: "#ffdd44", label: "≫", name: "공격속도", gain: "+6%" },
+    move_spd_drop: { col: "#44ffee", label: "≡", name: "이동속도", gain: "+6%" },
+    weapon_drop:   { col: "#ff9c2b", label: "⚔", name: "무기" },
+    armor_drop:    { col: "#8fb4ff", label: "◈", name: "방어구" },
 };
 
 // 아이템은 제자리에 떠 있다가 수명 만료 시 소멸, 플레이어가 닿으면 즉시 효과 적용 후 소멸.
@@ -250,13 +251,13 @@ function applyItemEffect(it) {
         if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + 20); addText(p.x, p.y - 20, "+20 HP", "#33ff66", 40, 14); }
         else { Game.score += 20; addText(p.x, p.y - 20, "점수 +20", "#aaaaff", 40, 14); }
     } else if (it.type === "atk_drop") {
-        Game.pAtkBonus += 2; addText(p.x, p.y - 20, "공격력 증가!", "#ff5544", 40, 14);
+        Game.pAtkBonus += 2; addText(p.x, p.y - 20, `공격력 +2  (총 ${Game.pAtkBonus + equipAtk()})`, "#ff5544", 50, 14);
     } else if (it.type === "def_drop") {
-        Game.pDefBonus += 1; addText(p.x, p.y - 20, "방어력 증가!", "#44aaff", 40, 14);
+        Game.pDefBonus += 1; addText(p.x, p.y - 20, `방어력 +1  (총 ${Game.pDefBonus + equipDef()})`, "#44aaff", 50, 14);
     } else if (it.type === "atk_spd_drop") {
-        Game.pAtkSpdBonus += 0.06; addText(p.x, p.y - 20, "공격 속도 증가!", "#ffdd44", 40, 14);
+        Game.pAtkSpdBonus += 0.06; addText(p.x, p.y - 20, `공격속도 +6%  (총 ${Math.round((1 + Game.pAtkSpdBonus + equipAtkSpd()) * 100)}%)`, "#ffdd44", 50, 14);
     } else if (it.type === "move_spd_drop") {
-        Game.pMoveSpdBonus += 0.06; addText(p.x, p.y - 20, "이동 속도 증가!", "#44ffee", 40, 14);
+        Game.pMoveSpdBonus += 0.06; addText(p.x, p.y - 20, `이동속도 +6%  (총 ${Math.round((1 + Game.pMoveSpdBonus + equipMoveSpd()) * 100)}%)`, "#44ffee", 50, 14);
     }
     for (let i = 0; i < 8; i++) addPart(p.x, p.y, ITEM_STYLE[it.type].col, 16, 3);
 }
