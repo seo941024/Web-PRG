@@ -2,11 +2,23 @@
 // 월드 렌더는 render_entities.js가 담당하고, 여기서는 화면 좌표(setTransform 초기화 상태) 기준으로만 그린다.
 
 // ── 공통 헬퍼 ──────────────────────────────────────────────
-// 둥근 사각형 — roundRect 미지원 브라우저에서도 깨지지 않게 사각형으로 폴백
-function _rr(x, y, w, h, r) {
+// 사각형 — 도트 게임 톤에 맞춰 **둥근 모서리를 쓰지 않는다**.
+// (radius 인자는 호출부 호환을 위해 받기만 하고 무시. 곡선/블러가 들어가면
+//  캐릭터 도트와 따로 놀면서 UI만 가볍고 매끈해 보인다.)
+// 좌표는 정수로 스냅해 가장자리가 흐릿해지는 것도 줄인다.
+function _rr(x, y, w, h, _r) {
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
-    else ctx.rect(x, y, w, h);
+    ctx.rect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+}
+
+// 픽셀 UI용 테두리 — 바깥 검정 + 안쪽 밝은 선 2겹으로 각진 프레임을 만든다
+function _pxFrame(x, y, w, h, col) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#05040a";                 // 바깥: 검은 윤곽
+    ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
+    ctx.strokeStyle = col;                        // 안쪽: 색 테두리
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
 }
 
 // 폭을 넘는 글자는 …로 잘라 반환 — 패널 밖으로 글씨가 튀어나가는 걸 막는다
@@ -22,80 +34,52 @@ function _fit(txt, maxW, size, bold) {
 //   ① 아래로 드리우는 그림자(떠 있는 느낌) ② 본체 그라디언트
 //   ③ 위/왼쪽 밝은 베벨 + 아래/오른쪽 어두운 베벨(두께감) ④ 상단 광택 ⑤ 바깥 글로우 테두리
 function _uiPanel(x, y, w, h, accent) {
-    const col = uiMute(accent || UIC.line, 0.35);   // 네온기 제거
+    const col = uiMute(accent || UIC.line, 0.35);
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
 
-    // ① 바닥 그림자 — 패널이 화면 위에 떠 있는 것처럼
-    ctx.save();
+    // ① 아래로 1칸 밀린 통짜 그림자 — 블러가 아니라 도트처럼 계단식으로
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(x + 4, y + 4, w, h);
+
+    // ② 본체 — 매끄러운 그라디언트 대신 두 단계 평면 색
+    ctx.fillStyle = "#15121f";
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = "#1c1828";
+    ctx.fillRect(x, y, w, Math.round(h * 0.42));
+
+    // ③ 안쪽 하이라이트/그림자 1px — 각진 두께감
+    ctx.fillStyle = "rgba(255,255,255,0.09)";
+    ctx.fillRect(x + 2, y + 2, w - 4, 1);
+    ctx.fillRect(x + 2, y + 2, 1, h - 4);
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.shadowBlur = 18; ctx.shadowColor = "rgba(0,0,0,0.9)";
-    _rr(x + 3, y + 5, w, h, 8); ctx.fill();
-    ctx.restore();
+    ctx.fillRect(x + 2, y + h - 3, w - 4, 1);
+    ctx.fillRect(x + w - 3, y + 2, 1, h - 4);
 
-    // ② 본체 — 채도를 낮춘 회보라 계열
-    const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0,    "rgba(30,26,40,0.96)");
-    g.addColorStop(0.55, "rgba(18,15,26,0.96)");
-    g.addColorStop(1,    "rgba(9,8,14,0.96)");
-    ctx.fillStyle = g;
-    _rr(x, y, w, h, 8); ctx.fill();
-
-    // ③ 베벨 — 위/왼쪽은 밝게, 아래/오른쪽은 어둡게 해서 두께가 있는 판처럼
-    ctx.save();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
-    ctx.beginPath();
-    ctx.moveTo(x + 2, y + h - 8); ctx.lineTo(x + 2, y + 8);
-    ctx.quadraticCurveTo(x + 2, y + 2, x + 8, y + 2); ctx.lineTo(x + w - 8, y + 2);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.55)";
-    ctx.beginPath();
-    ctx.moveTo(x + w - 2, y + 8); ctx.lineTo(x + w - 2, y + h - 8);
-    ctx.quadraticCurveTo(x + w - 2, y + h - 2, x + w - 8, y + h - 2); ctx.lineTo(x + 8, y + h - 2);
-    ctx.stroke();
-    ctx.restore();
-
-    // ④ 상단 광택
-    const hg = ctx.createLinearGradient(x, y, x, y + Math.min(h * 0.32, 44));
-    hg.addColorStop(0, "rgba(210,200,230,0.07)");
-    hg.addColorStop(1, "rgba(210,200,230,0)");
-    ctx.fillStyle = hg;
-    _rr(x + 2, y + 2, w - 4, Math.min(h * 0.32, 44), [7, 7, 0, 0]); ctx.fill();
-
-    // ⑤ 테두리 + 글로우
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 5; ctx.shadowColor = "rgba(0,0,0,0.8)";  // 형광 글로우 대신 은은한 그림자만
-    _rr(x, y, w, h, 8); ctx.stroke();
-    ctx.shadowBlur = 0;
+    // ④ 각진 2겹 테두리
+    _pxFrame(x, y, w, h, col);
 }
 
-// 게이지 — 파인 홈(inset)에 채워 넣고 위쪽에 광택을 얹어 입체적으로
-function _uiBar(x, y, w, h, ratio, colA, colB, r) {
-    r = r === undefined ? Math.min(5, h / 2) : r;
-    // 홈 바닥 + 안쪽 그림자
-    ctx.fillStyle = "rgba(0,0,0,0.72)";
-    _rr(x, y, w, h, r); ctx.fill();
-    const ish = ctx.createLinearGradient(x, y, x, y + h);
-    ish.addColorStop(0, "rgba(0,0,0,0.65)");
-    ish.addColorStop(0.5, "rgba(0,0,0,0)");
-    ctx.fillStyle = ish;
-    _rr(x, y, w, h, r); ctx.fill();
+// 게이지 — 둥근 모서리·그라디언트 없이 각진 홈에 평면으로 채운다
+function _uiBar(x, y, w, h, ratio, colA, colB, _r) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    // 홈 바닥
+    ctx.fillStyle = "#0a0810";
+    ctx.fillRect(x, y, w, h);
 
-    const fw = Math.max(0, Math.min(1, ratio)) * w;
-    if (fw > 1) {
-        const fg = ctx.createLinearGradient(x, y, x, y + h);
-        fg.addColorStop(0, colA);
-        fg.addColorStop(1, colB);
-        ctx.fillStyle = fg;
-        _rr(x, y, fw, h, r); ctx.fill();
-        // 위쪽 광택
-        ctx.fillStyle = "rgba(255,255,255,0.16)";
-        _rr(x + 1, y + 1, Math.max(0, fw - 2), Math.max(1, h * 0.38), [r, r, 0, 0]); ctx.fill();
+    const fw = Math.round(Math.max(0, Math.min(1, ratio)) * w);
+    if (fw > 0) {
+        ctx.fillStyle = colB;                    // 아래쪽 어두운 몸통
+        ctx.fillRect(x, y, fw, h);
+        ctx.fillStyle = colA;                    // 위쪽 밝은 띠 (2단 평면)
+        ctx.fillRect(x, y, fw, Math.max(1, Math.round(h * 0.45)));
+        ctx.fillStyle = "rgba(255,255,255,0.14)"; // 최상단 1px 하이라이트
+        ctx.fillRect(x, y, fw, 1);
     }
-    // 테두리
-    ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 1.5;
-    _rr(x, y, w, h, r); ctx.stroke();
+    // 각진 검은 테두리
+    ctx.lineWidth = 2; ctx.strokeStyle = "#05040a";
+    ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
 }
+
 // 게임 안 모든 글씨는 여기를 거친다.
 // 예전엔 호출할 때마다 굵기/글로우/외곽선을 따로 넘겨서 화면마다 스타일이 제각각이었다
 // (어떤 건 얇고, 어떤 건 형광, 어떤 건 외곽선). 도트 게임에서는 검은 외곽선이 제일 깔끔하므로
@@ -170,22 +154,13 @@ function renderClassSelect() {
         const c = p.tint || "#cc44ff";
         const ty = sel ? 116 : 120, th = sel ? 58 : 54; // 선택된 탭은 살짝 커지며 떠오름
         ctx.save();
-        // 아래 그림자로 떠 있는 느낌
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        _rr(x + 2, ty + 4, tabW, th, 6); ctx.fill();
-        const tg = ctx.createLinearGradient(x, ty, x, ty + th);
-        if (sel) { tg.addColorStop(0, "rgba(48,30,72,0.98)"); tg.addColorStop(1, "rgba(16,8,28,0.98)"); }
-        else     { tg.addColorStop(0, "rgba(20,12,34,0.9)");  tg.addColorStop(1, "rgba(8,4,16,0.9)"); }
-        ctx.fillStyle = tg;
-        _rr(x, ty, tabW, th, 6); ctx.fill();
-        // 위쪽 밝은 베벨
-        ctx.strokeStyle = sel ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)";
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x + 4, ty + 2); ctx.lineTo(x + tabW - 4, ty + 2); ctx.stroke();
-        if (sel) { ctx.shadowBlur = 18; ctx.shadowColor = c; }
-        ctx.strokeStyle = c; ctx.lineWidth = sel ? 3 : 1.5;
-        _rr(x, ty, tabW, th, 6); ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(Math.round(x) + 3, Math.round(ty) + 3, Math.round(tabW), Math.round(th));
+        ctx.fillStyle = sel ? "#221c33" : "#131020";
+        ctx.fillRect(Math.round(x), Math.round(ty), Math.round(tabW), Math.round(th));
+        ctx.fillStyle = sel ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.05)";
+        ctx.fillRect(Math.round(x) + 2, Math.round(ty) + 2, Math.round(tabW) - 4, 1);
+        _pxFrame(x, ty, tabW, th, sel ? uiMute(c, 0.3) : UIC.lineDim);
         ctx.restore();
         _uiText(_fit(p.name, tabW - 12, sel ? 24 : 20, true), x + tabW / 2, ty + th / 2 + 8,
             sel ? 24 : 20, sel ? c : "#7d739c", "center", true, sel ? 8 : 0);
@@ -232,8 +207,8 @@ function renderClassSelect() {
     if (line) _uiText(line, skx, ly, 14, "#c3b9dd");
     _uiText(`쿨다운 ${(prof.skillCD / 60).toFixed(1)}초`, skx, ly + 30, 13, "#8e83ad", "left");
 
-    if (prof.ranged) _uiText("※ 기본 공격이 원거리다", skx, ly + 54, 13, "#66ccff", "left", true);
-    if (prof.tint)   _uiText("※ 전용 도트는 아직 없다 — 색으로 임시 구분", px + 28, py + ph - 18, 12, "#6e6390", "left");
+    if (prof.ranged) _uiText("※ 기본 공격이 원거리입니다", skx, ly + 54, 13, "#66ccff", "left", true);
+    if (prof.tint)   _uiText("※ 전용 스프라이트가 없어 색으로 구분합니다", px + 28, py + ph - 18, 12, "#6e6390", "left");
 
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
         _uiText("▶  SPACE 로 시작  ◀", UW / 2, UH - 40, 20, col, "center", true, 10);
@@ -242,12 +217,12 @@ function renderClassSelect() {
 
 // 직업선택 화면에 띄우는 스킬 설명 (실제 동작은 skill.js)
 const SKILL_DESC = {
-    0: "주변 전체에 신성 충격파를 터뜨려 적을 밀어내고 1초간 무적이 된다. 위기 탈출기로도 쓸 수 있다.",
-    1: "바라보는 방향으로 순간이동한 뒤 전방을 5연타로 난도질한다. 이동 중 짧은 무적.",
-    2: "관통하는 냉기탄 5발을 부채꼴로 발사하고, 잠시 주변 적을 크게 느려지게 만든다.",
-    3: "대지를 내리쳐 넓은 원형에 강타를 넣고 적을 크게 밀어낸다. 자기 체력 8%를 소모한다.",
-    4: "전방 부채꼴로 12발을 빠르게 흩뿌린다. 탄 하나는 약하지만 몰아넣으면 강하다.",
-    5: "전방 광역을 베고, 명중한 적 수에 비례해 체력을 흡수한다.",
+    0: "주변 전체에 신성 충격파를 터뜨려 적을 밀어내고 1초간 무적이 됩니다. 위기 탈출기로도 쓸 수 있습니다.",
+    1: "바라보는 방향으로 순간이동한 뒤 전방을 5연타로 난도질합니다. 이동 중 짧은 무적.",
+    2: "관통하는 냉기탄 5발을 부채꼴로 발사하고, 잠시 주변 적을 크게 느려지게 만듭니다.",
+    3: "대지를 내리쳐 넓은 원형에 강타를 넣고 적을 크게 밀어냅니다. 자신의 체력 8%를 소모합니다.",
+    4: "전방 부채꼴로 12발을 빠르게 흩뿌린다. 탄 하나는 약하지만 몰아넣으면 강력합니다.",
+    5: "전방 광역을 베고, 명중한 적 수에 비례해 체력을 흡수합니다.",
 };
 
 function renderMenu() {
@@ -270,12 +245,7 @@ function renderMenu() {
         ctx.fillStyle = grd; ctx.fillRect(0, 0, UW, UH);
     }
 
-    const pulse = 0.8 + Math.sin(Game.frameCount * 0.05) * 0.2;
-    ctx.save();
-    ctx.shadowBlur = 26 * pulse; ctx.shadowColor = "#ff2200";
-    _uiText("해골용사", UW / 2, UH * 0.36, 62, "#fff8e7", "center", true);
-    ctx.shadowBlur = 0;
-    ctx.restore();
+    _uiText("해골용사", UW / 2, UH * 0.36, 62, "#e8dfd0", "center");
     _uiText("SKULL YUUSHA — 탑다운", UW / 2, UH * 0.36 + 32, 14, "#9a8cc0", "center");
 
     // 시작 안내 (깜빡임)
@@ -293,8 +263,8 @@ function renderRelicSelect() {
     ctx.fillStyle = "rgba(4,2,10,0.9)";
     ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("유물을 하나 골라라", UW / 2, 96, 30, "#ffcc44", "center", true, 14);
-    _uiText("이번 탐험 동안만 남는다", UW / 2, 124, 13, "#8e83ad", "center");
+    _uiText("유물을 하나 선택하세요", UW / 2, 96, 30, "#ffcc44", "center", true, 14);
+    _uiText("이번 탐험에서만 유지됩니다", UW / 2, 124, 13, "#8e83ad", "center");
 
     const cards = Game.relicChoices;
     const cw = 260, ch = 300, gap = 34;
@@ -308,28 +278,22 @@ function renderRelicSelect() {
         // 선택된 카드는 살짝 떠오르고 테두리가 밝아짐
         const y = sy - (sel ? 12 : 0);
 
-        // 카드 — 상점 카드와 같은 톤(그라디언트 + 글로우). 희귀도 색이 카드 전체를 물들인다.
-        ctx.save();
-        const cg = ctx.createLinearGradient(x, y, x, y + ch);
-        if (sel) { cg.addColorStop(0, "rgba(34,20,52,0.97)"); cg.addColorStop(1, "rgba(10,4,18,0.97)"); }
-        else     { cg.addColorStop(0, "rgba(16,8,28,0.92)");  cg.addColorStop(1, "rgba(6,2,12,0.92)"); }
-        ctx.fillStyle = cg;
-        _rr(x, y, cw, ch, 9); ctx.fill();
+        // 카드 — 각진 픽셀 프레임. 희귀도 색은 테두리와 상단 띠로만 드러낸다.
+        const rc = uiMute(rar.color, 0.3);
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(Math.round(x) + 4, Math.round(y) + 4, Math.round(cw), Math.round(ch));
+        ctx.fillStyle = sel ? "#1d1830" : "#141020";
+        ctx.fillRect(Math.round(x), Math.round(y), Math.round(cw), Math.round(ch));
+        // 상단 희귀도 띠 (그라데이션 없이 통짜)
+        ctx.fillStyle = rc;
+        ctx.globalAlpha = sel ? 0.30 : 0.18;
+        ctx.fillRect(Math.round(x), Math.round(y), Math.round(cw), 44);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(Math.round(x), Math.round(y) + 44, Math.round(cw), 1);
+        _pxFrame(x, y, cw, ch, sel ? rc : UIC.lineDim);
 
-        if (sel) { ctx.shadowBlur = 22; ctx.shadowColor = rar.color; }
-        ctx.strokeStyle = rar.color;
-        ctx.lineWidth = sel ? 3 : 1.5;
-        _rr(x, y, cw, ch, 9); ctx.stroke();
-        ctx.shadowBlur = 0;
-        ctx.restore();
-
-        // 희귀도 띠 — 위에서 아래로 옅어지게
-        const rg = ctx.createLinearGradient(x, y, x, y + 46);
-        rg.addColorStop(0, rar.color + (sel ? "66" : "3a"));
-        rg.addColorStop(1, rar.color + "00");
-        ctx.fillStyle = rg;
-        _rr(x, y, cw, 46, [9, 9, 0, 0]); ctx.fill();
-        _uiText(rar.name, x + cw / 2, y + 28, 15, rar.color, "center", true, sel ? 6 : 0);
+        _uiText(rar.name, x + cw / 2, y + 28, 15, uiMute(rar.color, 0.25), "center");
 
         _uiText(r.name, x + cw / 2, y + 86, 21, "#ffffff", "center", true, sel ? 8 : 0);
 
@@ -413,57 +377,24 @@ function renderShop() {
         const canBuy = afford && !maxed;
         const cp = sel && !maxed ? pulse : 0;
 
-        // 선택 카드 글로우
-        if (sel) {
-            ctx.save();
-            ctx.shadowBlur = 16 + cp * 10; ctx.shadowColor = maxed ? "#ffaa22" : u.color;
-            ctx.strokeStyle = "rgba(0,0,0,0)"; ctx.lineWidth = 1;
-            _rr(bx - 2, by - 2, bw + 4, bh + 4, 9); ctx.stroke();
-            ctx.restore();
-        }
-
-        // 카드 배경 그라디언트 — 최대강화는 금색, 구입 가능은 보라, 부족은 어둡게
-        const cg = ctx.createLinearGradient(bx, by, bx, by + bh);
-        if (maxed) {
-            cg.addColorStop(0, "rgba(52,38,6,0.95)"); cg.addColorStop(1, "rgba(22,15,2,0.95)");
-        } else if (canBuy) {
-            cg.addColorStop(0, `rgba(${40 + Math.round(cp * 14)},0,${64 + Math.round(cp * 20)},0.94)`);
-            cg.addColorStop(1, "rgba(10,0,18,0.94)");
-        } else {
-            cg.addColorStop(0, "rgba(16,2,26,0.90)"); cg.addColorStop(1, "rgba(6,0,12,0.90)");
-        }
-        ctx.fillStyle = cg;
-        _rr(bx, by, bw, bh, 8); ctx.fill();
-
-        // 최대강화 골드 상단 스트라이프
-        if (maxed) {
-            const hg = ctx.createLinearGradient(bx, by, bx + bw, by);
-            hg.addColorStop(0, "rgba(255,200,0,0)");
-            hg.addColorStop(0.5, "rgba(255,200,0,0.10)");
-            hg.addColorStop(1, "rgba(255,200,0,0)");
-            ctx.fillStyle = hg;
-            _rr(bx, by, bw, bh * 0.32, [8, 8, 0, 0]); ctx.fill();
-        }
-
-        // 카드 테두리
-        ctx.lineWidth = 2;
-        if (maxed) {
-            ctx.shadowBlur = 4; ctx.shadowColor = "#996600";
-            ctx.strokeStyle = "#886600";
-        } else if (sel) {
-            ctx.shadowBlur = 6 + cp * 8; ctx.shadowColor = u.color;
-            ctx.strokeStyle = u.color;
-        } else if (canBuy) {
-            ctx.shadowBlur = 0; ctx.strokeStyle = "#6a2a9a";
-        } else {
-            ctx.shadowBlur = 0; ctx.strokeStyle = "#2d0044";
-        }
-        _rr(bx, by, bw, bh, 8); ctx.stroke();
-        ctx.shadowBlur = 0;
+        // 카드 — 각진 픽셀 프레임 (곡선·그라디언트·글로우 없음)
+        const cardCol = maxed ? "#8a6a22" : (sel ? uiMute(u.color, 0.3) : UIC.lineDim);
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(Math.round(bx) + 4, Math.round(by) + 4, Math.round(bw), Math.round(bh));
+        ctx.fillStyle = maxed ? "#221b0e" : (sel ? "#201a30" : "#12101c");
+        ctx.fillRect(Math.round(bx), Math.round(by), Math.round(bw), Math.round(bh));
+        // 상단 절반만 살짝 밝게 — 평면 2단
+        ctx.fillStyle = "rgba(255,255,255,0.045)";
+        ctx.fillRect(Math.round(bx), Math.round(by), Math.round(bw), Math.round(bh * 0.4));
+        ctx.fillStyle = "rgba(255,255,255,0.09)";
+        ctx.fillRect(Math.round(bx) + 2, Math.round(by) + 2, Math.round(bw) - 4, 1);
+        _pxFrame(bx, by, bw, bh, cardCol);
 
         // 좌상단 인덱스 뱃지
-        ctx.fillStyle = maxed ? "rgba(90,60,0,0.95)" : (sel ? "rgba(90,20,130,0.95)" : "rgba(45,0,70,0.9)");
-        _rr(bx + 8, by + 8, 26, 20, 4); ctx.fill();
+        ctx.fillStyle = maxed ? "#4a3610" : (sel ? "#33254a" : "#1d1830");
+        ctx.fillRect(Math.round(bx) + 8, Math.round(by) + 8, 26, 20);
+        ctx.strokeStyle = "#05040a"; ctx.lineWidth = 2;
+        ctx.strokeRect(Math.round(bx) + 7, Math.round(by) + 7, 28, 22);
         _uiText(String(i + 1), bx + 21, by + 23, 13,
             maxed ? "#ffdd44" : (sel ? "#e8b0ff" : "#8a6aa8"), "center");
 
@@ -563,7 +494,8 @@ function renderPause() {
 
     _uiText(`유물 (${Game.relics.length})`, qx + 20, py + 130, 18, "#ffcc44", "left", true);
     if (Game.relics.length === 0) {
-        _uiText(_fit("아직 없다 — 보스를 쓰러뜨리면 얻는다", qw - 48, 13), qx + 24, py + 158, 13, "#4a4360");
+        _uiText(_fit("보유 중인 유물이 없습니다.", qw - 48, 13), qx + 24, py + 158, 13, UIC.faint);
+        _uiText(_fit("보스를 처치하면 획득할 수 있습니다.", qw - 48, 13), qx + 24, py + 178, 13, UIC.faint);
     } else {
         // 2열 — 열 폭이 좁으면 이름이 잘리므로 _fit으로 …처리
         const colW = (qw - 48) / 2;
@@ -588,7 +520,7 @@ function renderDead() {
     ctx.fillStyle = "rgba(6,0,10,0.88)";
     ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("쓰러졌다", UW / 2, UH / 2 - 90, 46, "#ff3344", "center", true, 22);
+    _uiText("쓰러졌습니다", UW / 2, UH / 2 - 90, 46, "#ff3344", "center", true, 22);
 
     const theme = stageTheme();
     _uiText(`STAGE ${Game.stageN}-${Game.roundN}  ${theme.name} 에서 쓰러짐`,
@@ -608,7 +540,7 @@ function renderDead() {
         _uiText(s[1], px + 396, y, 14, "#ffffff", "right", true);
     });
 
-    _uiText(`이번 런에서 모은 다크 쿼츠는 그대로 남습니다 (보유 ${Game.darkQuartz})`,
+    _uiText(`이번 탐험에서 모은 다크 쿼츠는 그대로 남습니다 (보유 ${Game.darkQuartz})`,
         UW / 2, UH / 2 + 130, 13, "#dd88ff", "center");
 
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
@@ -621,7 +553,7 @@ function renderWin() {
     uiBegin();
     ctx.fillStyle = "rgba(4,2,10,0.9)";
     ctx.fillRect(0, 0, UW, UH);
-    _uiText("마왕을 쓰러뜨렸다", UW / 2, UH / 2 - 40, 46, "#ffcc44", "center", true, 24);
+    _uiText("마왕을 쓰러뜨렸습니다", UW / 2, UH / 2 - 40, 46, "#ffcc44", "center", true, 24);
     _uiText(`${STAGE_COUNT * ROUNDS_PER_STAGE}스테이지 완주  ·  점수 ${Game.score}  ·  처치 ${Game.kills}`,
         UW / 2, UH / 2 + 6, 17, "#cbb8ee", "center");
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
@@ -634,17 +566,17 @@ function renderWin() {
 // (플래시 웹게임 인상의 주된 원인) 게임 안 오버레이로 옮겼다.
 const KEY_GUIDE = [
     { sec: "이동" },
-    { k: "← → ↑ ↓  /  W A S D", d: "8방향 이동" },
-    { k: "Z (누르는 동안)",      d: "스프린트 — 이동 속도 2배" },
-    { k: "Space",                d: "회피 — 짧은 무적 + 잔상, 기력 소모" },
+    { k: "← → ↑ ↓  /  W A S D", d: "8방향으로 이동합니다" },
+    { k: "Z (누르는 동안)",      d: "스프린트 — 이동 속도가 2배가 됩니다" },
+    { k: "Space",                d: "회피 — 짧은 무적, 기력을 소모합니다" },
     { sec: "전투" },
-    { k: "C",                    d: "공격 — 연타하면 4타 콤보, 마지막 타는 피해 증가" },
-    { k: "Shift",                d: "직업 스킬 — 쿨다운은 HUD 게이지로 표시" },
+    { k: "C",                    d: "공격 — 연타 시 4타 콤보, 마지막 타는 피해가 증가합니다" },
+    { k: "Shift",                d: "직업 스킬 — 쿨다운은 HUD 게이지에 표시됩니다" },
     { sec: "화면" },
-    { k: "ESC",                  d: "일시정지 (스탯·장비·유물 확인)" },
-    { k: "H",                    d: "이 조작법 열기 / 닫기" },
-    { k: "M",                    d: "음소거" },
-    { k: "R",                    d: "사망 화면에서 재시작" },
+    { k: "ESC",                  d: "일시정지 — 스탯·장비·유물을 확인합니다" },
+    { k: "H",                    d: "조작법을 열거나 닫습니다" },
+    { k: "M",                    d: "소리를 끄거나 켭니다" },
+    { k: "R",                    d: "사망 화면에서 다시 시작합니다" },
 ];
 
 function renderKeyGuide() {
@@ -711,9 +643,9 @@ function renderMinimap() {
     // 적 — 보스는 크고 금색
     Game.enemies.forEach(e => {
         if (!e.active || e.dead) return;
-        ctx.fillStyle = e.isBoss ? "#ffcc33" : (e.isElite ? "#ffaa22" : "#ff5555");
-        const r = e.isBoss ? 3.5 : 2;
-        ctx.beginPath(); ctx.arc(mx + e.x * sc, my + e.y * sc, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = e.isBoss ? "#c9a44e" : (e.isElite ? "#b8893a" : "#b05046");
+        const r = e.isBoss ? 4 : 3;
+        ctx.fillRect(Math.round(mx + e.x * sc - r / 2), Math.round(my + e.y * sc - r / 2), r, r);
     });
 
     // 아이템
@@ -724,7 +656,7 @@ function renderMinimap() {
     });
 
     // 플레이어
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath(); ctx.arc(mx + Player.x * sc, my + Player.y * sc, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#e8e2f0";
+    ctx.fillRect(Math.round(mx + Player.x * sc - 2), Math.round(my + Player.y * sc - 2), 4, 4);
     ctx.restore();
 }

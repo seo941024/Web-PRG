@@ -153,8 +153,8 @@ function renderRoom(walls) {
     // 적 투사체 (보스 패턴 등)
     Game.eBullets.forEach(b => {
         if (!b.active) return;
-        ctx.fillStyle = "#ff6633";
-        ctx.shadowBlur = 6; ctx.shadowColor = "#ff6633";
+        ctx.fillStyle = "#c4563a";
+        ctx.shadowBlur = 4; ctx.shadowColor = "#a8452a";
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0;
     });
@@ -183,25 +183,22 @@ function renderRoom(walls) {
         ctx.translate(it.x, it.y + bob);
 
         // 바닥 광원 — 어디에 떨어졌는지 눈에 띄게
-        const gr = ctx.createRadialGradient(0, 4, 1, 0, 4, 16);
-        gr.addColorStop(0, col + "55");
-        gr.addColorStop(1, col + "00");
-        ctx.fillStyle = gr;
-        ctx.beginPath(); ctx.ellipse(0, 4, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
+        // 발밑 그림자 — 블러 없이 납작한 통짜
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(-9, 4, 18, 3);
 
-        // 아이콘 — 마름모(장비는 한 겹 더 둘러 구분)
-        ctx.shadowBlur = 8; ctx.shadowColor = col;
+        // 아이콘 — 각진 픽셀 상자(장비는 한 겹 더 둘러 구분). 곡선·글로우 없음.
+        ctx.fillStyle = "#05040a";
+        ctx.fillRect(-9, -9, 18, 18);
         ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.moveTo(0, -10); ctx.lineTo(9, 0); ctx.lineTo(0, 10); ctx.lineTo(-9, 0);
-        ctx.closePath(); ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillRect(-7, -7, 14, 14);
+        ctx.fillStyle = "rgba(255,255,255,0.22)";   // 위쪽 1px 하이라이트
+        ctx.fillRect(-7, -7, 14, 2);
+        ctx.fillStyle = "rgba(0,0,0,0.30)";         // 아래쪽 음영
+        ctx.fillRect(-7, 4, 14, 3);
         if (it.equip) {
-            ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(0, -15); ctx.lineTo(13, 0); ctx.lineTo(0, 15); ctx.lineTo(-13, 0);
-            ctx.closePath(); ctx.stroke();
+            ctx.strokeStyle = col; ctx.lineWidth = 2;
+            ctx.strokeRect(-12, -12, 24, 24);
         }
         // 기호
         ctx.font = "bold 11px SkullFont, NeoDunggeunmo, monospace";
@@ -245,7 +242,7 @@ function renderRoom(walls) {
     Game.pBullets.forEach(b => {
         if (!b.active) return;
         ctx.fillStyle = b.col;
-        ctx.shadowBlur = 8; ctx.shadowColor = b.col;
+        ctx.shadowBlur = 3; ctx.shadowColor = "rgba(0,0,0,0.6)";
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0;
     });
@@ -449,13 +446,11 @@ function renderRoom(walls) {
     ctx.save();
     ctx.textAlign = "right";
     const rightX = UW - 18;
-    const outlined = (txt, y, size, col, glow) => {
+    const outlined = (txt, y, size, col) => {
         ctx.font = `bold ${size}px SkullFont, NeoDunggeunmo, monospace`;
         ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.88)";
         ctx.strokeText(txt, rightX, y);
-        if (glow) { ctx.shadowBlur = glow; ctx.shadowColor = col; }
         ctx.fillStyle = col; ctx.fillText(txt, rightX, y);
-        ctx.shadowBlur = 0;
     };
     // 테마 accent를 그대로 쓰면 형광 초록/주황이라 눈이 아파 UI에서는 한 톤 죽인다
     outlined(
@@ -476,19 +471,9 @@ function renderRoom(walls) {
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(8,5,14,0.80)";
         ctx.fillRect(UW / 2 - 300, 96, 600, 64);
-        ctx.strokeStyle = theme.palette.accent; ctx.lineWidth = 2;
-        ctx.strokeRect(UW / 2 - 300, 96, 600, 64);
-        ctx.font = "bold 26px SkullFont, NeoDunggeunmo, monospace";
-        ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.strokeText(Game.bannerText || "", UW / 2, 128);
-        ctx.fillStyle = theme.palette.accent;
-        ctx.shadowBlur = 10; ctx.shadowColor = theme.palette.accent;
-        ctx.fillText(Game.bannerText || "", UW / 2, 128);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = "#a396c4";
-        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(theme.subtitle, UW / 2, 149);
-        ctx.textAlign = "left";
+        _pxFrame(UW / 2 - 300, 96, 600, 64, uiMute(theme.palette.accent, 0.5));
+        _uiText(Game.bannerText || "", UW / 2, 128, 26, uiMute(theme.palette.accent, 0.45), "center");
+        _uiText(theme.subtitle, UW / 2, 149, 13, UIC.label, "center");
         ctx.restore();
     }
 
@@ -501,10 +486,10 @@ function renderRoom(walls) {
             ctx.textAlign = "center";
             ctx.font = "bold 20px SkullFont, NeoDunggeunmo, monospace";
             ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-            ctx.strokeText("적을 모두 쓰러뜨렸다 — 동쪽 문이 열렸다", UW / 2, UH - 30);
+            ctx.strokeText("적을 모두 처치했습니다 — 동쪽 문이 열렸습니다", UW / 2, UH - 30);
             ctx.fillStyle = "#3cdc78";
-            ctx.shadowBlur = 10; ctx.shadowColor = "#3cdc78";
-            ctx.fillText("적을 모두 쓰러뜨렸다 — 동쪽 문이 열렸다", UW / 2, UH - 30);
+
+            ctx.fillText("적을 모두 처치했습니다 — 동쪽 문이 열렸습니다", UW / 2, UH - 30);
             ctx.shadowBlur = 0;
             ctx.restore();
         }
