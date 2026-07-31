@@ -35,9 +35,11 @@ function pickSpawnSpots(n, walls) {
             if (!blocked) cands.push([gx, gy]);
         }
     }
-    // 후보를 섞어서 앞에서 n개 — 매 런마다 배치가 달라져 반복 플레이가 덜 지루해짐
+    // 후보를 섞어서 앞에서 n개 — 탐험마다 배치가 달라져 반복 플레이가 덜 지루해짐.
+    // 몹 수와 같은 방 시드를 쓰므로 같은 탐험의 같은 방은 항상 같은 배치가 된다.
+    const rnd = roomRng(Game.stageN, Game.roundN);
     for (let i = cands.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(rnd() * (i + 1));
         [cands[i], cands[j]] = [cands[j], cands[i]];
     }
     if (cands.length === 0) return [[700, 500]]; // 이론상 안 나오지만 안전장치

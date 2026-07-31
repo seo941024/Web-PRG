@@ -139,6 +139,9 @@ const Game = {
     chillT: 0,         // 마법사 서릿발 감속 지속시간
     classIdx: 1,       // 직업 선택 화면 커서 (기본 도적)
 
+    // 방 구성(몹 수·배치) 난수 시드 — resetRun()에서 갱신되어 탐험마다 배치가 달라진다
+    runSeed: (Date.now() ^ 0x9e3779b9) >>> 0,
+
     frameCount: 0,
 };
 
@@ -163,6 +166,7 @@ function resetRun() {
     Game.pSlowAura = false; Game.pLowHpDmg = false;
     Game.regenT = 0;
     Game.hitCombo = 0; Game.hitComboT = 0; Game.hitComboBest = 0;
+    Game.runSeed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0; // 새 탐험 = 새 배치
 
     Game.equip = { weapon: null, armor: null };
     Game.relics = []; Game.relicChoices = []; Game.relicIdx = 0;

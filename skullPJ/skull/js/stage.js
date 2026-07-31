@@ -359,8 +359,36 @@ function roundObstacles(stageN, roundN) {
 }
 
 // 일반 라운드의 몹 수 — 스테이지·라운드가 오를수록 조금씩 늘어남
+// ── 시드 기반 난수 ────────────────────────────────────────
+// 방마다 고정된 난수열을 쓴다. 같은 탐험 안에서 같은 방은 항상 같은 구성이 나오고
+// (재입장·리렌더로 몹 수가 바뀌지 않음), 탐험이 바뀌면 runSeed가 달라져 배치도 달라진다.
+function _hash32(x) {
+    x |= 0;
+    x = Math.imul(x ^ (x >>> 16), 2246822507);
+    x = Math.imul(x ^ (x >>> 13), 3266489909);
+    return (x ^ (x >>> 16)) >>> 0;
+}
+function roomRng(stageN, roundN) {
+    let s = _hash32((Game.runSeed || 1) ^ _hash32(stageN * 73856093 ^ roundN * 19349663));
+    return function () {
+        s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// 일반 라운드의 몹 수 — 최소 10, 최대 20.
+// 방이 넓은데 예전 공식(2+roundN+…)은 최대 8마리라 텅 비어 보였다.
+// 진행도에 따라 중심값이 11 → 18로 오르고, 방마다 ±2 정도 흔들린다.
+const MOB_MIN = 10, MOB_MAX = 20;
 function roundMobCount(stageN, roundN) {
-    return 2 + roundN + Math.floor((stageN - 1) / 2);
+    const total = STAGE_COUNT * ROUNDS_PER_STAGE;
+    const p = (globalRound(stageN, roundN) - 1) / Math.max(1, total - 1); // 0~1
+    const center = 11 + p * 7;
+    const rnd = roomRng(stageN, roundN);
+    const n = Math.round(center + (rnd() * 4 - 2));
+    return Math.max(MOB_MIN, Math.min(MOB_MAX, n));
 }
 
 // audio.js가 BGM 트랙을 고르는 데 쓰는 "월드 그룹" 번호.
