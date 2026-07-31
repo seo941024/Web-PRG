@@ -14,17 +14,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- 조작 안내는 캔버스 밖 HTML이 아니라 게임 안 [H] 조작법 화면에서 보여준다.
+       (HTML 힌트바가 화면 아래 붙어 있으면 플래시 웹게임처럼 보여서 걷어냄) -->
   <div id="wrap">
     <canvas id="c" width="1280" height="720"></canvas>
-    <div id="hint">
-      <span class="hkey">방향키/WASD</span><span class="hlbl">이동</span>
-      <span class="hkey">Z</span><span class="hlbl">스프린트</span>
-      <span class="hkey">Space</span><span class="hlbl">회피</span>
-      <span class="hkey">C</span><span class="hlbl">공격</span>
-      <span class="hkey">Shift</span><span class="hlbl">스킬</span>
-      <span class="hkey">ESC</span><span class="hlbl">일시정지</span>
-      <span class="hkey">M</span><span class="hlbl">음소거</span>
-    </div>
   </div>
 
   <!-- 상태/유틸 -->

@@ -1,5 +1,5 @@
 // main.js — 게임 루프 + 상태머신 + 방 생성/진행
-// 총 15스테이지: 5테마(stageN 1~5) × 3라운드(roundN 1~3), 라운드 3은 보스방.
+// 총 30스테이지: 10테마(stageN 1~10) × 3라운드(roundN 1~3), 라운드 3은 보스방.
 // 테마·레이아웃·몹 구성·보스 스탯은 stage.js에 데이터로 분리돼 있고, 여기서는 그걸 읽어
 // 방을 조립(buildRoom)하고 상태 전이를 관리한다.
 //
@@ -90,6 +90,7 @@ function buildRoom(stageN, roundN) {
     Player.invT = 60;   // 입장 직후 1초 무적 — 스폰 즉시 피격 방지
     Game._doorLock = 40; // 새 방 스폰 직후 문 재트리거 방지
     Game._clearSfxDone = false;
+    Game._bossKillT = 0;
 }
 
 // 방 입장 — 보스방이면 등장 대사 컷신을 먼저 재생하고, 컷신이 끝나면 gs="play"가 된다
@@ -121,7 +122,8 @@ function applyClearBonus() {
     }
 }
 
-// 문 통과 시 호출 — 다음 라운드로. 보스 라운드였다면 처치 대사 → 유물 선택으로 분기.
+// 문 통과 시 호출 — 다음 라운드로.
+// 보스 라운드는 updateDoors()에서 처치 즉시 컷신으로 넘기므로 여기까지 오지 않는다(방어적으로만 남겨둠).
 function nextStage() {
     if (isBossRound(Game.roundN)) {
         applyClearBonus();
@@ -153,6 +155,17 @@ function updateDoors() {
     if (allDead && !Game._clearSfxDone) {
         Game._clearSfxDone = true;
         if (typeof playSfx === 'function') playSfx('clear');
+        // 보스 라운드는 문을 통과할 때까지 기다리지 않고 쓰러뜨린 자리에서 바로 처치 대사로 넘어간다.
+        // (예전엔 nextStage()에서 처리해서 문을 지나야 대사가 나와 타이밍이 어긋났음)
+        if (isBossRound(Game.roundN)) Game._bossKillT = 50; // 죽는 연출을 잠깐 보여준 뒤
+    }
+    // 보스 처치 연출 대기 — 다 되면 대사 컷신으로
+    if (Game._bossKillT > 0) {
+        if (--Game._bossKillT === 0) {
+            applyClearBonus();
+            startCutscene("bosskill", Game.stageN);
+        }
+        return;
     }
     const pRect = { x: Player.x - Player.hb.w / 2, y: Player.y - Player.hb.h / 2, w: Player.hb.w, h: Player.hb.h };
     Game.doors.forEach(d => {
@@ -213,6 +226,17 @@ function step() {
     Game.frameCount++;
     if (Game.bannerT > 0) Game.bannerT--;
     if (typeof ensureAudioRunning === 'function') ensureAudioRunning();
+
+    // 조작법 오버레이 — 상태와 무관하게 H로 토글. 열려 있는 동안은 게임 진행을 멈춘다.
+    if (pr("KeyH")) {
+        Game.showKeys = !Game.showKeys;
+        if (typeof playSfx === 'function') playSfx('menu_select');
+    }
+    if (Game.showKeys) {
+        if (pr("Escape")) Game.showKeys = false;
+        endFrameInput();
+        return;
+    }
 
     switch (Game.gs) {
         case "menu":
@@ -286,6 +310,8 @@ function render() {
             renderMinimap();
             break;
     }
+    // 조작법은 항상 최상단에
+    if (Game.showKeys) renderKeyGuide();
 }
 
 function loop(now) {

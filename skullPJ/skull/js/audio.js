@@ -1189,7 +1189,7 @@ function playBGM(scene = 'play') {
     // 원래 bRoots[min(wg,3)]로 인덱싱해서 wg4·wg5가 똑같은 트랙(root 82)을 쓰고 있었다.
     // 두 테마를 확실히 구분: 화산은 빠르고 높게, 마왕성은 느리고 훨씬 낮게.
     if (_isBurning) {
-        const isCastle = wg >= STAGE_COUNT;              // 마왕성
+        const isCastle = wg >= WG_COUNT;                 // 마지막 BGM 그룹(핏빛 제단·마왕성)
         const bRoot = isCastle ? 61.7 : 87.3;            // B1 / F2
         const bBPM  = isCastle ? 128 : 156;
         const bT    = Math.round(60000 / bBPM / 2);

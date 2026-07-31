@@ -159,8 +159,8 @@ function dropLoot(e) {
     const equipChance = e.isElite ? 0.25 : Game.pEquipDropRate;
     if (Math.random() < equipChance) {
         const kind = Math.random() < 0.5 ? "weapon" : "armor";
-        // 티어는 현재 스테이지 기준, 엘리트는 한 단계 위가 나올 수도 있음
-        const tier = Game.stageN + (e.isElite && Math.random() < 0.4 ? 1 : 0);
+        // 티어는 현재 스테이지 기준(2스테이지당 1티어), 엘리트는 한 단계 위가 나올 수도 있음
+        const tier = stageTier(Game.stageN) + (e.isElite && Math.random() < 0.4 ? 1 : 0);
         dropEquipItem(e.x, e.y, kind, tier);
         return;
     }
@@ -185,8 +185,8 @@ function dropLoot(e) {
 
 // 스테이지(보스) 클리어 보상 — 무기·방어구 확정 1개씩 + 회복 오브
 function dropStageClearLoot(e) {
-    dropEquipItem(e.x - 40, e.y, "weapon", Game.stageN);
-    dropEquipItem(e.x + 40, e.y, "armor", Game.stageN);
+    dropEquipItem(e.x - 40, e.y, "weapon", stageTier(Game.stageN));
+    dropEquipItem(e.x + 40, e.y, "armor", stageTier(Game.stageN));
     addItem(e.x, e.y + 44, 10, 10, 0, 900, "hp");
     addText(e.x, e.y - 78, "스테이지 클리어 보상!", "#ffcc00", 110, 14);
 }

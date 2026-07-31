@@ -49,6 +49,29 @@ const CUTSCENES = {
             { speaker: "해골용사",     dur: 150, text: "뼈가 재가 되기 전에 끝내야 한다." },
         ],
         5: [
+            { speaker: "내레이터",   dur: 150, text: "숨결이 얼어붙는 심연. 얼음 속에서 거대한 그림자가 눈을 떴다." },
+            { speaker: "서리 거인", dur: 160, text: "......따뜻한 것은... 모두... 부순다......" },
+            { speaker: "해골용사",   dur: 150, text: "다행이군. 나한텐 데울 피도 없다." },
+        ],
+        6: [
+            { speaker: "늪의 마녀", dur: 160, text: "호호, 뼈다귀 손님이라니. 국물이라도 우려낼까?" },
+            { speaker: "해골용사",   dur: 150, text: "사양하지. 네 독이 먼저 마를 거다." },
+        ],
+        7: [
+            { speaker: "내레이터",     dur: 150, text: "무너진 성벽 사이, 녹슨 갑주가 스스로 일어섰다." },
+            { speaker: "파멸의 기사", dur: 160, text: "기사였던 자여. 검을 들어라. 그것이 우리의 예의다." },
+            { speaker: "해골용사",     dur: 150, text: "......좋다. 끝까지 기사로 대해주지." },
+        ],
+        8: [
+            { speaker: "공허의 눈", dur: 170, text: "너의 끝은 이미 보았다. 여기서, 아무것도 아닌 것이 된다." },
+            { speaker: "해골용사",   dur: 160, text: "이미 한 번 죽은 몸이다. 두 번은 익숙하지." },
+        ],
+        9: [
+            { speaker: "내레이터",         dur: 150, text: "제단은 마르지 않았다. 아직도 붉게 젖어 있었다." },
+            { speaker: "피의 대제사장", dur: 170, text: "마왕님께 바칠 마지막 제물이 제 발로 걸어왔구나!" },
+            { speaker: "해골용사",         dur: 160, text: "제단은 여기서 끝이다. 마왕은 내가 직접 만난다." },
+        ],
+        10: [
             { speaker: "해골용사", dur: 160, text: "마왕!!!!!!" },
             { speaker: "마왕",     dur: 170, text: "...누가 겁도 없이 짐에게 도전하는가?" },
             { speaker: "마왕",     dur: 180, text: "오호? 자네는 나에게 이미 패배한 용사 아닌가. 꼴이 우습군." },
@@ -71,9 +94,29 @@ const CUTSCENES = {
         ],
         4: [
             { speaker: "화산의 군주", dur: 140, text: "G...G...HHHHH..." },
-            { speaker: "해골용사",    dur: 130, text: "불이 꺼졌군. 마왕성이 보인다." },
+            { speaker: "해골용사",    dur: 130, text: "불이 꺼졌군. 아직 갈 길이 멀다." },
         ],
         5: [
+            { speaker: "서리 거인", dur: 150, text: "......따뜻... 하구나......" },
+            { speaker: "해골용사",   dur: 130, text: "이제 그만 녹아라." },
+        ],
+        6: [
+            { speaker: "늪의 마녀", dur: 150, text: "어머... 내 독이... 안 통하는 몸이었네..." },
+            { speaker: "해골용사",   dur: 130, text: "썩을 살이 없어서 말이지." },
+        ],
+        7: [
+            { speaker: "파멸의 기사", dur: 150, text: "훌륭하다... 이제야... 쉴 수 있겠군..." },
+            { speaker: "해골용사",     dur: 130, text: "잘 싸웠다, 기사여." },
+        ],
+        8: [
+            { speaker: "공허의 눈", dur: 150, text: "보이지... 않는다... 너의 끝이... 어째서..." },
+            { speaker: "해골용사",   dur: 130, text: "내 끝은 내가 정한다." },
+        ],
+        9: [
+            { speaker: "피의 대제사장", dur: 150, text: "마왕님... 제 피를... 받아주소서..." },
+            { speaker: "해골용사",         dur: 140, text: "성문이 열렸군. ......드디어다." },
+        ],
+        10: [
             { speaker: "마왕",     dur: 170, text: "크...으...아직... 짐은... 아직 지지 않는다!!!" },
             { speaker: "마왕",     dur: 170, text: "이 세계가... 짐 없이 평화로울 것이라 믿는가...?" },
             { speaker: "해골용사", dur: 160, text: "......우린 살아갈 거야." },
@@ -190,9 +233,9 @@ function renderCutscene() {
     const cur = cs.lines[cs.step];
     if (!cur) return;
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, UW, UH);
 
     // THE END 화면
     if (cur.isTheEnd) {
@@ -203,11 +246,11 @@ function renderCutscene() {
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 34px SkullFont, NeoDunggeunmo, monospace";
         ctx.shadowBlur = 16; ctx.shadowColor = "#aaaaff";
-        ctx.fillText("— THE END —", CW / 2, CH / 2 - 16);
+        ctx.fillText("— THE END —", UW / 2, UH / 2 - 16);
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#7a7396";
         ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText("[ SPACE ] 메뉴로", CW / 2, CH / 2 + 26);
+        ctx.fillText("[ SPACE ] 메뉴로", UW / 2, UH / 2 + 26);
         ctx.textAlign = "left";
         ctx.restore();
         return;
@@ -235,22 +278,22 @@ function renderCutscene() {
             ctx.save();
             ctx.globalAlpha = alpha;
             // 비율 유지하며 화면을 꽉 채움
-            const sc = Math.max(CW / img.naturalWidth, CH / img.naturalHeight);
+            const sc = Math.max(UW / img.naturalWidth, UH / img.naturalHeight);
             const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
-            ctx.drawImage(img, (CW - dw) / 2, (CH - dh) / 2, dw, dh);
+            ctx.drawImage(img, (UW - dw) / 2, (UH - dh) / 2, dw, dh);
             // 하단 어둡게 — 대사 가독성 확보
-            const grd = ctx.createLinearGradient(0, CH * 0.5, 0, CH);
+            const grd = ctx.createLinearGradient(0, UH * 0.5, 0, UH);
             grd.addColorStop(0, "rgba(0,0,0,0)");
             grd.addColorStop(1, "rgba(0,0,0,0.88)");
             ctx.fillStyle = grd;
-            ctx.fillRect(0, 0, CW, CH);
+            ctx.fillRect(0, 0, UW, UH);
             ctx.restore();
         }
     }
 
     // 대사 박스
     if (cur.text) {
-        const boxX = 60, boxW = CW - 120, boxY = CH - 170, boxH = 120;
+        const boxX = 60, boxW = UW - 120, boxY = UH - 170, boxH = 120;
         ctx.save();
         ctx.globalAlpha = 0.62;
         ctx.fillStyle = "#000";
@@ -295,10 +338,10 @@ function renderCutscene() {
         ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
         ctx.textAlign = "right";
         ctx.fillStyle = `rgba(140,200,255,${0.35 + glow * 0.5})`;
-        ctx.fillText("[ESC] 스킵", CW - 20, 28);
+        ctx.fillText("[ESC] 스킵", UW - 20, 28);
         ctx.textAlign = "center";
         ctx.fillStyle = `rgba(160,160,160,${0.35 + glow * 0.35})`;
-        ctx.fillText("[SPACE] 다음", CW / 2, CH - 22);
+        ctx.fillText("[SPACE] 다음", UW / 2, UH - 22);
         ctx.textAlign = "left";
         ctx.restore();
     }

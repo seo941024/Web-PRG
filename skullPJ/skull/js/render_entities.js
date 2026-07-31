@@ -270,8 +270,11 @@ function renderRoom(walls) {
     // ── 화면 흔들림 ──
     if (Game.camShake > 0) Game.camShake--;
 
+    // 여기서부터는 HUD — UI 스케일 좌표계(UW×UH)로 전환한다.
+    // 1:1로 그리면 1280×720 화면에서 패널·글씨가 잘아 보여서 UI만 통째로 확대한다.
+    uiBegin();
+
     // ── 플레이어 HUD 패널 (화면 고정) ──
-    // 1280×720 화면에서 이전 176×54 / 10px 글씨는 너무 작아 전투 중 확인이 불가능했다.
     // 게이지 폭·높이와 글씨를 전반적으로 키우고, 수치는 외곽선을 넣어 배경과 무조건 분리.
     const HX = 18, HY = 16, HW = 300;
     const hasShield = (Game.pShield || 0) > 0;
@@ -367,10 +370,10 @@ function renderRoom(walls) {
         ctx.font = `bold ${big ? 34 : 26}px SkullFont, NeoDunggeunmo, monospace`;
         ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.9)";
         const txt = big ? `${Player.combo} 피니시!` : `${Player.combo} 콤보`;
-        ctx.strokeText(txt, CW / 2, CH - 78);
+        ctx.strokeText(txt, UW / 2, UH - 78);
         ctx.fillStyle = big ? "#ff8a3a" : "#ffcc44";
         ctx.shadowBlur = big ? 16 : 8; ctx.shadowColor = big ? "#ff5500" : "#aa6600";
-        ctx.fillText(txt, CW / 2, CH - 78);
+        ctx.fillText(txt, UW / 2, UH - 78);
         ctx.shadowBlur = 0;
         ctx.textAlign = "left";
         ctx.restore();
@@ -403,7 +406,7 @@ function renderRoom(walls) {
     const bossRound = isBossRound(Game.roundN);
     ctx.save();
     ctx.textAlign = "right";
-    const rightX = CW - 18;
+    const rightX = UW - 18;
     const outlined = (txt, y, size, col, glow) => {
         ctx.font = `bold ${size}px SkullFont, NeoDunggeunmo, monospace`;
         ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.88)";
@@ -429,19 +432,19 @@ function renderRoom(walls) {
         ctx.globalAlpha = a;
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(8,5,14,0.80)";
-        ctx.fillRect(CW / 2 - 300, 96, 600, 64);
+        ctx.fillRect(UW / 2 - 300, 96, 600, 64);
         ctx.strokeStyle = theme.palette.accent; ctx.lineWidth = 2;
-        ctx.strokeRect(CW / 2 - 300, 96, 600, 64);
+        ctx.strokeRect(UW / 2 - 300, 96, 600, 64);
         ctx.font = "bold 26px SkullFont, NeoDunggeunmo, monospace";
         ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.strokeText(Game.bannerText || "", CW / 2, 128);
+        ctx.strokeText(Game.bannerText || "", UW / 2, 128);
         ctx.fillStyle = theme.palette.accent;
         ctx.shadowBlur = 10; ctx.shadowColor = theme.palette.accent;
-        ctx.fillText(Game.bannerText || "", CW / 2, 128);
+        ctx.fillText(Game.bannerText || "", UW / 2, 128);
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#a396c4";
         ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(theme.subtitle, CW / 2, 149);
+        ctx.fillText(theme.subtitle, UW / 2, 149);
         ctx.textAlign = "left";
         ctx.restore();
     }
@@ -455,12 +458,14 @@ function renderRoom(walls) {
             ctx.textAlign = "center";
             ctx.font = "bold 20px SkullFont, NeoDunggeunmo, monospace";
             ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.9)";
-            ctx.strokeText("구역 정화 완료 — 동쪽 문으로 이동", CW / 2, CH - 30);
+            ctx.strokeText("구역 정화 완료 — 동쪽 문으로 이동", UW / 2, UH - 30);
             ctx.fillStyle = "#3cdc78";
             ctx.shadowBlur = 10; ctx.shadowColor = "#3cdc78";
-            ctx.fillText("구역 정화 완료 — 동쪽 문으로 이동", CW / 2, CH - 30);
+            ctx.fillText("구역 정화 완료 — 동쪽 문으로 이동", UW / 2, UH - 30);
             ctx.shadowBlur = 0;
             ctx.restore();
         }
     }
+
+    uiEnd(); // 화면 좌표계로 복귀 — 이후 ui.js가 자기 스케일을 다시 건다
 }

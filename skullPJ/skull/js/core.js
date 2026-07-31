@@ -11,6 +11,19 @@ const ctx = canvas.getContext("2d");
 const CW = canvas.width, CH = canvas.height;
 const ZOOM = 2; // 게임 월드 확대 배율 — 정수 배율이라 도트가 균일하게 늘어나 완전히 선명함
 
+// ── UI 스케일 ──────────────────────────────────────────────
+// 1280×720 캔버스에 UI를 1:1로 그리면 화면만 크고 글씨·패널이 잘아 보인다("웹게임" 인상의 원인).
+// UI만 통째로 확대해서 그리고, UI 코드는 축소된 논리 해상도(UW×UH) 기준으로 좌표를 쓴다.
+// 월드 렌더는 ZOOM을 따로 쓰므로 영향 없음.
+const UI_SCALE = 1.35;
+const UW = Math.round(CW / UI_SCALE);   // UI 논리 폭  (약 948)
+const UH = Math.round(CH / UI_SCALE);   // UI 논리 높이 (약 533)
+
+// UI를 그리기 직전에 호출 — 이후 좌표는 UW×UH 기준
+function uiBegin() { ctx.setTransform(UI_SCALE, 0, 0, UI_SCALE, 0, 0); }
+// UI가 끝나고 원래 화면 좌표로 되돌릴 때
+function uiEnd() { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+
 // 게임 상태(gs) 전이도:
 //   menu ─SPACE→ cutscene(opening) ─→ play
 //   play ─보스격파→ cutscene(bosskill) ─→ relic ─→ play (다음 스테이지)
@@ -21,10 +34,11 @@ const ZOOM = 2; // 게임 월드 확대 배율 — 정수 배율이라 도트가
 const Game = {
     gs: "menu",
     score: 0,
-    // 스테이지 진행: 5테마(stageN) × 3라운드(roundN) = 총 15스테이지. 정의는 stage.js.
+    // 스테이지 진행: 10테마(stageN) × 3라운드(roundN) = 총 30스테이지. 정의는 stage.js.
     kills: 0, stageN: 1, roundN: 1,
     camShake: 0,
     isMuted: false,
+    showKeys: false,      // [H] 조작법 오버레이 (열려 있는 동안 게임 정지)
     pClass: 1,            // 임시 기본값: 도적 (스프라이트 있는 직업)
 
     // ── 영구 진행 (localStorage, 런을 넘어 유지) ──

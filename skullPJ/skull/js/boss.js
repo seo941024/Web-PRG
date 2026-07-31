@@ -182,8 +182,212 @@ const BOSS_PATTERNS = {
         },
     ],
 
-    // ── 5. 마왕 — 앞선 테마들의 위협을 전부 섞은 최종 보스 ──
+    // ── 5. 서리 거인 — 느리고 묵직. 예고가 길지만 범위가 넓어 "미리 빠져나오기"를 요구 ──
     5: [
+        {
+            name: "서리 강타", warn: 40, dur: 26, rec: 78, kind: "dash",
+            exec: (e) => {
+                e.sustain = { kind: "trail", t: 0, dur: 26 };
+                Game.camShake = Math.max(Game.camShake || 0, 16);
+            },
+        },
+        {
+            name: "빙결 파열", warn: 34, dur: 14, rec: 82, kind: "cast",
+            exec: (e, isP2) => {
+                // 느린 탄을 촘촘히 — 벽에 몰리면 빠져나갈 틈이 없다
+                const amt = isP2 ? 26 : 18;
+                for (let i = 0; i < amt; i++) {
+                    const a = (i / amt) * Math.PI * 2;
+                    spawnEBullet(e.x, e.y - 8, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 240, 7, Math.round(e.atk * 0.55));
+                }
+                addText(e.x, e.y - 46, "빙결 파열", "#a8e8ff", 50, 14);
+            },
+        },
+        {
+            name: "고드름 낙하", warn: 36, dur: 18, rec: 86, kind: "cast",
+            exec: (e, isP2) => {
+                // 플레이어가 있던 자리로 이어지는 낙하 — 계속 움직이면 피할 수 있음
+                const n = isP2 ? 8 : 5;
+                const dx = Player.x - e.x, dy = Player.y - e.y;
+                const d = Math.hypot(dx, dy) || 1;
+                for (let i = 1; i <= n; i++) {
+                    spawnHazard(e.x + (dx / d) * i * 80, e.y + (dy / d) * i * 80,
+                        62, 40 + i * 5, 36, Math.round(e.atk * 0.8), "#7fd8ff");
+                }
+                Game.camShake = Math.max(Game.camShake || 0, 12);
+            },
+        },
+        {
+            name: "혹한의 숨결", warn: 30, dur: 34, rec: 90, kind: "cast",
+            exec: (e, isP2) => {
+                e.sustain = { kind: "spiral", t: 0, dur: 34, arms: isP2 ? 3 : 2 };
+            },
+        },
+    ],
+
+    // ── 6. 늪의 마녀 — 빠르고 성가심. 장판으로 공간을 좁히고 졸개를 계속 부른다 ──
+    6: [
+        {
+            name: "독무 살포", warn: 30, dur: 16, rec: 78, kind: "cast",
+            exec: (e, isP2) => {
+                const n = isP2 ? 10 : 7;
+                for (let i = 0; i < n; i++) {
+                    spawnHazard(200 + Math.random() * 700, 200 + Math.random() * 700,
+                        76, 46 + i * 4, 44, Math.round(e.atk * 0.7), "#9dff4d");
+                }
+                addText(e.x, e.y - 46, "독무 살포", "#b6ff5c", 50, 14);
+            },
+        },
+        {
+            name: "늪의 부름", warn: 38, dur: 20, rec: 104, kind: "cast",
+            exec: (e, isP2) => {
+                // 졸개 소환 — 방치하면 순식간에 포위당한다
+                const n = isP2 ? 4 : 2;
+                for (let i = 0; i < n; i++) {
+                    const a = (i / n) * Math.PI * 2;
+                    spawnThemedEnemy(e.x + Math.cos(a) * 80, e.y + Math.sin(a) * 80, Game.stageN, Game.roundN);
+                }
+                addText(e.x, e.y - 46, "늪의 부름!", "#b6ff5c", 55, 15);
+            },
+        },
+        {
+            name: "부식 탄막", warn: 28, dur: 40, rec: 88, kind: "cast",
+            exec: (e, isP2) => {
+                e.sustain = { kind: "spiral", t: 0, dur: 40, arms: isP2 ? 4 : 3 };
+            },
+        },
+        {
+            name: "도약 강습", warn: 24, dur: 22, rec: 62, kind: "dash",
+            exec: (e) => { Game.camShake = Math.max(Game.camShake || 0, 12); },
+        },
+    ],
+
+    // ── 7. 파멸의 기사 — 순수 근접. 돌진이 빠르고 연달아 들어와 회피 타이밍을 시험한다 ──
+    7: [
+        {
+            name: "파멸의 돌격", warn: 26, dur: 30, rec: 62, kind: "dash",
+            exec: (e) => {
+                e.sustain = { kind: "trail", t: 0, dur: 30 };
+                Game.camShake = Math.max(Game.camShake || 0, 16);
+            },
+        },
+        {
+            name: "대검 회전", warn: 30, dur: 44, rec: 92, kind: "cast",
+            exec: (e, isP2) => {
+                e.sustain = { kind: "spiral", t: 0, dur: 44, arms: isP2 ? 4 : 2 };
+                addText(e.x, e.y - 46, "대검 회전!", "#e0d0aa", 50, 14);
+            },
+        },
+        {
+            name: "충격 파쇄", warn: 32, dur: 14, rec: 74, kind: "cast",
+            exec: (e, isP2) => {
+                // 자기 주변 고리형 장판 — 붙어 있으면 반드시 맞는다, 거리를 벌리게 강제
+                const arms = isP2 ? 12 : 8;
+                for (let i = 0; i < arms; i++) {
+                    const a = (i / arms) * Math.PI * 2;
+                    spawnHazard(e.x + Math.cos(a) * 110, e.y + Math.sin(a) * 110,
+                        66, 44, 32, Math.round(e.atk * 0.8), "#c8b48a");
+                }
+                Game.camShake = Math.max(Game.camShake || 0, 18);
+            },
+        },
+        {
+            name: "연속 돌진", warn: 20, dur: 26, rec: 54, kind: "dash",
+            exec: (e) => { Game.camShake = Math.max(Game.camShake || 0, 14); },
+        },
+    ],
+
+    // ── 8. 공허의 눈 — 탄막형. 이동을 멈추면 죽는다 ──
+    8: [
+        {
+            name: "차원 균열", warn: 32, dur: 16, rec: 84, kind: "cast",
+            exec: (e, isP2) => {
+                // 2파 방사(속도 차) — 직선 회피를 막는다
+                const amt = isP2 ? 22 : 16;
+                for (let i = 0; i < amt; i++) {
+                    const a = (i / amt) * Math.PI * 2;
+                    spawnEBullet(e.x, e.y - 8, Math.cos(a) * 4.6, Math.sin(a) * 4.6, 210, 6, Math.round(e.atk * 0.55));
+                }
+                for (let i = 0; i < amt; i++) {
+                    const a = ((i + 0.5) / amt) * Math.PI * 2;
+                    spawnEBullet(e.x, e.y - 8, Math.cos(a) * 2.7, Math.sin(a) * 2.7, 250, 6, Math.round(e.atk * 0.45));
+                }
+                addText(e.x, e.y - 46, "차원 균열", "#a67bff", 50, 14);
+            },
+        },
+        {
+            name: "중력 붕괴", warn: 30, dur: 48, rec: 100, kind: "cast",
+            exec: (e, isP2) => {
+                e.sustain = { kind: "spiral", t: 0, dur: 48, arms: isP2 ? 5 : 3 };
+                addText(e.x, e.y - 46, "중력 붕괴!", "#8a5cff", 55, 15);
+            },
+        },
+        {
+            name: "공허 응시", warn: 34, dur: 18, rec: 88, kind: "cast",
+            exec: (e, isP2) => {
+                // 플레이어 주변을 링으로 둘러싸 도주로를 좁힘
+                const arms = isP2 ? 10 : 6;
+                for (let i = 0; i < arms; i++) {
+                    const a = (i / arms) * Math.PI * 2;
+                    spawnHazard(Player.x + Math.cos(a) * 96, Player.y + Math.sin(a) * 96,
+                        58, 44, 34, Math.round(e.atk * 0.75), "#8a5cff");
+                }
+            },
+        },
+        {
+            name: "왜곡 강습", warn: 22, dur: 26, rec: 66, kind: "dash",
+            exec: (e) => {
+                e.sustain = { kind: "trail", t: 0, dur: 26 };
+                Game.camShake = Math.max(Game.camShake || 0, 14);
+            },
+        },
+    ],
+
+    // ── 9. 피의 대제사장 — 장판·소환·탄막을 모두 쓰는 최종 관문 직전 ──
+    9: [
+        {
+            name: "피의 제물", warn: 30, dur: 16, rec: 82, kind: "cast",
+            exec: (e, isP2) => {
+                // 플레이어 기준 십자로 뻗는 장판
+                const arms = isP2 ? 8 : 4;
+                for (let i = 0; i < arms; i++) {
+                    const a = (i / arms) * Math.PI * 2;
+                    for (let k = 1; k <= 3; k++) {
+                        spawnHazard(Player.x + Math.cos(a) * k * 72, Player.y + Math.sin(a) * k * 72,
+                            56, 40 + k * 6, 34, Math.round(e.atk * 0.7), "#ff4d4d");
+                    }
+                }
+                addText(e.x, e.y - 48, "피의 제물", "#ff5555", 52, 15);
+            },
+        },
+        {
+            name: "광신도 소환", warn: 36, dur: 20, rec: 102, kind: "cast",
+            exec: (e, isP2) => {
+                const n = isP2 ? 4 : 3;
+                for (let i = 0; i < n; i++) {
+                    const a = (i / n) * Math.PI * 2;
+                    spawnThemedEnemy(e.x + Math.cos(a) * 90, e.y + Math.sin(a) * 90, Game.stageN, Game.roundN);
+                }
+                addText(e.x, e.y - 48, "광신도 소환!", "#ff5555", 55, 15);
+            },
+        },
+        {
+            name: "혈창 난사", warn: 28, dur: 44, rec: 96, kind: "cast",
+            exec: (e, isP2) => {
+                e.sustain = { kind: "spiral", t: 0, dur: 44, arms: isP2 ? 4 : 3 };
+            },
+        },
+        {
+            name: "핏빛 질주", warn: 22, dur: 28, rec: 64, kind: "dash",
+            exec: (e) => {
+                e.sustain = { kind: "trail", t: 0, dur: 28 };
+                Game.camShake = Math.max(Game.camShake || 0, 16);
+            },
+        },
+    ],
+
+    // ── 10. 마왕 — 앞선 테마들의 위협을 전부 섞은 최종 보스 ──
+    10: [
         {
             name: "왕관의 뇌격", warn: 34, dur: 20, rec: 86, kind: "cast",
             exec: (e, isP2) => {

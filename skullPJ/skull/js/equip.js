@@ -47,6 +47,13 @@ const ARMOR_POOL = [
     { tier: 5, name: "암흑 외투",     def: 10, maxHp: 45, moveSpd: 0.14 },
 ];
 
+// 스테이지 → 장비 티어. 장비 풀은 5티어인데 스테이지는 10개라 2스테이지당 1티어씩 오른다.
+// (stageN을 그대로 티어로 쓰면 5스테이지부터 계속 최고 티어만 나와서 후반 절반이 성장 없이 정체됨)
+const EQUIP_MAX_TIER = EQUIP_TIER_NAMES.length - 1;   // 5
+function stageTier(stageN) {
+    return Math.min(EQUIP_MAX_TIER, Math.max(1, Math.ceil(stageN / 2)));
+}
+
 // 티어에 맞는 장비 하나를 무작위로 뽑음. 해당 티어가 비었으면 가장 가까운 하위 티어로 폴백.
 function rollEquip(kind, tier) {
     const pool = kind === "weapon" ? WEAPON_POOL : ARMOR_POOL;

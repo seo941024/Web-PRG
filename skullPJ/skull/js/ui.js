@@ -52,12 +52,12 @@ function updateClassSelect() {
 }
 
 function renderClassSelect() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "#07040e";
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("직업 선택", CW / 2, 68, 34, "#ffcc44", "center", true, 14);
-    _uiText("← →  이동      SPACE  결정      ESC  뒤로", CW / 2, 94, 14, "#8e83ad", "center");
+    _uiText("직업 선택", UW / 2, 68, 34, "#ffcc44", "center", true, 14);
+    _uiText("← →  이동      SPACE  결정      ESC  뒤로", UW / 2, 94, 14, "#8e83ad", "center");
 
     const id = CLASS_IDS[Game.classIdx];
     const prof = classProfile(id);
@@ -67,7 +67,7 @@ function renderClassSelect() {
     // 상단: 직업 탭
     const tabW = 150, gap = 10;
     const totalW = CLASS_IDS.length * tabW + (CLASS_IDS.length - 1) * gap;
-    const sx = (CW - totalW) / 2;
+    const sx = (UW - totalW) / 2;
     CLASS_IDS.forEach((cid, i) => {
         const p = classProfile(cid);
         const x = sx + i * (tabW + gap);
@@ -85,7 +85,7 @@ function renderClassSelect() {
     });
 
     // 본문 패널
-    const px = 150, py = 200, pw = CW - 300, ph = 300;
+    const px = 150, py = 200, pw = UW - 300, ph = 300;
     _uiPanel(px, py, pw, ph, col);
 
     _uiText(prof.name, px + 28, py + 44, 32, col, "left", true, 10);
@@ -131,7 +131,7 @@ function renderClassSelect() {
     if (prof.tint)   _uiText("※ 전용 스프라이트 대기 중 (색으로 임시 구분)", px + 28, py + ph - 18, 12, "#6e6390", "left");
 
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
-        _uiText("▶  SPACE 로 시작  ◀", CW / 2, CH - 40, 20, col, "center", true, 10);
+        _uiText("▶  SPACE 로 시작  ◀", UW / 2, UH - 40, 20, col, "center", true, 10);
     }
 }
 
@@ -146,57 +146,55 @@ const SKILL_DESC = {
 };
 
 function renderMenu() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "#05030a";
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, UW, UH);
 
     // 타이틀 배경 일러스트
     if (!_menuBgImg) { _menuBgImg = new Image(); _menuBgImg.src = "scene_main.png"; }
     if (_menuBgImg.complete && _menuBgImg.naturalWidth > 0) {
-        const sc = Math.max(CW / _menuBgImg.naturalWidth, CH / _menuBgImg.naturalHeight);
+        const sc = Math.max(UW / _menuBgImg.naturalWidth, UH / _menuBgImg.naturalHeight);
         const dw = _menuBgImg.naturalWidth * sc, dh = _menuBgImg.naturalHeight * sc;
         ctx.save();
         ctx.globalAlpha = 0.62;
-        ctx.drawImage(_menuBgImg, (CW - dw) / 2, (CH - dh) / 2, dw, dh);
+        ctx.drawImage(_menuBgImg, (UW - dw) / 2, (UH - dh) / 2, dw, dh);
         ctx.restore();
-        const grd = ctx.createLinearGradient(0, 0, 0, CH);
+        const grd = ctx.createLinearGradient(0, 0, 0, UH);
         grd.addColorStop(0, "rgba(5,3,10,0.55)");
         grd.addColorStop(1, "rgba(5,3,10,0.92)");
-        ctx.fillStyle = grd; ctx.fillRect(0, 0, CW, CH);
+        ctx.fillStyle = grd; ctx.fillRect(0, 0, UW, UH);
     }
 
     const pulse = 0.8 + Math.sin(Game.frameCount * 0.05) * 0.2;
     ctx.save();
     ctx.shadowBlur = 26 * pulse; ctx.shadowColor = "#ff2200";
-    _uiText("해골용사", CW / 2, CH * 0.36, 62, "#fff8e7", "center", true);
+    _uiText("해골용사", UW / 2, UH * 0.36, 62, "#fff8e7", "center", true);
     ctx.shadowBlur = 0;
     ctx.restore();
-    _uiText("SKULL YUUSHA — 탑다운", CW / 2, CH * 0.36 + 32, 14, "#9a8cc0", "center");
+    _uiText("SKULL YUUSHA — 탑다운", UW / 2, UH * 0.36 + 32, 14, "#9a8cc0", "center");
 
     // 시작 안내 (깜빡임)
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
-        _uiText("▶  SPACE  게임 시작  ◀", CW / 2, CH * 0.60, 20, "#ffcc44", "center", true, 10);
+        _uiText("▶  SPACE  게임 시작  ◀", UW / 2, UH * 0.60, 20, "#ffcc44", "center", true, 10);
     }
-    _uiText(`[S] 영구 강화        [M] 음소거 ${Game.isMuted ? "ON" : "OFF"}`, CW / 2, CH * 0.60 + 34, 13, "#8e83ad", "center");
-    _uiText(`보유 다크 쿼츠: ${Game.darkQuartz}`, CW / 2, CH * 0.60 + 58, 13, "#dd88ff", "center");
-
-    _uiText("이동 방향키/WASD   ·   스프린트 Z   ·   회피 Space   ·   공격 C   ·   일시정지 ESC",
-        CW / 2, CH - 26, 12, "#6e6390", "center");
+    _uiText(`[S] 영구 강화        [H] 조작법        [M] 음소거 ${Game.isMuted ? "ON" : "OFF"}`,
+        UW / 2, UH * 0.60 + 34, 13, "#8e83ad", "center");
+    _uiText(`보유 다크 쿼츠: ${Game.darkQuartz}`, UW / 2, UH * 0.60 + 58, 13, "#dd88ff", "center");
 }
 
 // ── 유물 선택 (보스 격파 후 3택 1) ─────────────────────────
 function renderRelicSelect() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "rgba(4,2,10,0.9)";
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("유물을 하나 선택하라", CW / 2, 96, 30, "#ffcc44", "center", true, 14);
-    _uiText("이번 런에만 유지된다", CW / 2, 124, 13, "#8e83ad", "center");
+    _uiText("유물을 하나 선택하라", UW / 2, 96, 30, "#ffcc44", "center", true, 14);
+    _uiText("이번 런에만 유지된다", UW / 2, 124, 13, "#8e83ad", "center");
 
     const cards = Game.relicChoices;
     const cw = 260, ch = 300, gap = 34;
     const totalW = cards.length * cw + (cards.length - 1) * gap;
-    const sx = (CW - totalW) / 2, sy = 180;
+    const sx = (UW - totalW) / 2, sy = 180;
 
     cards.forEach((r, i) => {
         const rar = RELIC_RARITY[r.rarity];
@@ -242,21 +240,21 @@ function renderRelicSelect() {
         if (sel) _uiText("▲ SPACE 선택", x + cw / 2, y + ch - 22, 14, rar.color, "center", true, 8);
     });
 
-    _uiText("← →  이동      SPACE  선택", CW / 2, CH - 34, 15, "#9a8cc0", "center", true);
+    _uiText("← →  이동      SPACE  선택", UW / 2, UH - 34, 15, "#9a8cc0", "center", true);
 }
 
 // ── 영구 강화 상점 ─────────────────────────────────────────
 function renderShop() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "#07040e";
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("다크 쿼츠 — 영구 강화", CW / 2, 74, 30, "#dd88ff", "center", true, 14);
-    _uiText("여기서 산 강화는 죽어도 사라지지 않는다", CW / 2, 100, 13, "#8e83ad", "center");
-    _uiText(`보유: ${Game.darkQuartz}`, CW / 2, 126, 18, "#ffcc44", "center", true, 8);
+    _uiText("다크 쿼츠 — 영구 강화", UW / 2, 74, 30, "#dd88ff", "center", true, 14);
+    _uiText("여기서 산 강화는 죽어도 사라지지 않는다", UW / 2, 100, 13, "#8e83ad", "center");
+    _uiText(`보유: ${Game.darkQuartz}`, UW / 2, 126, 18, "#ffcc44", "center", true, 8);
 
     const rowH = 56, listW = 620;
-    const sx = (CW - listW) / 2, sy = 158;
+    const sx = (UW - listW) / 2, sy = 158;
 
     PERM_UPGRADES.forEach((u, i) => {
         const lvl = Game[u.key] || 0;
@@ -293,17 +291,17 @@ function renderShop() {
     });
 
     if (Game.shopMsg && Game.shopMsg.t > 0) {
-        _uiText(Game.shopMsg.text, CW / 2, sy + PERM_UPGRADES.length * rowH + 30, 16, Game.shopMsg.col, "center", true, 8);
+        _uiText(Game.shopMsg.text, UW / 2, sy + PERM_UPGRADES.length * rowH + 30, 16, Game.shopMsg.col, "center", true, 8);
     }
-    _uiText("↑ ↓  이동      SPACE  구입      ESC  돌아가기", CW / 2, CH - 30, 15, "#9a8cc0", "center", true);
+    _uiText("↑ ↓  이동      SPACE  구입      ESC  돌아가기", UW / 2, UH - 30, 15, "#9a8cc0", "center", true);
 }
 
 // ── 일시정지 (스탯 + 보유 유물 확인) ───────────────────────
 function renderPause() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "rgba(4,2,10,0.82)";
-    ctx.fillRect(0, 0, CW, CH);
-    _uiText("일시정지", CW / 2, 78, 32, "#cbb8ee", "center", true, 12);
+    ctx.fillRect(0, 0, UW, UH);
+    _uiText("일시정지", UW / 2, 78, 32, "#cbb8ee", "center", true, 12);
 
     // 왼쪽: 스탯
     const px = 120, py = 120, pw = 440;
@@ -329,7 +327,7 @@ function renderPause() {
     });
 
     // 오른쪽: 장비 + 유물
-    const qx = px + pw + 30, qw = CW - qx - 120;
+    const qx = px + pw + 30, qw = UW - qx - 120;
     _uiPanel(qx, py, qw, 300);
     _uiText("장비", qx + 20, py + 30, 18, "#ffcc44", "left", true);
     const eqRows = [["무기", Game.equip.weapon], ["방어구", Game.equip.armor]];
@@ -356,23 +354,23 @@ function renderPause() {
         }
     }
 
-    _uiText("ESC  계속하기        Q  메뉴로 (진행 포기)", CW / 2, CH - 44, 15, "#9a8cc0", "center", true);
+    _uiText("ESC  계속하기        H  조작법        Q  메뉴로 (진행 포기)", UW / 2, UH - 44, 15, "#9a8cc0", "center", true);
 }
 
 // ── 사망 화면 ──────────────────────────────────────────────
 function renderDead() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "rgba(6,0,10,0.88)";
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, UW, UH);
 
-    _uiText("당신은 죽었습니다", CW / 2, CH / 2 - 90, 46, "#ff3344", "center", true, 22);
+    _uiText("당신은 죽었습니다", UW / 2, UH / 2 - 90, 46, "#ff3344", "center", true, 22);
 
     const theme = stageTheme();
     _uiText(`STAGE ${Game.stageN}-${Game.roundN}  ${theme.name} 에서 쓰러짐`,
-        CW / 2, CH / 2 - 44, 16, "#c3b9dd", "center");
+        UW / 2, UH / 2 - 44, 16, "#c3b9dd", "center");
 
-    const px = CW / 2 - 210;
-    _uiPanel(px, CH / 2 - 20, 420, 122, "#7a3050");
+    const px = UW / 2 - 210;
+    _uiPanel(px, UH / 2 - 20, 420, 122, "#7a3050");
     const stats = [
         ["도달", `${globalRound(Game.stageN, Game.roundN)} / ${STAGE_COUNT * ROUNDS_PER_STAGE} 라운드`],
         ["처치", `${Game.kills}`],
@@ -380,39 +378,94 @@ function renderDead() {
         ["획득 유물", `${Game.relics.length}개`],
     ];
     stats.forEach((s, i) => {
-        const y = CH / 2 + 6 + i * 26;
+        const y = UH / 2 + 6 + i * 26;
         _uiText(s[0], px + 24, y, 14, "#8e83ad");
         _uiText(s[1], px + 396, y, 14, "#ffffff", "right", true);
     });
 
     _uiText(`이번 런에서 모은 다크 쿼츠는 그대로 남습니다 (보유 ${Game.darkQuartz})`,
-        CW / 2, CH / 2 + 130, 13, "#dd88ff", "center");
+        UW / 2, UH / 2 + 130, 13, "#dd88ff", "center");
 
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
-        _uiText("R  다시 시작        ESC  메뉴로", CW / 2, CH / 2 + 176, 18, "#ffcc44", "center", true, 8);
+        _uiText("R  다시 시작        ESC  메뉴로", UW / 2, UH / 2 + 176, 18, "#ffcc44", "center", true, 8);
     }
 }
 
 // ── 승리 화면 ──────────────────────────────────────────────
 function renderWin() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    uiBegin();
     ctx.fillStyle = "rgba(4,2,10,0.9)";
-    ctx.fillRect(0, 0, CW, CH);
-    _uiText("마왕을 쓰러뜨렸다", CW / 2, CH / 2 - 40, 46, "#ffcc44", "center", true, 24);
-    _uiText(`15스테이지 완주  ·  점수 ${Game.score}  ·  처치 ${Game.kills}`,
-        CW / 2, CH / 2 + 6, 17, "#cbb8ee", "center");
+    ctx.fillRect(0, 0, UW, UH);
+    _uiText("마왕을 쓰러뜨렸다", UW / 2, UH / 2 - 40, 46, "#ffcc44", "center", true, 24);
+    _uiText(`${STAGE_COUNT * ROUNDS_PER_STAGE}스테이지 완주  ·  점수 ${Game.score}  ·  처치 ${Game.kills}`,
+        UW / 2, UH / 2 + 6, 17, "#cbb8ee", "center");
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
-        _uiText("SPACE  계속", CW / 2, CH / 2 + 60, 17, "#ffcc44", "center", true, 8);
+        _uiText("SPACE  계속", UW / 2, UH / 2 + 60, 17, "#ffcc44", "center", true, 8);
     }
+}
+
+// ── 조작법 (H 토글, 어느 화면에서든) ──────────────────────
+// 예전엔 캔버스 밖 HTML 힌트바로 상시 노출했는데, 게임 화면과 분리돼 보여서
+// (플래시 웹게임 인상의 주된 원인) 게임 안 오버레이로 옮겼다.
+const KEY_GUIDE = [
+    { sec: "이동" },
+    { k: "← → ↑ ↓  /  W A S D", d: "8방향 이동" },
+    { k: "Z (누르는 동안)",      d: "스프린트 — 이동 속도 2배" },
+    { k: "Space",                d: "회피 — 짧은 무적 + 잔상, 기력 소모" },
+    { sec: "전투" },
+    { k: "C",                    d: "공격 — 연타하면 4타 콤보, 마지막 타는 피해 증가" },
+    { k: "Shift",                d: "직업 스킬 — 쿨다운은 HUD 게이지로 표시" },
+    { sec: "화면" },
+    { k: "ESC",                  d: "일시정지 (스탯·장비·유물 확인)" },
+    { k: "H",                    d: "이 조작법 열기 / 닫기" },
+    { k: "M",                    d: "음소거" },
+    { k: "R",                    d: "사망 화면에서 재시작" },
+];
+
+function renderKeyGuide() {
+    uiBegin();
+    ctx.fillStyle = "rgba(4,2,10,0.93)";
+    ctx.fillRect(0, 0, UW, UH);
+
+    _uiText("조작법", UW / 2, 62, 32, "#ffcc44", "center", true, 14);
+
+    const pw = 620, px = (UW - pw) / 2, py = 86;
+    let y = py + 34;
+    const rows = KEY_GUIDE.length;
+    _uiPanel(px, py, pw, 30 + rows * 26 + 10, "#7a4fc9");
+
+    KEY_GUIDE.forEach(row => {
+        if (row.sec) {
+            _uiText(`— ${row.sec} —`, px + 24, y + 4, 15, "#dd88ff", "left", true);
+            y += 28;
+            return;
+        }
+        // 키 캡슐
+        ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
+        const kw = Math.max(58, ctx.measureText(row.k).width + 18);
+        ctx.fillStyle = "#241a38";
+        ctx.fillRect(px + 24, y - 12, kw, 20);
+        ctx.strokeStyle = "#7a4fc9"; ctx.lineWidth = 1;
+        ctx.strokeRect(px + 24, y - 12, kw, 20);
+        _uiText(row.k, px + 24 + kw / 2, y + 3, 13, "#ffcc44", "center", true);
+        _uiText(row.d, px + 24 + kw + 16, y + 3, 14, "#c3b9dd", "left");
+        y += 26;
+    });
+
+    if (Math.floor(Game.frameCount / 26) % 2 === 0) {
+        _uiText("H  또는  ESC  로 닫기", UW / 2, UH - 34, 16, "#9a8cc0", "center", true);
+    }
+    uiEnd();
 }
 
 // ── 미니맵 (플레이 중 우하단) ──────────────────────────────
 function renderMinimap() {
     const MW = 150, MH = 150;
-    const mx = CW - MW - 16, my = CH - MH - 16;
+    const mx = UW - MW - 16, my = UH - MH - 16;
     const sc = MW / ROOM_W;
 
     ctx.save();
+    uiBegin(); // 미니맵도 UI 스케일 좌표계 — ctx.restore()가 원래 변환을 되돌려준다
     ctx.fillStyle = "rgba(6,4,12,0.7)";
     ctx.fillRect(mx, my, MW, MH);
     ctx.strokeStyle = "#4a3a6a"; ctx.lineWidth = 1;
