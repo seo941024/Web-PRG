@@ -159,9 +159,8 @@ function renderRoom(walls) {
         ctx.shadowBlur = 0;
     });
 
-    // 드롭 아이템 — 임시 플레이스홀더.
-    // 도트 아이콘으로 교체 예정이므로 모양·색에 공들이지 않고, "무엇인지 읽히는지"만 신경 쓴다.
-    // 흰 네모 + 이름표. 소멸 임박하면 깜빡여서 곧 사라진다는 걸 알림.
+    // 드롭 아이템 — 도트 아이콘 완성 전까지의 대체 표현.
+    // 종류별 색 마름모 + 기호 + 상승치 라벨. 소멸 임박하면 깜빡여서 곧 사라진다는 걸 알림.
     Game.items.forEach(it => {
         if (!it.active) return;
         if (it.life < 90 && Math.floor(it.life / 6) % 2 === 0) return;
@@ -302,12 +301,8 @@ function renderRoom(walls) {
     const STAT_H = 18; // 공/방/치명/속도 한 줄 — 아이템을 주웠을 때 뭐가 올랐는지 확인할 수 있어야 함
     const HH = 12 + BAR_H + 8 + ST_H + 8 + SK_H + (hasShield ? 8 + SH_H : 0) + 8 + STAT_H + 10;
     ctx.save();
-    ctx.fillStyle = "rgba(10,8,18,0.80)";
-    ctx.fillRect(HX, HY, HW, HH);
-    ctx.strokeStyle = "#7a4fc9"; ctx.lineWidth = 2;
-    ctx.shadowBlur = 8; ctx.shadowColor = "#7a4fc9aa";
-    ctx.strokeRect(HX, HY, HW, HH);
-    ctx.shadowBlur = 0;
+    // ui.js의 패널과 같은 입체 처리(그림자·베벨·광택)를 그대로 사용 — 평면 사각형이 아니라 판처럼 보이게
+    _uiPanel(HX, HY, HW, HH, "#7a4fc9");
 
     const barX = HX + 12, barW = HW - 24;
     let by = HY + 12;
@@ -323,13 +318,12 @@ function renderRoom(walls) {
 
     // HP 바 — 가장 크게. 30% 이하면 테두리가 붉게 깜빡여 위험을 알림.
     const hpRatio = Math.max(0, Player.hp / Player.maxHp);
-    ctx.fillStyle = "#1a0808"; ctx.fillRect(barX, by, barW, BAR_H);
-    const hpGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    hpGrd.addColorStop(0, "#ff6a4d"); hpGrd.addColorStop(1, "#c81e1e");
-    ctx.fillStyle = hpGrd; ctx.fillRect(barX, by, barW * hpRatio, BAR_H);
+    _uiBar(barX, by, barW, BAR_H, hpRatio, "#ff8a6a", "#a81414", 5);
     const lowHp = hpRatio <= 0.3;
-    ctx.strokeStyle = lowHp && Math.floor(Game.frameCount / 10) % 2 === 0 ? "#ff5566" : "#00000090";
-    ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, BAR_H);
+    if (lowHp && Math.floor(Game.frameCount / 10) % 2 === 0) {
+        ctx.strokeStyle = "#ff5566"; ctx.lineWidth = 2;
+        _rr(barX, by, barW, BAR_H, 5); ctx.stroke();
+    }
     gaugeLabel(`HP  ${Math.max(0, Math.ceil(Player.hp))} / ${Player.maxHp}`, barX + 8, by + 18, 17, "#fff2ec");
     by += BAR_H + 8;
 
@@ -337,16 +331,12 @@ function renderRoom(walls) {
     const stRatio = Player.stamina / STAMINA_MAX;
     const dashCost = STAMINA_DASH * (Game.pDashCostMul || 1);
     const canDash = Player.stamina >= dashCost;
-    ctx.fillStyle = "#1a1408"; ctx.fillRect(barX, by, barW, ST_H);
-    const stGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    if (!canDash) { stGrd.addColorStop(0, "#8a6a1a"); stGrd.addColorStop(1, "#5a4408"); }
-    else { stGrd.addColorStop(0, "#ffe066"); stGrd.addColorStop(1, "#e8a020"); }
-    ctx.fillStyle = stGrd; ctx.fillRect(barX, by, barW * stRatio, ST_H);
+    _uiBar(barX, by, barW, ST_H, stRatio,
+        canDash ? "#ffe98a" : "#9a7a2a", canDash ? "#d08a10" : "#4a3606", 4);
     // 회피 1회분 지점에 눈금 — 언제 회피가 되는지 판단 가능
     const dashMark = barX + barW * (dashCost / STAMINA_MAX);
     ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(dashMark, by); ctx.lineTo(dashMark, by + ST_H); ctx.stroke();
-    ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, ST_H);
     gaugeLabel(`기력  ${Math.round(Player.stamina)}`, barX + 8, by + 12.5, 13, canDash ? "#fff8dc" : "#b9a06a");
     by += ST_H + 8;
 
@@ -355,15 +345,12 @@ function renderRoom(walls) {
     const skReady = Player.skillCD <= 0;
     const skRatio = skReady ? 1 : 1 - Player.skillCD / (Player.skillCDMax || prof.skillCD || 300);
     const skCol = prof.tint || "#cc44ff";
-    ctx.fillStyle = "#150c22"; ctx.fillRect(barX, by, barW, SK_H);
-    const skGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    if (skReady) { skGrd.addColorStop(0, skCol); skGrd.addColorStop(1, "#ffffff"); }
-    else { skGrd.addColorStop(0, "#4a3a6a"); skGrd.addColorStop(1, "#6a4f9a"); }
-    ctx.fillStyle = skGrd; ctx.fillRect(barX, by, barW * skRatio, SK_H);
+    _uiBar(barX, by, barW, SK_H, skRatio,
+        skReady ? skCol : "#7a5fae", skReady ? "#3a1f6a" : "#2a1a44", 4);
     if (skReady && Math.floor(Game.frameCount / 14) % 2 === 0) {
         ctx.strokeStyle = skCol; ctx.lineWidth = 2;
-    } else { ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; }
-    ctx.strokeRect(barX, by, barW, SK_H);
+        _rr(barX, by, barW, SK_H, 4); ctx.stroke();
+    }
     gaugeLabel(
         skReady ? `[Shift] ${classSkill(Game.pClass).name}` : `${Math.ceil(Player.skillCD / 60)}초`,
         barX + 8, by + 12.5, 12, skReady ? "#ffffff" : "#9a8cc0"
@@ -372,12 +359,8 @@ function renderRoom(walls) {
 
     // 보호막 바 (유물 "불굴의 방벽" 보유 시에만)
     if (hasShield) {
-        ctx.fillStyle = "#0a1622"; ctx.fillRect(barX, by, barW, SH_H);
         const shRatio = Math.min(1, Game.pShield / 60);
-        const shGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-        shGrd.addColorStop(0, "#8fd6ff"); shGrd.addColorStop(1, "#3a8fd0");
-        ctx.fillStyle = shGrd; ctx.fillRect(barX, by, barW * shRatio, SH_H);
-        ctx.strokeStyle = "#00000090"; ctx.lineWidth = 2; ctx.strokeRect(barX, by, barW, SH_H);
+        _uiBar(barX, by, barW, SH_H, shRatio, "#a8e4ff", "#2a6fa8", 4);
         gaugeLabel(`방벽  ${Math.round(Game.pShield)}`, barX + 8, by + 11.5, 12, "#dff2ff");
         by += SH_H + 8;
     }

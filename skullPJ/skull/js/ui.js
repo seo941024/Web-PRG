@@ -9,29 +9,92 @@ function _rr(x, y, w, h, r) {
     else ctx.rect(x, y, w, h);
 }
 
-// 패널 — 단색+얇은 테두리(플래시 웹게임 느낌)에서 벗어나기 위해
-// 세로 그라디언트 + 상단 하이라이트 + 바깥 글로우를 기본으로 준다. 상점 카드와 같은 톤.
+// 폭을 넘는 글자는 …로 잘라 반환 — 패널 밖으로 글씨가 튀어나가는 걸 막는다
+function _fit(txt, maxW, size, bold) {
+    ctx.font = `${bold ? "bold " : ""}${size}px SkullFont, NeoDunggeunmo, monospace`;
+    if (ctx.measureText(txt).width <= maxW) return txt;
+    let s = txt;
+    while (s.length > 1 && ctx.measureText(s + "…").width > maxW) s = s.slice(0, -1);
+    return s + "…";
+}
+
+// 패널 — 평면에 테두리만 있으면 납작해 보여서, 입체감을 내는 요소를 층으로 쌓는다.
+//   ① 아래로 드리우는 그림자(떠 있는 느낌) ② 본체 그라디언트
+//   ③ 위/왼쪽 밝은 베벨 + 아래/오른쪽 어두운 베벨(두께감) ④ 상단 광택 ⑤ 바깥 글로우 테두리
 function _uiPanel(x, y, w, h, accent) {
     const col = accent || "#7a4fc9";
+
+    // ① 바닥 그림자 — 패널이 화면 위에 떠 있는 것처럼
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 18; ctx.shadowColor = "rgba(0,0,0,0.9)";
+    _rr(x + 3, y + 5, w, h, 8); ctx.fill();
+    ctx.restore();
+
+    // ② 본체
     const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0, "rgba(26,12,42,0.94)");
-    g.addColorStop(1, "rgba(8,2,14,0.94)");
+    g.addColorStop(0,    "rgba(38,22,58,0.96)");
+    g.addColorStop(0.55, "rgba(20,10,34,0.96)");
+    g.addColorStop(1,    "rgba(8,3,14,0.96)");
     ctx.fillStyle = g;
     _rr(x, y, w, h, 8); ctx.fill();
 
-    // 상단 하이라이트 — 위에서 빛이 드는 느낌
-    const hg = ctx.createLinearGradient(x, y, x + w, y);
-    hg.addColorStop(0, "rgba(255,255,255,0)");
-    hg.addColorStop(0.5, "rgba(200,150,255,0.07)");
-    hg.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = hg;
-    _rr(x, y, w, Math.min(h * 0.3, 40), [8, 8, 0, 0]); ctx.fill();
+    // ③ 베벨 — 위/왼쪽은 밝게, 아래/오른쪽은 어둡게 해서 두께가 있는 판처럼
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.beginPath();
+    ctx.moveTo(x + 2, y + h - 8); ctx.lineTo(x + 2, y + 8);
+    ctx.quadraticCurveTo(x + 2, y + 2, x + 8, y + 2); ctx.lineTo(x + w - 8, y + 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.beginPath();
+    ctx.moveTo(x + w - 2, y + 8); ctx.lineTo(x + w - 2, y + h - 8);
+    ctx.quadraticCurveTo(x + w - 2, y + h - 2, x + w - 8, y + h - 2); ctx.lineTo(x + 8, y + h - 2);
+    ctx.stroke();
+    ctx.restore();
 
+    // ④ 상단 광택
+    const hg = ctx.createLinearGradient(x, y, x, y + Math.min(h * 0.32, 44));
+    hg.addColorStop(0, "rgba(200,160,255,0.10)");
+    hg.addColorStop(1, "rgba(200,160,255,0)");
+    ctx.fillStyle = hg;
+    _rr(x + 2, y + 2, w - 4, Math.min(h * 0.32, 44), [7, 7, 0, 0]); ctx.fill();
+
+    // ⑤ 테두리 + 글로우
     ctx.strokeStyle = col;
     ctx.lineWidth = 2;
     ctx.shadowBlur = 12; ctx.shadowColor = col + "aa";
     _rr(x, y, w, h, 8); ctx.stroke();
     ctx.shadowBlur = 0;
+}
+
+// 게이지 — 파인 홈(inset)에 채워 넣고 위쪽에 광택을 얹어 입체적으로
+function _uiBar(x, y, w, h, ratio, colA, colB, r) {
+    r = r === undefined ? Math.min(5, h / 2) : r;
+    // 홈 바닥 + 안쪽 그림자
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    _rr(x, y, w, h, r); ctx.fill();
+    const ish = ctx.createLinearGradient(x, y, x, y + h);
+    ish.addColorStop(0, "rgba(0,0,0,0.65)");
+    ish.addColorStop(0.5, "rgba(0,0,0,0)");
+    ctx.fillStyle = ish;
+    _rr(x, y, w, h, r); ctx.fill();
+
+    const fw = Math.max(0, Math.min(1, ratio)) * w;
+    if (fw > 1) {
+        const fg = ctx.createLinearGradient(x, y, x, y + h);
+        fg.addColorStop(0, colA);
+        fg.addColorStop(1, colB);
+        ctx.fillStyle = fg;
+        _rr(x, y, fw, h, r); ctx.fill();
+        // 위쪽 광택
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        _rr(x + 1, y + 1, Math.max(0, fw - 2), Math.max(1, h * 0.38), [r, r, 0, 0]); ctx.fill();
+    }
+    // 테두리
+    ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 1.5;
+    _rr(x, y, w, h, r); ctx.stroke();
 }
 function _uiText(txt, x, y, size, col, align, bold, glow) {
     ctx.fillStyle = col;
@@ -86,8 +149,10 @@ function renderClassSelect() {
     const sk = classSkill(id);
     const col = prof.tint || "#cc44ff";
 
-    // 상단: 직업 탭
-    const tabW = 150, gap = 10;
+    // 상단: 직업 탭 — 화면 폭에 맞춰 탭 크기를 계산한다
+    // (예전엔 150px 고정이라 6직업이면 950px가 되어 948px 화면 밖으로 삐져나갔음)
+    const gap = 10, sideMargin = 40;
+    const tabW = Math.min(150, Math.floor((UW - sideMargin * 2 - gap * (CLASS_IDS.length - 1)) / CLASS_IDS.length));
     const totalW = CLASS_IDS.length * tabW + (CLASS_IDS.length - 1) * gap;
     const sx = (UW - totalW) / 2;
     CLASS_IDS.forEach((cid, i) => {
@@ -95,15 +160,27 @@ function renderClassSelect() {
         const x = sx + i * (tabW + gap);
         const sel = i === Game.classIdx;
         const c = p.tint || "#cc44ff";
+        const ty = sel ? 116 : 120, th = sel ? 58 : 54; // 선택된 탭은 살짝 커지며 떠오름
         ctx.save();
+        // 아래 그림자로 떠 있는 느낌
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        _rr(x + 2, ty + 4, tabW, th, 6); ctx.fill();
+        const tg = ctx.createLinearGradient(x, ty, x, ty + th);
+        if (sel) { tg.addColorStop(0, "rgba(48,30,72,0.98)"); tg.addColorStop(1, "rgba(16,8,28,0.98)"); }
+        else     { tg.addColorStop(0, "rgba(20,12,34,0.9)");  tg.addColorStop(1, "rgba(8,4,16,0.9)"); }
+        ctx.fillStyle = tg;
+        _rr(x, ty, tabW, th, 6); ctx.fill();
+        // 위쪽 밝은 베벨
+        ctx.strokeStyle = sel ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x + 4, ty + 2); ctx.lineTo(x + tabW - 4, ty + 2); ctx.stroke();
         if (sel) { ctx.shadowBlur = 18; ctx.shadowColor = c; }
-        ctx.fillStyle = sel ? "rgba(26,18,40,0.96)" : "rgba(12,8,20,0.85)";
-        ctx.fillRect(x, 120, tabW, 54);
         ctx.strokeStyle = c; ctx.lineWidth = sel ? 3 : 1.5;
-        ctx.strokeRect(x, 120, tabW, 54);
+        _rr(x, ty, tabW, th, 6); ctx.stroke();
         ctx.shadowBlur = 0;
         ctx.restore();
-        _uiText(p.name, x + tabW / 2, 154, sel ? 24 : 20, sel ? c : "#7d739c", "center", true, sel ? 8 : 0);
+        _uiText(_fit(p.name, tabW - 12, sel ? 24 : 20, true), x + tabW / 2, ty + th / 2 + 8,
+            sel ? 24 : 20, sel ? c : "#7d739c", "center", true, sel ? 8 : 0);
     });
 
     // 본문 패널
@@ -126,10 +203,7 @@ function renderClassSelect() {
         const y = py + 112 + i * 28;
         _uiText(s[0], px + 28, y + 12, 15, "#9a8cc0", "left");
         const bx = px + 120, bw = 260;
-        ctx.fillStyle = "#1c1630"; ctx.fillRect(bx, y, bw, 15);
-        ctx.fillStyle = col;
-        ctx.fillRect(bx, y, bw * Math.max(0.06, Math.min(1, s[1])), 15);
-        ctx.strokeStyle = "#00000080"; ctx.lineWidth = 1.5; ctx.strokeRect(bx, y, bw, 15);
+        _uiBar(bx, y, bw, 15, Math.max(0.06, Math.min(1, s[1])), col, "#00000066", 4);
     });
 
     // 스킬 설명
@@ -412,22 +486,10 @@ function renderShop() {
         ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
         ctx.fillText(u.desc, bx + bw / 2, by + 68);
 
-        // 레벨 바 (트랙 + 채움 + shimmer)
+        // 레벨 바 — 파인 홈에 채워 넣은 입체 게이지
         const barX = bx + 18, barY = by + 84, barW = bw - 36, barH = 11;
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        _rr(barX, barY, barW, barH, 4); ctx.fill();
-        if (lvl > 0) {
-            const fillW = barW * Math.min(1, lvl / PERM_MAX_LVL);
-            const fg = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-            if (maxed) { fg.addColorStop(0, "#bb7700"); fg.addColorStop(1, "#ffdd44"); }
-            else       { fg.addColorStop(0, "#7711bb"); fg.addColorStop(1, u.color); }
-            ctx.fillStyle = fg;
-            _rr(barX, barY, fillW, barH, 4); ctx.fill();
-            if (!maxed) {
-                ctx.fillStyle = "rgba(255,200,255,0.22)";
-                _rr(barX, barY, fillW, barH * 0.45, [4, 4, 0, 0]); ctx.fill();
-            }
-        }
+        _uiBar(barX, barY, barW, barH, lvl / PERM_MAX_LVL,
+            maxed ? "#ffdd44" : u.color, maxed ? "#a06000" : "#5a0f8a", 4);
 
         // Lv 표기
         ctx.fillStyle = maxed ? "#ddaa33" : "#9988aa";
@@ -472,7 +534,9 @@ function renderPause() {
     _uiText("일시정지", UW / 2, 78, 32, "#cbb8ee", "center", true, 12);
 
     // 왼쪽: 스탯
-    const px = 120, py = 120, pw = 440;
+    // 좌우 여백을 줄여 오른쪽(장비·유물) 패널이 이름을 담을 만큼 넓어지게 재배분
+    // (예전 배치는 우패널이 238px뿐이라 유물 이름이 잘렸다)
+    const px = 70, py = 120, pw = 420;
     _uiPanel(px, py, pw, 300);
     const prof = classProfile(Game.pClass);
     _uiText(`현재 스탯  —  ${prof.name}`, px + 20, py + 30, 18, prof.tint || "#ffcc44", "left", true);
@@ -495,27 +559,30 @@ function renderPause() {
     });
 
     // 오른쪽: 장비 + 유물
-    const qx = px + pw + 30, qw = UW - qx - 120;
+    const qx = px + pw + 26, qw = UW - qx - 70;
     _uiPanel(qx, py, qw, 300);
     _uiText("장비", qx + 20, py + 30, 18, "#ffcc44", "left", true);
     const eqRows = [["무기", Game.equip.weapon], ["방어구", Game.equip.armor]];
     eqRows.forEach(([lab, eq], i) => {
         const y = py + 58 + i * 24;
         _uiText(lab, qx + 24, y, 14, "#8e83ad");
-        _uiText(eq ? equipDisplayName(eq) : "— 없음 —", qx + 90, y, 14, eq ? equipColor(eq) : "#4a4360", "left", !!eq);
+        const nameW = qw - (90 + 24); // 패널 오른쪽 끝을 넘지 않게 잘라 그린다
+        _uiText(eq ? _fit(equipDisplayName(eq), nameW, 14, true) : "— 없음 —",
+            qx + 90, y, 14, eq ? equipColor(eq) : "#4a4360", "left", !!eq);
     });
 
     _uiText(`유물 (${Game.relics.length})`, qx + 20, py + 130, 18, "#ffcc44", "left", true);
     if (Game.relics.length === 0) {
-        _uiText("아직 없다 — 보스를 쓰러뜨리면 얻는다", qx + 24, py + 158, 13, "#4a4360");
+        _uiText(_fit("아직 없다 — 보스를 쓰러뜨리면 얻는다", qw - 48, 13), qx + 24, py + 158, 13, "#4a4360");
     } else {
+        // 2열 — 열 폭이 좁으면 이름이 잘리므로 _fit으로 …처리
+        const colW = (qw - 48) / 2;
         Game.relics.forEach((r, i) => {
-            // 2열로 배치 (최대 12개까지 표시)
             if (i >= 12) return;
             const col = i % 2, row = Math.floor(i / 2);
-            const x = qx + 24 + col * (qw / 2 - 10);
+            const x = qx + 24 + col * colW;
             const y = py + 158 + row * 22;
-            _uiText("◆ " + r.name, x, y, 13, RELIC_RARITY[r.rarity].color);
+            _uiText(_fit("◆ " + r.name, colW - 8, 13), x, y, 13, RELIC_RARITY[r.rarity].color);
         });
         if (Game.relics.length > 12) {
             _uiText(`... 외 ${Game.relics.length - 12}개`, qx + 24, py + 158 + 6 * 22, 12, "#6e6390");
