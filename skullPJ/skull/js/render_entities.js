@@ -1,5 +1,9 @@
 // render_entities.js — 탑다운 렌더 (바닥/벽/그림자/스프라이트)
 
+// 보스 스프라이트 확대 배율 — 잡몹과 실루엣이 같으면 위압감이 없어서 크게 그린다.
+// 히트박스(e.hb)는 건드리지 않는다: 판정이 커지면 난이도가 통째로 흔들리므로 시각 크기만 확대.
+const BOSS_SPRITE_SCALE = 2;
+
 function renderRoom(walls) {
     ctx.clearRect(0, 0, CW, CH);
     const shk = Game.camShake > 0 ? (Math.random() - 0.5) * Math.min(8, Game.camShake) : 0;
@@ -74,8 +78,9 @@ function renderRoom(walls) {
     // 적 (그림자 + 틴트 스프라이트 + HP바 + 공격 예고)
     Game.enemies.forEach(e => {
         if (!e.active || e.dead) return;
+        const esc = e.isBoss ? BOSS_SPRITE_SCALE : 1;
         ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.beginPath(); ctx.ellipse(e.x, e.y, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(e.x, e.y, 10 * esc, 4 * esc, 0, 0, Math.PI * 2); ctx.fill();
 
         if (e.state === "windup") {
             const warnBase = e._warnBase || 24;
@@ -100,7 +105,7 @@ function renderRoom(walls) {
             if (e.isBoss && e.warnName) {
                 ctx.fillStyle = "#ffd76a"; ctx.font = "bold 14px SkullFont, NeoDunggeunmo, monospace";
                 ctx.textAlign = "center";
-                ctx.fillText(e.warnName, e.x, e.y - 64);
+                ctx.fillText(e.warnName, e.x, e.y - 64 * (e.isBoss ? BOSS_SPRITE_SCALE : 1));
                 ctx.textAlign = "left";
             }
         }
@@ -117,7 +122,7 @@ function renderRoom(walls) {
             if (Math.floor(Game.frameCount / 8) % 2 === 0) {
                 ctx.fillStyle = "#50ffbe"; ctx.font = "bold 14px SkullFont, NeoDunggeunmo, monospace";
                 ctx.textAlign = "center";
-                ctx.fillText("빈틈!", e.x, e.y - 64);
+                ctx.fillText("빈틈!", e.x, e.y - 64 * BOSS_SPRITE_SCALE);
                 ctx.textAlign = "left";
             }
             ctx.restore();
@@ -125,7 +130,9 @@ function renderRoom(walls) {
 
         ctx.save();
         if (e.flash > 0) ctx.filter = "brightness(2) saturate(0)";
-        drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333");
+        // 보스는 원화보다 크게 그려 위압감을 준다 (히트박스 e.hb는 그대로 — 시각 크기만 확대)
+        drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333",
+            e.isBoss ? BOSS_SPRITE_SCALE : 1);
         ctx.restore();
 
         // 엘리트 표식 — 발밑 금색 링
@@ -136,7 +143,7 @@ function renderRoom(walls) {
 
         // HP바 — 보스는 크고 금테, 일반 몹은 작고 붉은 그대로
         const hpw = e.isBoss ? 60 : 24;
-        const hpy = e.isBoss ? e.y - 52 : e.y - 40;
+        const hpy = e.isBoss ? e.y - 52 * BOSS_SPRITE_SCALE : e.y - 40;
         ctx.fillStyle = "#000c"; ctx.fillRect(e.x - hpw/2 - 1, hpy - 1, hpw + 2, 6);
         ctx.fillStyle = "#3a0808"; ctx.fillRect(e.x - hpw/2, hpy, hpw, 4);
         const ehpRatio = Math.max(0, e.hp / e.maxHp);

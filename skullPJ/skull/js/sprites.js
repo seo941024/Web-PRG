@@ -90,11 +90,13 @@ function drawDirSprite(ctx, classId, dir, x, y, tint) {
 }
 
 // 같은 원화를 색만 다르게 틴트해서 그림 — 새 아트 없이 적 변형을 공짜로 뽑는 용도
-function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor) {
+function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor, scale) {
     const r = resolveDirImage(classId, dir);
-    if (!r) { ctx.fillStyle = tintColor + "cc"; ctx.beginPath(); ctx.arc(x, y - 14, 10, 0, Math.PI * 2); ctx.fill(); return; }
+    const sc = scale || 1;
+    if (!r) { ctx.fillStyle = tintColor + "cc"; ctx.beginPath(); ctx.arc(x, y - 14 * sc, 10 * sc, 0, Math.PI * 2); ctx.fill(); return; }
     const { img, flip } = r;
-    const dw = img.naturalWidth, dh = img.naturalHeight;
+    // 배율은 발치(x, y)를 기준으로 커진다 — 커져도 바닥에 붙어 있어야 하므로
+    const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
     const dx = x - dw / 2, dy = y - dh * SPRITE_FEET_RATIO;
