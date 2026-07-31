@@ -122,13 +122,20 @@ function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor, scale) {
 // 아직 안 뽑은 방향/애니는 조용히 실패 → drawAnimSprite가 정지 포즈로 자동 폴백.
 const ANIM_FRAME_COUNT = 8; // 기본 프레임 수 (대부분의 애니)
 const ANIM_FRAME_COUNTS = { attack: 16, idle: 7 }; // 애니마다 프레임 수 다르면 여기 등록. attack: 0~15 전부 4타 콤보(3-4-4-5, 참조프레임 없음)
-function animFrameCount(animName) { return ANIM_FRAME_COUNTS[animName] || ANIM_FRAME_COUNT; }
+// 클래스별 예외 — 같은 애니 이름이라도 캐릭터마다 프레임 수가 다를 수 있다
+// (예: 도적 idle=7, 고블린 킹(boss1) idle=8 — PixelLab에서 뽑을 때마다 다르게 나옴)
+const ANIM_FRAME_COUNTS_BY_CLASS = { boss1: { idle: 8 } };
+function animFrameCount(animName, classId) {
+    const byClass = ANIM_FRAME_COUNTS_BY_CLASS[classId];
+    if (byClass && byClass[animName] !== undefined) return byClass[animName];
+    return ANIM_FRAME_COUNTS[animName] || ANIM_FRAME_COUNT;
+}
 const AnimSprites = {}; // key `${classId}_${anim}_${dir}` -> { frames:[Image], loadedCount, ready, frameCount }
 
 function loadAnim(classId, animName, dir) {
     const key = `${classId}_${animName}_${dir}`;
     if (AnimSprites[key]) return AnimSprites[key];
-    const fc = animFrameCount(animName);
+    const fc = animFrameCount(animName, classId);
     const entry = { frames: [], ready: false, loadedCount: 0, frameCount: fc };
     for (let i = 0; i < fc; i++) {
         const img = new Image();
@@ -149,7 +156,13 @@ function preloadAnims(classId, animNames) {
 // 애니메이션별 발치 비율 — 캔버스 크기가 다른 애니(예: attack은 108px, idle/walk는 92px)는
 // 여백 비율도 달라서 공용 SPRITE_FEET_RATIO를 쓰면 발이 떠 보임. PIL로 실측해서 등록.
 const ANIM_FEET_RATIO = { attack: 0.713 };
-function feetRatioFor(animName) { return ANIM_FEET_RATIO[animName] || SPRITE_FEET_RATIO; }
+// 클래스별 예외 — boss1(고블린 킹)은 128px 캔버스라 도적(92px) 비율과 다름. PIL 실측값(≈0.72)
+const ANIM_FEET_RATIO_BY_CLASS = { boss1: { idle: 0.72 } };
+function feetRatioFor(animName, classId) {
+    const byClass = ANIM_FEET_RATIO_BY_CLASS[classId];
+    if (byClass && byClass[animName] !== undefined) return byClass[animName];
+    return ANIM_FEET_RATIO[animName] || SPRITE_FEET_RATIO;
+}
 
 // 프레임 애니 렌더
 // 1순위 그 방향 원화 → 2순위 반대편 좌우반전 → 3순위 정지 포즈
@@ -168,7 +181,7 @@ function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint, sca
         return;
     }
     const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
-    const dx = x - dw / 2, dy = y - dh * feetRatioFor(animName);
+    const dx = x - dw / 2, dy = y - dh * feetRatioFor(animName, srcClass);
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
     ctx.drawImage(img, dx, dy, dw, dh);

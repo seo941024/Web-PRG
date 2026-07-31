@@ -466,7 +466,7 @@ function updateBossAI(e, walls) {
     // 프레임 수를 모르면(아직 안 뽑은 보스) 그냥 넘어가고, drawAnimSprite가 정지 포즈로 폴백한다.
     e.animName = "idle";
     e.animT = (e.animT || 0) + 1;
-    const idleFc = animFrameCount("idle");
+    const idleFc = animFrameCount("idle", e.spriteKey);
     if (e.animT >= 60 / BOSS_IDLE_FPS) { e.animT = 0; e.animFrame = ((e.animFrame || 0) + 1) % idleFc; }
 
     // 넉백은 슈퍼아머로 막지만, 혹시 걸렸다면 관성 처리만 하고 패턴은 멈춤
