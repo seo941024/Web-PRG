@@ -24,6 +24,37 @@ function uiBegin() { ctx.setTransform(UI_SCALE, 0, 0, UI_SCALE, 0, 0); }
 // UI가 끝나고 원래 화면 좌표로 되돌릴 때
 function uiEnd() { ctx.setTransform(1, 0, 0, 1, 0, 0); }
 
+// ── UI 색 팔레트 ───────────────────────────────────────────
+// 예전 색들은 채도가 너무 높아(네온 보라 테두리, 형광 빨강/노랑 게이지) 다크 판타지 톤과 안 맞았다.
+// 여기 한 곳에서만 관리하고, 전체적으로 탁하고 어둡게 — 강조는 채도가 아니라 명도 차이로 준다.
+const UIC = {
+    line:    "#6a5c82",   // 패널 테두리 (탁한 보라)
+    lineDim: "#463c5c",   // 비활성 테두리
+    text:    "#ded8e8",   // 본문
+    label:   "#8b8299",   // 라벨(설명)
+    faint:   "#5d566e",   // 흐린 보조
+    accent:  "#c9a44e",   // 금색 강조 (채도 낮춤)
+    good:    "#7fbf8a",
+    bad:     "#c06a63",
+    hp:      ["#b45a4a", "#5e1c16"],  // 게이지 [위, 아래]
+    stam:    ["#bfa055", "#5e4a18"],
+    stamLow: ["#6e5c30", "#3a2e10"],
+    shield:  ["#7fa8c4", "#2c4a60"],
+};
+
+// 채도가 높은 직업/테마 색을 UI에서 쓸 때 한 톤 죽인다
+function uiMute(hex, amt) {
+    if (!hex || hex[0] !== "#" || hex.length < 7) return hex;
+    const f = amt === undefined ? 0.45 : amt;
+    let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+    r = Math.round(r + (gray - r) * f);
+    g = Math.round(g + (gray - g) * f);
+    b = Math.round(b + (gray - b) * f);
+    const h = (v) => v.toString(16).padStart(2, "0");
+    return `#${h(r)}${h(g)}${h(b)}`;
+}
+
 // 게임 상태(gs) 전이도:
 //   menu ─SPACE→ cutscene(opening) ─→ play
 //   play ─보스격파→ cutscene(bosskill) ─→ relic ─→ play (다음 스테이지)

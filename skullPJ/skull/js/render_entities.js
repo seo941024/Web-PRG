@@ -299,7 +299,9 @@ function renderRoom(walls) {
     const hasShield = (Game.pShield || 0) > 0;
     const BAR_H = 26, ST_H = 16, SH_H = 14, SK_H = 16;
     const STAT_H = 18; // 공/방/치명/속도 한 줄 — 아이템을 주웠을 때 뭐가 올랐는지 확인할 수 있어야 함
-    const HH = 12 + BAR_H + 8 + ST_H + 8 + SK_H + (hasShield ? 8 + SH_H : 0) + 8 + STAT_H + 10;
+    const EQ_H = 19 * 2 + (Game.relics.length > 0 ? 19 : 0); // 무기/방어구(+유물) 줄
+    // 장비 줄까지 패널 안에 포함 — 예전엔 HY+HH+20에 그려서 패널 밖 맵 위에 글자가 떠 있었다
+    const HH = 12 + BAR_H + 8 + ST_H + 8 + SK_H + (hasShield ? 8 + SH_H : 0) + 8 + STAT_H + 8 + EQ_H + 10;
     ctx.save();
     // ui.js의 패널과 같은 입체 처리(그림자·베벨·광택)를 그대로 사용 — 평면 사각형이 아니라 판처럼 보이게
     _uiPanel(HX, HY, HW, HH, "#7a4fc9");
@@ -318,7 +320,7 @@ function renderRoom(walls) {
 
     // HP 바 — 가장 크게. 30% 이하면 테두리가 붉게 깜빡여 위험을 알림.
     const hpRatio = Math.max(0, Player.hp / Player.maxHp);
-    _uiBar(barX, by, barW, BAR_H, hpRatio, "#ff8a6a", "#a81414", 5);
+    _uiBar(barX, by, barW, BAR_H, hpRatio, UIC.hp[0], UIC.hp[1], 5);
     const lowHp = hpRatio <= 0.3;
     if (lowHp && Math.floor(Game.frameCount / 10) % 2 === 0) {
         ctx.strokeStyle = "#ff5566"; ctx.lineWidth = 2;
@@ -332,7 +334,7 @@ function renderRoom(walls) {
     const dashCost = STAMINA_DASH * (Game.pDashCostMul || 1);
     const canDash = Player.stamina >= dashCost;
     _uiBar(barX, by, barW, ST_H, stRatio,
-        canDash ? "#ffe98a" : "#9a7a2a", canDash ? "#d08a10" : "#4a3606", 4);
+        canDash ? UIC.stam[0] : UIC.stamLow[0], canDash ? UIC.stam[1] : UIC.stamLow[1], 4);
     // 회피 1회분 지점에 눈금 — 언제 회피가 되는지 판단 가능
     const dashMark = barX + barW * (dashCost / STAMINA_MAX);
     ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1;
@@ -345,10 +347,11 @@ function renderRoom(walls) {
     const skReady = Player.skillCD <= 0;
     const skRatio = skReady ? 1 : 1 - Player.skillCD / (Player.skillCDMax || prof.skillCD || 300);
     const skCol = prof.tint || "#cc44ff";
+    const skColM = uiMute(skCol, 0.5);
     _uiBar(barX, by, barW, SK_H, skRatio,
-        skReady ? skCol : "#7a5fae", skReady ? "#3a1f6a" : "#2a1a44", 4);
+        skReady ? skColM : "#6a5c82", skReady ? "#2f2545" : "#26203a", 4);
     if (skReady && Math.floor(Game.frameCount / 14) % 2 === 0) {
-        ctx.strokeStyle = skCol; ctx.lineWidth = 2;
+        ctx.strokeStyle = skColM; ctx.lineWidth = 2;
         _rr(barX, by, barW, SK_H, 4); ctx.stroke();
     }
     gaugeLabel(
@@ -360,7 +363,7 @@ function renderRoom(walls) {
     // 보호막 바 (유물 "불굴의 방벽" 보유 시에만)
     if (hasShield) {
         const shRatio = Math.min(1, Game.pShield / 60);
-        _uiBar(barX, by, barW, SH_H, shRatio, "#a8e4ff", "#2a6fa8", 4);
+        _uiBar(barX, by, barW, SH_H, shRatio, UIC.shield[0], UIC.shield[1], 4);
         gaugeLabel(`방벽  ${Math.round(Game.pShield)}`, barX + 8, by + 11.5, 12, "#dff2ff");
         by += SH_H + 8;
     }
@@ -375,10 +378,10 @@ function renderRoom(walls) {
         const crit  = Math.round((prof.crit + (Game.pCritBonus || 0) + equipCrit()) * 100);
         const spd   = Math.round((1 + (Game.pMoveSpdBonus || 0) + equipMoveSpd()) * 100);
         const cells = [
-            ["공", `${atkLo}~${atkHi}`, "#ff8877"],
-            ["방", `${def}`,            "#7fc4ff"],
-            ["치명", `${crit}%`,        "#ff9ad5"],
-            ["이속", `${spd}%`,         "#7ff0e6"],
+            ["공", `${atkLo}~${atkHi}`, "#c08a80"],
+            ["방", `${def}`,            "#8aa6c0"],
+            ["치명", `${crit}%`,        "#c095b0"],
+            ["이속", `${spd}%`,         "#8ab8b2"],
         ];
         let cx2 = barX;
         cells.forEach(([lab, val, c]) => {
@@ -386,7 +389,7 @@ function renderRoom(walls) {
             ctx.textAlign = "left";
             ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
             ctx.strokeText(lab, cx2, by + 13);
-            ctx.fillStyle = "#8e83ad"; ctx.fillText(lab, cx2, by + 13);
+            ctx.fillStyle = UIC.label; ctx.fillText(lab, cx2, by + 13);
             const lw = ctx.measureText(lab).width + 4;
             ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
             ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
@@ -394,6 +397,28 @@ function renderRoom(walls) {
             ctx.fillStyle = c; ctx.fillText(val, cx2 + lw, by + 13);
             cx2 += lw + ctx.measureText(val).width + 14;
         });
+        by += STAT_H + 8;
+    }
+
+    // ── 장비 슬롯 (+유물 개수) — 패널 안에 포함 ──
+    {
+        const infoRow = (label, value, valCol, y) => {
+            ctx.textAlign = "left";
+            ctx.font = `bold 12px ${UI_FONT}`;
+            ctx.lineJoin = "round"; ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+            ctx.strokeText(label, barX, y);
+            ctx.fillStyle = UIC.label; ctx.fillText(label, barX, y);
+            const v = _fit(value, barW - 56, 12);
+            ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+            ctx.strokeText(v, barX + 52, y);
+            ctx.fillStyle = valCol; ctx.fillText(v, barX + 52, y);
+        };
+        let iy = by + 12;
+        infoRow("무기", Game.equip.weapon ? equipDisplayName(Game.equip.weapon) : "— 없음 —",
+            Game.equip.weapon ? uiMute(equipColor(Game.equip.weapon), 0.4) : UIC.faint, iy); iy += 19;
+        infoRow("방어구", Game.equip.armor ? equipDisplayName(Game.equip.armor) : "— 없음 —",
+            Game.equip.armor ? uiMute(equipColor(Game.equip.armor), 0.4) : UIC.faint, iy); iy += 19;
+        if (Game.relics.length > 0) infoRow("유물", `${Game.relics.length}개  [ESC]`, UIC.accent, iy);
     }
     ctx.restore();
 
@@ -410,35 +435,13 @@ function renderRoom(walls) {
         ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.9)";
         const txt = finisher ? `${hc} 히트  피니시!` : `${hc} 히트`;
         ctx.strokeText(txt, UW / 2, UH - 78);
-        ctx.fillStyle = finisher ? "#ff8a3a" : (hc >= 10 ? "#ffdd55" : "#ffcc44");
-        ctx.shadowBlur = big ? 16 : 8; ctx.shadowColor = finisher ? "#ff5500" : "#aa6600";
+        ctx.fillStyle = finisher ? "#d9924e" : (hc >= 10 ? "#d6b558" : UIC.accent);
         ctx.fillText(txt, UW / 2, UH - 78);
-        ctx.shadowBlur = 0;
         ctx.textAlign = "left";
         ctx.restore();
     }
 
-    // ── 장비 슬롯 + 유물 개수 (HP 패널 바로 아래) ──
-    ctx.save();
-    ctx.textAlign = "left";
-    const infoRow = (label, value, valCol, y) => {
-        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
-        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.85)";
-        ctx.strokeText(label, HX + 4, y);
-        ctx.fillStyle = "#9a8cc0"; ctx.fillText(label, HX + 4, y);
-        ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
-        ctx.strokeText(value, HX + 66, y);
-        ctx.fillStyle = valCol; ctx.fillText(value, HX + 66, y);
-    };
-    let iy = HY + HH + 20;
-    infoRow("무기", Game.equip.weapon ? equipDisplayName(Game.equip.weapon) : "— 없음 —",
-        Game.equip.weapon ? equipColor(Game.equip.weapon) : "#5a5372", iy); iy += 19;
-    infoRow("방어구", Game.equip.armor ? equipDisplayName(Game.equip.armor) : "— 없음 —",
-        Game.equip.armor ? equipColor(Game.equip.armor) : "#5a5372", iy); iy += 19;
-    if (Game.relics.length > 0) {
-        infoRow("유물", `${Game.relics.length}개  [ESC]`, "#ffcc44", iy);
-    }
-    ctx.restore();
+
 
     // ── 스테이지/라운드 표시 (화면 우측 상단) ──
     const theme = stageTheme();
@@ -454,14 +457,15 @@ function renderRoom(walls) {
         ctx.fillStyle = col; ctx.fillText(txt, rightX, y);
         ctx.shadowBlur = 0;
     };
+    // 테마 accent를 그대로 쓰면 형광 초록/주황이라 눈이 아파 UI에서는 한 톤 죽인다
     outlined(
         `STAGE ${Game.stageN}-${Game.roundN}  ${theme.name}${bossRound ? "  [ BOSS ]" : ""}`,
-        34, 20, bossRound ? "#ff5555" : theme.palette.accent, 6
+        34, 20, bossRound ? "#c0564f" : uiMute(theme.palette.accent, 0.55)
     );
     outlined(`진행 ${globalRound(Game.stageN, Game.roundN)} / ${STAGE_COUNT * ROUNDS_PER_STAGE}`,
-        56, 14, "#b3a6d4");
+        56, 14, UIC.label);
     outlined(`점수 ${Game.score}   킬 ${Game.kills}   쿼츠 ${Game.darkQuartz}`,
-        76, 14, "#b3a6d4");
+        76, 14, UIC.label);
     ctx.restore();
 
     // ── 방 입장 배너 ──

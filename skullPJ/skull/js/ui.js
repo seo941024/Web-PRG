@@ -22,7 +22,7 @@ function _fit(txt, maxW, size, bold) {
 //   ① 아래로 드리우는 그림자(떠 있는 느낌) ② 본체 그라디언트
 //   ③ 위/왼쪽 밝은 베벨 + 아래/오른쪽 어두운 베벨(두께감) ④ 상단 광택 ⑤ 바깥 글로우 테두리
 function _uiPanel(x, y, w, h, accent) {
-    const col = accent || "#7a4fc9";
+    const col = uiMute(accent || UIC.line, 0.35);   // 네온기 제거
 
     // ① 바닥 그림자 — 패널이 화면 위에 떠 있는 것처럼
     ctx.save();
@@ -31,11 +31,11 @@ function _uiPanel(x, y, w, h, accent) {
     _rr(x + 3, y + 5, w, h, 8); ctx.fill();
     ctx.restore();
 
-    // ② 본체
+    // ② 본체 — 채도를 낮춘 회보라 계열
     const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0,    "rgba(38,22,58,0.96)");
-    g.addColorStop(0.55, "rgba(20,10,34,0.96)");
-    g.addColorStop(1,    "rgba(8,3,14,0.96)");
+    g.addColorStop(0,    "rgba(30,26,40,0.96)");
+    g.addColorStop(0.55, "rgba(18,15,26,0.96)");
+    g.addColorStop(1,    "rgba(9,8,14,0.96)");
     ctx.fillStyle = g;
     _rr(x, y, w, h, 8); ctx.fill();
 
@@ -56,15 +56,15 @@ function _uiPanel(x, y, w, h, accent) {
 
     // ④ 상단 광택
     const hg = ctx.createLinearGradient(x, y, x, y + Math.min(h * 0.32, 44));
-    hg.addColorStop(0, "rgba(200,160,255,0.10)");
-    hg.addColorStop(1, "rgba(200,160,255,0)");
+    hg.addColorStop(0, "rgba(210,200,230,0.07)");
+    hg.addColorStop(1, "rgba(210,200,230,0)");
     ctx.fillStyle = hg;
     _rr(x + 2, y + 2, w - 4, Math.min(h * 0.32, 44), [7, 7, 0, 0]); ctx.fill();
 
     // ⑤ 테두리 + 글로우
     ctx.strokeStyle = col;
     ctx.lineWidth = 2;
-    ctx.shadowBlur = 12; ctx.shadowColor = col + "aa";
+    ctx.shadowBlur = 5; ctx.shadowColor = "rgba(0,0,0,0.8)";  // 형광 글로우 대신 은은한 그림자만
     _rr(x, y, w, h, 8); ctx.stroke();
     ctx.shadowBlur = 0;
 }
@@ -89,20 +89,28 @@ function _uiBar(x, y, w, h, ratio, colA, colB, r) {
         ctx.fillStyle = fg;
         _rr(x, y, fw, h, r); ctx.fill();
         // 위쪽 광택
-        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillStyle = "rgba(255,255,255,0.16)";
         _rr(x + 1, y + 1, Math.max(0, fw - 2), Math.max(1, h * 0.38), [r, r, 0, 0]); ctx.fill();
     }
     // 테두리
     ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 1.5;
     _rr(x, y, w, h, r); ctx.stroke();
 }
-function _uiText(txt, x, y, size, col, align, bold, glow) {
-    ctx.fillStyle = col;
-    ctx.font = `${bold ? "bold " : ""}${size}px SkullFont, NeoDunggeunmo, monospace`;
+// 게임 안 모든 글씨는 여기를 거친다.
+// 예전엔 호출할 때마다 굵기/글로우/외곽선을 따로 넘겨서 화면마다 스타일이 제각각이었다
+// (어떤 건 얇고, 어떤 건 형광, 어떤 건 외곽선). 도트 게임에서는 검은 외곽선이 제일 깔끔하므로
+// **항상 굵게 + 항상 검은 외곽선**으로 통일하고, glow 인자는 무시한다(호출부 호환용으로만 남김).
+const UI_FONT = "SkullFont, NeoDunggeunmo, monospace";
+
+function _uiText(txt, x, y, size, col, align, _bold, _glow) {
+    ctx.font = `bold ${size}px ${UI_FONT}`;
     ctx.textAlign = align || "left";
-    if (glow) { ctx.shadowBlur = glow; ctx.shadowColor = col; }
+    ctx.lineJoin = "round";                       // 외곽선 모서리가 뾰족하게 튀지 않게
+    ctx.lineWidth = Math.max(3, Math.round(size * 0.22));
+    ctx.strokeStyle = "rgba(0,0,0,0.92)";
+    ctx.strokeText(txt, x, y);
+    ctx.fillStyle = col;
     ctx.fillText(txt, x, y);
-    ctx.shadowBlur = 0;
     ctx.textAlign = "left";
 }
 
@@ -210,17 +218,18 @@ function renderClassSelect() {
     const skx = px + 430;
     _uiText("스킬  [Shift]", skx, py + 118, 15, "#9a8cc0", "left", true);
     _uiText(sk.name, skx, py + 148, 24, col, "left", true, 8);
-    ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
-    ctx.fillStyle = "#c3b9dd";
-    ctx.textAlign = "left";
+    const descW = px + pw - 28 - skx;   // 패널 오른쪽 끝까지만 사용
     const desc = SKILL_DESC[id] || "";
     let line = "", ly = py + 176;
+    ctx.font = `bold 14px ${UI_FONT}`;
     desc.split(" ").forEach(w => {
         const t = line ? line + " " + w : w;
-        if (ctx.measureText(t).width > pw - 470 && line) { ctx.fillText(line, skx, ly); line = w; ly += 22; }
-        else line = t;
+        if (ctx.measureText(t).width > descW && line) {
+            _uiText(line, skx, ly, 14, "#c3b9dd"); line = w; ly += 22;
+            ctx.font = `bold 14px ${UI_FONT}`;
+        } else line = t;
     });
-    if (line) ctx.fillText(line, skx, ly);
+    if (line) _uiText(line, skx, ly, 14, "#c3b9dd");
     _uiText(`쿨다운 ${(prof.skillCD / 60).toFixed(1)}초`, skx, ly + 30, 13, "#8e83ad", "left");
 
     if (prof.ranged) _uiText("※ 기본 공격이 원거리다", skx, ly + 54, 13, "#66ccff", "left", true);
@@ -325,19 +334,17 @@ function renderRelicSelect() {
         _uiText(r.name, x + cw / 2, y + 86, 21, "#ffffff", "center", true, sel ? 8 : 0);
 
         // 설명 — 카드 폭에 맞춰 줄바꿈
-        ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillStyle = "#c3b9dd";
-        ctx.textAlign = "center";
         const words = r.desc.split(" ");
         let line = "", ly = y + 130;
+        ctx.font = `bold 14px ${UI_FONT}`;
         words.forEach(wd => {
             const test = line ? line + " " + wd : wd;
             if (ctx.measureText(test).width > cw - 36 && line) {
-                ctx.fillText(line, x + cw / 2, ly); line = wd; ly += 22;
+                _uiText(line, x + cw / 2, ly, 14, "#c3b9dd", "center"); line = wd; ly += 22;
+                ctx.font = `bold 14px ${UI_FONT}`;
             } else line = test;
         });
-        if (line) ctx.fillText(line, x + cw / 2, ly);
-        ctx.textAlign = "left";
+        if (line) _uiText(line, x + cw / 2, ly, 14, "#c3b9dd", "center");
 
         if (sel) _uiText("▲ SPACE 선택", x + cw / 2, y + ch - 22, 14, rar.color, "center", true, 8);
     });
@@ -379,26 +386,10 @@ function renderShop() {
     sepGrd.addColorStop(1,    "transparent");
 
     // ── 헤더 ──
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.font = "bold 34px SkullFont, NeoDunggeunmo, monospace";
-    ctx.shadowBlur = 18 + pulse * 10; ctx.shadowColor = "#cc44ff";
-    ctx.fillStyle = "#f0d0ff";
-    ctx.fillText("어둠의 제단", UW / 2, 46);
-    ctx.shadowBlur = 0;
-    ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
-    ctx.fillStyle = "#7744aa";
-    ctx.fillText("— 영구 강화 시스템 —", UW / 2, 66);
-
-    ctx.font = "bold 21px SkullFont, NeoDunggeunmo, monospace";
-    ctx.shadowBlur = 12 + pulse * 6; ctx.shadowColor = "#bb33ff";
-    ctx.fillStyle = "#dd88ff";
-    ctx.fillText(`◆  ${Game.darkQuartz}  ◆`, UW / 2, 96);
-    ctx.shadowBlur = 0;
-    ctx.font = "12px SkullFont, NeoDunggeunmo, monospace";
-    ctx.fillStyle = "#553377";
-    ctx.fillText("보유 다크 쿼츠", UW / 2, 113);
-    ctx.restore();
+    _uiText("어둠의 제단", UW / 2, 46, 34, "#f0d0ff", "center");
+    _uiText("— 영구 강화 시스템 —", UW / 2, 66, 13, "#8a5cc0", "center");
+    _uiText(`◆  ${Game.darkQuartz}  ◆`, UW / 2, 96, 21, "#dd88ff", "center");
+    _uiText("보유 다크 쿼츠", UW / 2, 113, 12, "#7a5a99", "center");
 
     ctx.strokeStyle = sepGrd; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, 124); ctx.lineTo(UW, 124); ctx.stroke();
@@ -473,18 +464,14 @@ function renderShop() {
         // 좌상단 인덱스 뱃지
         ctx.fillStyle = maxed ? "rgba(90,60,0,0.95)" : (sel ? "rgba(90,20,130,0.95)" : "rgba(45,0,70,0.9)");
         _rr(bx + 8, by + 8, 26, 20, 4); ctx.fill();
-        ctx.fillStyle = maxed ? "#ffdd44" : (sel ? "#e8b0ff" : "#8a6aa8");
-        ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace"; ctx.textAlign = "center";
-        ctx.fillText(String(i + 1), bx + 21, by + 23);
+        _uiText(String(i + 1), bx + 21, by + 23, 13,
+            maxed ? "#ffdd44" : (sel ? "#e8b0ff" : "#8a6aa8"), "center");
 
         // 이름 / 효과
-        ctx.fillStyle = maxed ? "#ffeebb" : (sel ? "#ffffff" : "#b79ccc");
-        ctx.font = "bold 19px SkullFont, NeoDunggeunmo, monospace"; ctx.textAlign = "center";
-        ctx.fillText(u.name, bx + bw / 2, by + 44);
-
-        ctx.fillStyle = maxed ? "#bbaa55" : (sel ? u.color : "#6d5f88");
-        ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
-        ctx.fillText(u.desc, bx + bw / 2, by + 68);
+        _uiText(_fit(u.name, bw - 24, 19), bx + bw / 2, by + 44, 19,
+            maxed ? "#ffeebb" : (sel ? "#ffffff" : "#b79ccc"), "center");
+        _uiText(_fit(u.desc, bw - 24, 14), bx + bw / 2, by + 68, 14,
+            maxed ? "#bbaa55" : (sel ? u.color : "#8f7fae"), "center");
 
         // 레벨 바 — 파인 홈에 채워 넣은 입체 게이지
         const barX = bx + 18, barY = by + 84, barW = bw - 36, barH = 11;
@@ -492,28 +479,17 @@ function renderShop() {
             maxed ? "#ffdd44" : u.color, maxed ? "#a06000" : "#5a0f8a", 4);
 
         // Lv 표기
-        ctx.fillStyle = maxed ? "#ddaa33" : "#9988aa";
-        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace"; ctx.textAlign = "center";
-        ctx.fillText(`Lv ${lvl} / ${PERM_MAX_LVL}`, bx + bw / 2, by + 116);
+        _uiText(`Lv ${lvl} / ${PERM_MAX_LVL}`, bx + bw / 2, by + 116, 13,
+            maxed ? "#ddaa33" : "#a99ac0", "center");
 
         // 비용 / MAX
         if (!maxed) {
-            ctx.shadowBlur = afford ? 7 : 0; ctx.shadowColor = "#ffaa00";
-            ctx.fillStyle  = afford ? "#ffcc00" : "#cc3333";
-            ctx.font = "bold 17px SkullFont, NeoDunggeunmo, monospace";
-            ctx.fillText(`◆ ${cost}`, bx + bw / 2, by + 141);
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = afford ? "#886600" : "#662222";
-            ctx.font = "11px SkullFont, NeoDunggeunmo, monospace";
-            ctx.fillText(afford ? "쿼츠 필요" : "쿼츠 부족", bx + bw / 2, by + 156);
+            _uiText(`◆ ${cost}`, bx + bw / 2, by + 141, 17, afford ? "#ffcc00" : "#cc3333", "center");
+            _uiText(afford ? "쿼츠 필요" : "쿼츠 부족", bx + bw / 2, by + 156, 11,
+                afford ? "#9a7a22" : "#8a3333", "center");
         } else {
-            ctx.shadowBlur = 8; ctx.shadowColor = "#ffaa00";
-            ctx.fillStyle = "#ffcc44";
-            ctx.font = "bold 19px SkullFont, NeoDunggeunmo, monospace";
-            ctx.fillText("✦ MAX", bx + bw / 2, by + 146);
-            ctx.shadowBlur = 0;
+            _uiText("✦ MAX", bx + bw / 2, by + 146, 19, "#ffcc44", "center");
         }
-        ctx.textAlign = "left";
     });
 
     // ── 하단 구분선 & 안내 ──
@@ -536,10 +512,10 @@ function renderPause() {
     // 왼쪽: 스탯
     // 좌우 여백을 줄여 오른쪽(장비·유물) 패널이 이름을 담을 만큼 넓어지게 재배분
     // (예전 배치는 우패널이 238px뿐이라 유물 이름이 잘렸다)
-    const px = 70, py = 120, pw = 420;
-    _uiPanel(px, py, pw, 300);
+    // 패널 높이는 행 수에서 역산한다 — 예전엔 300px 고정이라 10번째 행(스킬)이 패널 밖으로 나갔음
+    const px = 70, py = 112, pw = 420;
+    const ROW_H = 26, HEAD_H = 56;
     const prof = classProfile(Game.pClass);
-    _uiText(`현재 스탯  —  ${prof.name}`, px + 20, py + 30, 18, prof.tint || "#ffcc44", "left", true);
     const rows = [
         ["체력", `${Math.ceil(Player.hp)} / ${Player.maxHp}`],
         ["공격력", `${prof.dmgMin + (Game.pAtkBonus || 0) + equipAtk()} ~ ${prof.dmgMax + (Game.pAtkBonus || 0) + equipAtk()}`],
@@ -552,16 +528,30 @@ function renderPause() {
         ["보호막", `${Math.round(Game.pShield || 0)}`],
         ["스킬", Player.skillCD > 0 ? `${Math.ceil(Player.skillCD / 60)}초 남음` : `${classSkill(Game.pClass).name} 준비`],
     ];
+    const panelH = HEAD_H + rows.length * ROW_H + 16;
+    _uiPanel(px, py, pw, panelH, UIC.line);
+    _uiText(`현재 스탯  —  ${prof.name}`, px + 20, py + 30, 18, uiMute(prof.tint || UIC.accent, 0.35), "left");
+    // 헤더 구분선
+    ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px + 18, py + 42); ctx.lineTo(px + pw - 18, py + 42); ctx.stroke();
+
     rows.forEach((r, i) => {
-        const y = py + 62 + i * 28;
-        _uiText(r[0], px + 24, y, 15, "#8e83ad");
-        _uiText(r[1], px + pw - 24, y, 15, "#ffffff", "right", true);
+        const y = py + HEAD_H + i * ROW_H;
+        // 홀수 행에 옅은 띠 — 값이 어느 항목인지 눈으로 따라가기 쉽게
+        if (i % 2 === 1) {
+            ctx.fillStyle = "rgba(255,255,255,0.035)";
+            ctx.fillRect(px + 12, y - 15, pw - 24, ROW_H - 2);
+        }
+        _uiText(r[0], px + 24, y, 14, UIC.label);
+        _uiText(_fit(String(r[1]), pw - 170, 14), px + pw - 24, y, 14, UIC.text, "right");
     });
 
     // 오른쪽: 장비 + 유물
     const qx = px + pw + 26, qw = UW - qx - 70;
-    _uiPanel(qx, py, qw, 300);
-    _uiText("장비", qx + 20, py + 30, 18, "#ffcc44", "left", true);
+    _uiPanel(qx, py, qw, panelH, UIC.line);
+    _uiText("장비", qx + 20, py + 30, 18, UIC.accent, "left");
+    ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(qx + 18, py + 42); ctx.lineTo(qx + qw - 18, py + 42); ctx.stroke();
     const eqRows = [["무기", Game.equip.weapon], ["방어구", Game.equip.armor]];
     eqRows.forEach(([lab, eq], i) => {
         const y = py + 58 + i * 24;
@@ -703,7 +693,7 @@ function renderMinimap() {
     uiBegin(); // 미니맵도 UI 스케일 좌표계 — ctx.restore()가 원래 변환을 되돌려준다
     ctx.fillStyle = "rgba(6,4,12,0.7)";
     ctx.fillRect(mx, my, MW, MH);
-    ctx.strokeStyle = "#4a3a6a"; ctx.lineWidth = 1;
+    ctx.strokeStyle = UIC.lineDim; ctx.lineWidth = 1;
     ctx.strokeRect(mx, my, MW, MH);
 
     // 벽·장애물
