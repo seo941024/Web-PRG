@@ -2,13 +2,35 @@
 // 월드 렌더는 render_entities.js가 담당하고, 여기서는 화면 좌표(setTransform 초기화 상태) 기준으로만 그린다.
 
 // ── 공통 헬퍼 ──────────────────────────────────────────────
+// 둥근 사각형 — roundRect 미지원 브라우저에서도 깨지지 않게 사각형으로 폴백
+function _rr(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+}
+
+// 패널 — 단색+얇은 테두리(플래시 웹게임 느낌)에서 벗어나기 위해
+// 세로 그라디언트 + 상단 하이라이트 + 바깥 글로우를 기본으로 준다. 상점 카드와 같은 톤.
 function _uiPanel(x, y, w, h, accent) {
-    ctx.fillStyle = "rgba(10,7,16,0.88)";
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = accent || "#5a3a8a";
-    ctx.lineWidth = 1.5;
-    ctx.shadowBlur = 10; ctx.shadowColor = (accent || "#7a4fc9") + "aa";
-    ctx.strokeRect(x, y, w, h);
+    const col = accent || "#7a4fc9";
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, "rgba(26,12,42,0.94)");
+    g.addColorStop(1, "rgba(8,2,14,0.94)");
+    ctx.fillStyle = g;
+    _rr(x, y, w, h, 8); ctx.fill();
+
+    // 상단 하이라이트 — 위에서 빛이 드는 느낌
+    const hg = ctx.createLinearGradient(x, y, x + w, y);
+    hg.addColorStop(0, "rgba(255,255,255,0)");
+    hg.addColorStop(0.5, "rgba(200,150,255,0.07)");
+    hg.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = hg;
+    _rr(x, y, w, Math.min(h * 0.3, 40), [8, 8, 0, 0]); ctx.fill();
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 12; ctx.shadowColor = col + "aa";
+    _rr(x, y, w, h, 8); ctx.stroke();
     ctx.shadowBlur = 0;
 }
 function _uiText(txt, x, y, size, col, align, bold, glow) {
@@ -203,22 +225,28 @@ function renderRelicSelect() {
         // 선택된 카드는 살짝 떠오르고 테두리가 밝아짐
         const y = sy - (sel ? 12 : 0);
 
+        // 카드 — 상점 카드와 같은 톤(그라디언트 + 글로우). 희귀도 색이 카드 전체를 물들인다.
         ctx.save();
+        const cg = ctx.createLinearGradient(x, y, x, y + ch);
+        if (sel) { cg.addColorStop(0, "rgba(34,20,52,0.97)"); cg.addColorStop(1, "rgba(10,4,18,0.97)"); }
+        else     { cg.addColorStop(0, "rgba(16,8,28,0.92)");  cg.addColorStop(1, "rgba(6,2,12,0.92)"); }
+        ctx.fillStyle = cg;
+        _rr(x, y, cw, ch, 9); ctx.fill();
+
         if (sel) { ctx.shadowBlur = 22; ctx.shadowColor = rar.color; }
-        ctx.fillStyle = sel ? "rgba(24,16,38,0.96)" : "rgba(12,8,20,0.9)";
-        ctx.fillRect(x, y, cw, ch);
         ctx.strokeStyle = rar.color;
         ctx.lineWidth = sel ? 3 : 1.5;
-        ctx.strokeRect(x, y, cw, ch);
+        _rr(x, y, cw, ch, 9); ctx.stroke();
         ctx.shadowBlur = 0;
         ctx.restore();
 
-        // 희귀도 띠
-        ctx.fillStyle = rar.color;
-        ctx.globalAlpha = sel ? 0.28 : 0.16;
-        ctx.fillRect(x, y, cw, 40);
-        ctx.globalAlpha = 1;
-        _uiText(rar.name, x + cw / 2, y + 26, 14, rar.color, "center", true);
+        // 희귀도 띠 — 위에서 아래로 옅어지게
+        const rg = ctx.createLinearGradient(x, y, x, y + 46);
+        rg.addColorStop(0, rar.color + (sel ? "66" : "3a"));
+        rg.addColorStop(1, rar.color + "00");
+        ctx.fillStyle = rg;
+        _rr(x, y, cw, 46, [9, 9, 0, 0]); ctx.fill();
+        _uiText(rar.name, x + cw / 2, y + 28, 15, rar.color, "center", true, sel ? 6 : 0);
 
         _uiText(r.name, x + cw / 2, y + 86, 21, "#ffffff", "center", true, sel ? 8 : 0);
 
@@ -246,54 +274,194 @@ function renderRelicSelect() {
 // ── 영구 강화 상점 ─────────────────────────────────────────
 function renderShop() {
     uiBegin();
-    ctx.fillStyle = "#07040e";
-    ctx.fillRect(0, 0, UW, UH);
+    const t = Date.now();
+    const pulse = (Math.sin(t * 0.0028) + 1) / 2;
 
-    _uiText("다크 쿼츠 — 영구 강화", UW / 2, 74, 30, "#dd88ff", "center", true, 14);
-    _uiText("여기서 산 강화는 죽어도 사라지지 않는다", UW / 2, 100, 13, "#8e83ad", "center");
-    _uiText(`보유: ${Game.darkQuartz}`, UW / 2, 126, 18, "#ffcc44", "center", true, 8);
+    // ── 배경: 다층 방사형 그라디언트 ──
+    const bgGrd = ctx.createRadialGradient(UW / 2, UH * 0.38, 20, UW / 2, UH / 2, UW * 0.85);
+    bgGrd.addColorStop(0,    "#1c0035");
+    bgGrd.addColorStop(0.45, "#0e001e");
+    bgGrd.addColorStop(1,    "#030008");
+    ctx.fillStyle = bgGrd; ctx.fillRect(0, 0, UW, UH);
 
-    const rowH = 56, listW = 620;
-    const sx = (UW - listW) / 2, sy = 158;
+    // ── 배경 부유 파티클 (다크 쿼츠 결정) ──
+    ctx.save();
+    for (let i = 0; i < 26; i++) {
+        const px = ((i * 103 + t * 0.009 * (i % 3 === 0 ? 1 : -0.6)) % UW + UW) % UW;
+        const py = ((i * 61  + t * 0.007 * (i % 2 === 0 ? 0.8 : -0.5)) % UH + UH) % UH;
+        const pa = 0.06 + Math.sin(t * 0.002 + i * 1.4) * 0.04;
+        const ps = 1 + (i % 4) * 0.8;
+        ctx.fillStyle = `rgba(190,90,255,${pa})`;
+        ctx.beginPath(); ctx.arc(px, py, ps, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // ── 구분선 그라디언트 (상·하단 재사용) ──
+    const sepGrd = ctx.createLinearGradient(0, 0, UW, 0);
+    sepGrd.addColorStop(0,    "transparent");
+    sepGrd.addColorStop(0.15, "#7722aa");
+    sepGrd.addColorStop(0.5,  "#cc66ff");
+    sepGrd.addColorStop(0.85, "#7722aa");
+    sepGrd.addColorStop(1,    "transparent");
+
+    // ── 헤더 ──
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.font = "bold 34px SkullFont, NeoDunggeunmo, monospace";
+    ctx.shadowBlur = 18 + pulse * 10; ctx.shadowColor = "#cc44ff";
+    ctx.fillStyle = "#f0d0ff";
+    ctx.fillText("어둠의 제단", UW / 2, 46);
+    ctx.shadowBlur = 0;
+    ctx.font = "13px SkullFont, NeoDunggeunmo, monospace";
+    ctx.fillStyle = "#7744aa";
+    ctx.fillText("— 영구 강화 시스템 —", UW / 2, 66);
+
+    ctx.font = "bold 21px SkullFont, NeoDunggeunmo, monospace";
+    ctx.shadowBlur = 12 + pulse * 6; ctx.shadowColor = "#bb33ff";
+    ctx.fillStyle = "#dd88ff";
+    ctx.fillText(`◆  ${Game.darkQuartz}  ◆`, UW / 2, 96);
+    ctx.shadowBlur = 0;
+    ctx.font = "12px SkullFont, NeoDunggeunmo, monospace";
+    ctx.fillStyle = "#553377";
+    ctx.fillText("보유 다크 쿼츠", UW / 2, 113);
+    ctx.restore();
+
+    ctx.strokeStyle = sepGrd; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 124); ctx.lineTo(UW, 124); ctx.stroke();
+
+    // ── 카드 그리드 (3열 × 2행) ──
+    const cols = 3;
+    const bw = 240, bh = 168, padX = 20, padY = 16;
+    const totalW = cols * bw + (cols - 1) * padX;
+    const startX = (UW - totalW) / 2;
+    const startY = 146;
 
     PERM_UPGRADES.forEach((u, i) => {
-        const lvl = Game[u.key] || 0;
+        const col = i % cols, row = Math.floor(i / cols);
+        const bx = startX + col * (bw + padX);
+        const by = startY + row * (bh + padY);
+        const lvl   = Game[u.key] || 0;
+        const cost  = permCost(lvl);
         const maxed = lvl >= PERM_MAX_LVL;
-        const cost = permCost(lvl);
-        const sel = i === Game.shopIdx;
-        const y = sy + i * rowH;
+        const afford = Game.darkQuartz >= cost;
+        const sel   = i === Game.shopIdx;
+        const canBuy = afford && !maxed;
+        const cp = sel && !maxed ? pulse : 0;
 
-        _uiPanel(sx, y, listW, rowH - 8, sel ? u.color : "#3a3352");
+        // 선택 카드 글로우
         if (sel) {
-            ctx.fillStyle = u.color; ctx.globalAlpha = 0.10;
-            ctx.fillRect(sx, y, listW, rowH - 8);
-            ctx.globalAlpha = 1;
-            _uiText("▶", sx - 20, y + 32, 18, u.color, "left", true);
+            ctx.save();
+            ctx.shadowBlur = 16 + cp * 10; ctx.shadowColor = maxed ? "#ffaa22" : u.color;
+            ctx.strokeStyle = "rgba(0,0,0,0)"; ctx.lineWidth = 1;
+            _rr(bx - 2, by - 2, bw + 4, bh + 4, 9); ctx.stroke();
+            ctx.restore();
         }
 
-        _uiText(u.name, sx + 18, y + 22, 17, u.color, "left", true);
-        _uiText(u.desc + " / 레벨", sx + 18, y + 40, 12, "#8e83ad");
-
-        // 레벨 게이지 10칸
-        const gx = sx + 250, gy = y + 16, cellW = 16, cellH = 16;
-        for (let c = 0; c < PERM_MAX_LVL; c++) {
-            ctx.fillStyle = c < lvl ? u.color : "#241d38";
-            ctx.fillRect(gx + c * (cellW + 3), gy, cellW, cellH);
-        }
-        _uiText(`${lvl}/${PERM_MAX_LVL}`, gx + PERM_MAX_LVL * 19 + 10, y + 29, 13, "#c3b9dd", "left", true);
-
+        // 카드 배경 그라디언트 — 최대강화는 금색, 구입 가능은 보라, 부족은 어둡게
+        const cg = ctx.createLinearGradient(bx, by, bx, by + bh);
         if (maxed) {
-            _uiText("MAX", sx + listW - 22, y + 30, 15, "#66ff99", "right", true);
+            cg.addColorStop(0, "rgba(52,38,6,0.95)"); cg.addColorStop(1, "rgba(22,15,2,0.95)");
+        } else if (canBuy) {
+            cg.addColorStop(0, `rgba(${40 + Math.round(cp * 14)},0,${64 + Math.round(cp * 20)},0.94)`);
+            cg.addColorStop(1, "rgba(10,0,18,0.94)");
         } else {
-            const afford = Game.darkQuartz >= cost;
-            _uiText(`${cost} 쿼츠`, sx + listW - 22, y + 30, 15, afford ? "#ffcc44" : "#77607a", "right", true);
+            cg.addColorStop(0, "rgba(16,2,26,0.90)"); cg.addColorStop(1, "rgba(6,0,12,0.90)");
         }
+        ctx.fillStyle = cg;
+        _rr(bx, by, bw, bh, 8); ctx.fill();
+
+        // 최대강화 골드 상단 스트라이프
+        if (maxed) {
+            const hg = ctx.createLinearGradient(bx, by, bx + bw, by);
+            hg.addColorStop(0, "rgba(255,200,0,0)");
+            hg.addColorStop(0.5, "rgba(255,200,0,0.10)");
+            hg.addColorStop(1, "rgba(255,200,0,0)");
+            ctx.fillStyle = hg;
+            _rr(bx, by, bw, bh * 0.32, [8, 8, 0, 0]); ctx.fill();
+        }
+
+        // 카드 테두리
+        ctx.lineWidth = 2;
+        if (maxed) {
+            ctx.shadowBlur = 4; ctx.shadowColor = "#996600";
+            ctx.strokeStyle = "#886600";
+        } else if (sel) {
+            ctx.shadowBlur = 6 + cp * 8; ctx.shadowColor = u.color;
+            ctx.strokeStyle = u.color;
+        } else if (canBuy) {
+            ctx.shadowBlur = 0; ctx.strokeStyle = "#6a2a9a";
+        } else {
+            ctx.shadowBlur = 0; ctx.strokeStyle = "#2d0044";
+        }
+        _rr(bx, by, bw, bh, 8); ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // 좌상단 인덱스 뱃지
+        ctx.fillStyle = maxed ? "rgba(90,60,0,0.95)" : (sel ? "rgba(90,20,130,0.95)" : "rgba(45,0,70,0.9)");
+        _rr(bx + 8, by + 8, 26, 20, 4); ctx.fill();
+        ctx.fillStyle = maxed ? "#ffdd44" : (sel ? "#e8b0ff" : "#8a6aa8");
+        ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace"; ctx.textAlign = "center";
+        ctx.fillText(String(i + 1), bx + 21, by + 23);
+
+        // 이름 / 효과
+        ctx.fillStyle = maxed ? "#ffeebb" : (sel ? "#ffffff" : "#b79ccc");
+        ctx.font = "bold 19px SkullFont, NeoDunggeunmo, monospace"; ctx.textAlign = "center";
+        ctx.fillText(u.name, bx + bw / 2, by + 44);
+
+        ctx.fillStyle = maxed ? "#bbaa55" : (sel ? u.color : "#6d5f88");
+        ctx.font = "14px SkullFont, NeoDunggeunmo, monospace";
+        ctx.fillText(u.desc, bx + bw / 2, by + 68);
+
+        // 레벨 바 (트랙 + 채움 + shimmer)
+        const barX = bx + 18, barY = by + 84, barW = bw - 36, barH = 11;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        _rr(barX, barY, barW, barH, 4); ctx.fill();
+        if (lvl > 0) {
+            const fillW = barW * Math.min(1, lvl / PERM_MAX_LVL);
+            const fg = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+            if (maxed) { fg.addColorStop(0, "#bb7700"); fg.addColorStop(1, "#ffdd44"); }
+            else       { fg.addColorStop(0, "#7711bb"); fg.addColorStop(1, u.color); }
+            ctx.fillStyle = fg;
+            _rr(barX, barY, fillW, barH, 4); ctx.fill();
+            if (!maxed) {
+                ctx.fillStyle = "rgba(255,200,255,0.22)";
+                _rr(barX, barY, fillW, barH * 0.45, [4, 4, 0, 0]); ctx.fill();
+            }
+        }
+
+        // Lv 표기
+        ctx.fillStyle = maxed ? "#ddaa33" : "#9988aa";
+        ctx.font = "13px SkullFont, NeoDunggeunmo, monospace"; ctx.textAlign = "center";
+        ctx.fillText(`Lv ${lvl} / ${PERM_MAX_LVL}`, bx + bw / 2, by + 116);
+
+        // 비용 / MAX
+        if (!maxed) {
+            ctx.shadowBlur = afford ? 7 : 0; ctx.shadowColor = "#ffaa00";
+            ctx.fillStyle  = afford ? "#ffcc00" : "#cc3333";
+            ctx.font = "bold 17px SkullFont, NeoDunggeunmo, monospace";
+            ctx.fillText(`◆ ${cost}`, bx + bw / 2, by + 141);
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = afford ? "#886600" : "#662222";
+            ctx.font = "11px SkullFont, NeoDunggeunmo, monospace";
+            ctx.fillText(afford ? "쿼츠 필요" : "쿼츠 부족", bx + bw / 2, by + 156);
+        } else {
+            ctx.shadowBlur = 8; ctx.shadowColor = "#ffaa00";
+            ctx.fillStyle = "#ffcc44";
+            ctx.font = "bold 19px SkullFont, NeoDunggeunmo, monospace";
+            ctx.fillText("✦ MAX", bx + bw / 2, by + 146);
+            ctx.shadowBlur = 0;
+        }
+        ctx.textAlign = "left";
     });
 
+    // ── 하단 구분선 & 안내 ──
+    ctx.strokeStyle = sepGrd; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, UH - 40); ctx.lineTo(UW, UH - 40); ctx.stroke();
+
     if (Game.shopMsg && Game.shopMsg.t > 0) {
-        _uiText(Game.shopMsg.text, UW / 2, sy + PERM_UPGRADES.length * rowH + 30, 16, Game.shopMsg.col, "center", true, 8);
+        _uiText(Game.shopMsg.text, UW / 2, UH - 52, 16, Game.shopMsg.col, "center", true, 8);
     }
-    _uiText("↑ ↓  이동      SPACE  구입      ESC  돌아가기", UW / 2, UH - 30, 15, "#9a8cc0", "center", true);
+    _uiText("← → ↑ ↓  이동      SPACE  강화      ESC  돌아가기", UW / 2, UH - 18, 14, "#9a8cc0", "center", true);
 }
 
 // ── 일시정지 (스탯 + 보유 유물 확인) ───────────────────────

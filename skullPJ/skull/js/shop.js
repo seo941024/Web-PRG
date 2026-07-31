@@ -48,10 +48,16 @@ function openShop() {
     if (typeof playBGM === 'function') playBGM('upgrade');
 }
 
+// 상점은 3열 그리드로 그리므로(ui.js renderShop) 좌우는 1칸, 상하는 한 행(3칸)씩 이동
+const SHOP_COLS = 3;
+
 function updateShop() {
     const n = PERM_UPGRADES.length;
-    if (pr("ArrowUp", "KeyW"))    { Game.shopIdx = (Game.shopIdx - 1 + n) % n; if (typeof playSfx === 'function') playSfx('menu_select'); }
-    if (pr("ArrowDown", "KeyS"))  { Game.shopIdx = (Game.shopIdx + 1) % n;     if (typeof playSfx === 'function') playSfx('menu_select'); }
+    const move = (d) => { Game.shopIdx = (Game.shopIdx + d + n) % n; if (typeof playSfx === 'function') playSfx('menu_select'); };
+    if (pr("ArrowLeft", "KeyA"))  move(-1);
+    if (pr("ArrowRight", "KeyD")) move(1);
+    if (pr("ArrowUp", "KeyW"))    move(-SHOP_COLS);
+    if (pr("ArrowDown", "KeyS"))  move(SHOP_COLS);
 
     if (pr("Space", "Enter", "KeyC")) {
         const u = PERM_UPGRADES[Game.shopIdx];
