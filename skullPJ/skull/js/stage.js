@@ -30,9 +30,11 @@ const MOB_ARCHETYPES = {
 // 한 원형(예: ranged)을 여러 몹이 공유해도 시각적으로는 다른 몬스터일 수 있어서
 // 원형 이름을 그대로 폴더명으로 쓰지 않고 별도 매핑을 둔다.
 const MOB_SPRITE_MAP = {
-    "1_melee": "mob1_basic",   // 고블린 기본 보병(단검)
-    // "1_ranged": "mob1_thrower", // 고블린 투척병 — 아직 stage.js의 mobs 풀에 ranged가 없어 미연결.
-    //   투석/자세만 다른 몹(투척병·궁병)이 같은 ranged 원형을 쓸지, 원형을 나눌지 정해지면 주석 해제
+    "1_melee":  "mob1_basic",   // 고블린 기본 보병(단검)
+    "1_ranged": "mob1_archer",  // 고블린 궁병 — "거리 유지하며 쏘는" 기존 ranged AI와 자세가 맞음
+    "1_bomber": "mob1_bomber",  // 고블린 자폭병 — 기존 bomber 원형(달려들어 자폭) 그대로 사용
+    // mob1_thrower(투척병)는 아직 원형이 없어 미연결 — ranged를 궁병이 이미 쓰고 있어서,
+    // 투척병을 쓰려면 새 원형을 만들거나 궁병과 자리를 바꿔야 함
 };
 
 // ── 10개 테마 ──────────────────────────────────────────────
@@ -50,7 +52,7 @@ const STAGE_THEMES = [
             accent: "#7dc242", fog: "rgba(60,90,40,0.05)",
         },
         mobTint: "#8fdd4a",
-        mobs: ["melee", "melee", "charger"],   // 잡졸 위주 + 간간이 돌격병
+        mobs: ["melee", "melee", "charger", "ranged", "bomber"],   // 궁병·자폭병 도트 확보되어 추가
         eliteChance: 0.08,
         boss: { name: "고블린 킹", hp: 260, atk: 18, speed: 1.15, tint: "#a8e05a", hb: { w: 28, h: 22 } },
         layouts: [
