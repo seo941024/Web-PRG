@@ -110,7 +110,7 @@ function updateMenu() {
     }
     if (pr("KeyS")) { if (typeof playSfx === 'function') playSfx('menu_select'); openShop(); }
     if (pr("KeyM")) { Game.isMuted = !Game.isMuted; if (Game.isMuted && typeof stopBGM === 'function') stopBGM(); else if (typeof playBGM === 'function') playBGM('lobby'); }
-    if (pr("F1")) { if (typeof playSfx === 'function') playSfx('menu_select'); openDebugStage(); }
+    if (pr("Backquote")) { if (typeof playSfx === 'function') playSfx('menu_select'); openDebugStage(); }
 }
 
 // ── 직업 선택 ──────────────────────────────────────────────
@@ -253,7 +253,7 @@ function renderMenu() {
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
         _uiText("▶  SPACE  게임 시작  ◀", UW / 2, UH * 0.60, 20, "#ffcc44", "center", true, 10);
     }
-    _uiText(`[S] 영구 강화    [H] 조작법    [M] 음소거 ${Game.isMuted ? "ON" : "OFF"}    [F1] 관리자`,
+    _uiText("[S] 영구 강화    [H] 조작법    [M] 음소거 " + (Game.isMuted ? "ON" : "OFF") + "    [~] 관리자",
         UW / 2, UH * 0.60 + 34, 13, "#8e83ad", "center");
     _uiText(`보유 다크 쿼츠: ${Game.darkQuartz}`, UW / 2, UH * 0.60 + 58, 13, "#dd88ff", "center");
 }
@@ -854,7 +854,7 @@ function renderInventory() {
 
 // ── 관리자(디버그) 스테이지 선택 ───────────────────────────
 // 보스나 후반 스테이지를 확인할 때 매번 처음부터 진행하지 않아도 되게 하는 개발용 화면.
-// 메뉴에서 [F1]로 연다. 정식 진행과 달리 유물·장비 없이 바로 해당 방으로 들어가므로
+// 메뉴에서 [`](숫자 1 왼쪽)로 연다. F1은 브라우저 도움말이 떠서 못 쓴다. 정식 진행과 달리 유물·장비 없이 바로 해당 방으로 들어가므로
 // 밸런스 확인용으로만 쓸 것(선택한 스테이지 기준 진행 보정은 그대로 적용된다).
 function openDebugStage() {
     Game.gs = "debugStage";
@@ -883,7 +883,7 @@ function updateDebugStage() {
         enterRound(Game.stageN, Game.roundN);
         if (typeof playSfx === 'function') playSfx('unlock');
     }
-    if (pr("Escape", "KeyX", "F1")) Game.gs = "menu";
+    if (pr("Escape", "KeyX", "Backquote")) Game.gs = "menu";
 }
 
 function renderDebugStage() {
