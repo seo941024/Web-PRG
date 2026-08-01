@@ -157,7 +157,8 @@ function renderRoom(walls) {
         }
 
         ctx.save();
-        if (e.flash > 0) ctx.filter = "brightness(2) saturate(0)";
+        // 피격 플래시(흰색). 자폭병 시체는 붉게 물들여야 하므로 플래시를 적용하지 않는다
+        if (e.flash > 0 && !dyingBomber) ctx.filter = "brightness(2) saturate(0)";
         if (e.isBoss && e.spriteKey) {
             // 보스는 원화보다 크게 그려 위압감을 준다 (히트박스 e.hb는 그대로 — 시각 크기만 확대).
             // 전용 도트가 있으면 idle 숨쉬기 애니를 재생(없으면 정지 포즈로 자동 폴백),

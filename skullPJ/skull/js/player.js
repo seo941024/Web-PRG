@@ -220,7 +220,9 @@ function updatePlayer(walls) {
 
     // 스프린트: Z 유지 — 이동속도 2배, 스태미나 소모 없음 (풀스프린트 애니 사용)
     const sprintHeld = dn("KeyZ") && (mx !== 0 || my !== 0) && p.dashT <= 0;
-    if (sprintHeld) sp *= 2;
+    // 스프린트 배율 — 2.0배는 방(1100px)에 비해 너무 빨라 조작이 미끄러지듯 튀었다.
+    // 1.55배면 "확실히 빠르지만 제어 가능한" 수준.
+    if (sprintHeld) sp *= 1.55;
 
     // 회피(구 대시): Space — 짧은 무적 突진 + 잔상, 스태미나 소모
     // 유물 "유령 걸음"은 소모를 줄이고(pDashCostMul) 무적 시간을 늘린다(pDashInvBonus)

@@ -127,6 +127,9 @@ function updateEnemies(walls) {
     const p = Player;
     Game.enemies.forEach(e => {
         if (!e.active) return;
+        // 피격 플래시는 죽은 뒤에도 계속 줄어야 한다. 예전엔 dead 분기 뒤에 있어서
+        // 자폭병 시체의 flash가 영원히 남고, 흰색(brightness+saturate 0)으로 굳어 보였다.
+        if (e.flash > 0) e.flash--;
         if (e.dead) {
             if (e.mtype === "bomber") {
                 // 자폭병은 죽어도 즉시 사라지지 않는다. 시체가 붉어지며 1초 뒤 폭발.
@@ -147,7 +150,6 @@ function updateEnemies(walls) {
         }
         if (e.isBoss) { updateBossAI(e, walls); return; }
 
-        if (e.flash > 0) e.flash--;
         if ((e.hitInv || 0) > 0) e.hitInv--;
 
         const dx = p.x - e.x, dy = p.y - e.y;
@@ -209,7 +211,9 @@ function updateEnemies(walls) {
                     e.atkAnim = n * (arch.burstGap || 9);
                 } else if (e.mtype === "archer" || e.mtype === "ranged") {
                     fireMobShot(e, arch);
-                    e.atkAnim = 8;
+                    // 발사 후 자세를 유지하는 시간. 8프레임(0.13초)이면 3초 차지 끝에
+                    // 동작이 번쩍하고 사라져 무슨 일이 일어났는지 안 읽힌다.
+                    e.atkAnim = arch.recoil || 8;
                 } else if (e.mtype === "bomber") {
                     // 도화선(warn)이 다 타면 자기 공격으로 폭발 — 이건 지연 없이 즉시
                     e._selfDetonate = true;
