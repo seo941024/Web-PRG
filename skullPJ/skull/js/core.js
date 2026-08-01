@@ -211,22 +211,22 @@ function resetRun() {
 // skill: Shift로 쓰는 직업 고유기. 구현은 skill.js의 CLASS_SKILLS.
 const CLASS_PROFILE = {
     0: { name: "성기사", tint: "#ffd24a", desc: "느리지만 단단한 근접. 넓은 범위를 쓸어친다.",
-         atkSpd: 0.95, range: 62, atkCD: 34, dmgMin: 20, dmgMax: 27, crit: 0.12,
+         atkSpd: 0.95, range: 62, atkCD: 34, dmgMin: 24, dmgMax: 32, crit: 0.12,
          hpMul: 1.45, spdMul: 0.88, arc: 80, skillCD: 300 },
     1: { name: "도적",   tint: null,      desc: "초고속 쌍단검. 치명타로 녹인다. 대신 약하다.",
-         atkSpd: 2.00, range: 50, atkCD: 20, dmgMin: 10, dmgMax: 16, crit: 0.35,
+         atkSpd: 2.00, range: 50, atkCD: 20, dmgMin: 12, dmgMax: 19, crit: 0.35,
          hpMul: 0.85, spdMul: 1.15, arc: 60, skillCD: 240 },
     2: { name: "마법사", tint: "#5ab6ff", desc: "원거리 관통 마법탄. 몸이 약해 거리 유지가 생명.",
-         atkSpd: 1.10, range: 300, atkCD: 30, dmgMin: 14, dmgMax: 20, crit: 0.18,
+         atkSpd: 1.10, range: 300, atkCD: 30, dmgMin: 17, dmgMax: 24, crit: 0.18,
          hpMul: 0.75, spdMul: 1.00, arc: 30, ranged: true, shotSpeed: 8.5, skillCD: 300 },
     3: { name: "버서커", tint: "#ff5533", desc: "느리고 둔하지만 한 방이 무겁다. 체력이 깎일수록 강해진다.",
-         atkSpd: 0.80, range: 66, atkCD: 40, dmgMin: 30, dmgMax: 42, crit: 0.10,
+         atkSpd: 0.80, range: 66, atkCD: 40, dmgMin: 36, dmgMax: 50, crit: 0.10,
          hpMul: 1.30, spdMul: 0.86, arc: 90, rageDmg: true, skillCD: 330 },
     4: { name: "발키리", tint: "#c9d4e6", desc: "빠른 연사 원거리. 탄 하나하나는 약하다.",
-         atkSpd: 1.85, range: 280, atkCD: 18, dmgMin: 8,  dmgMax: 13, crit: 0.25,
+         atkSpd: 1.85, range: 280, atkCD: 18, dmgMin: 10, dmgMax: 15, crit: 0.25,
          hpMul: 0.85, spdMul: 1.08, arc: 24, ranged: true, shotSpeed: 10, skillCD: 270 },
     5: { name: "혈귀",   tint: "#cc1f4a", desc: "피를 마시며 싸운다. 공격이 곧 회복.",
-         atkSpd: 1.35, range: 56, atkCD: 26, dmgMin: 16, dmgMax: 24, crit: 0.22,
+         atkSpd: 1.35, range: 56, atkCD: 26, dmgMin: 19, dmgMax: 29, crit: 0.22,
          hpMul: 1.05, spdMul: 1.05, arc: 70, innateLifesteal: 0.22, skillCD: 285 },
 };
 const CLASS_IDS = [0, 1, 2, 3, 4, 5];

@@ -3,7 +3,10 @@
 // 탑다운 전투 템포에서는 "언제 쓸까"만 결정하게 하는 쿨다운이 더 읽기 쉽다.
 //
 // 쿨다운 길이는 core.js의 CLASS_PROFILE.skillCD(프레임)에 있다.
-// 피해량은 playerAtkDamage()를 기준으로 배율을 걸어, 장비·유물 성장이 스킬에도 반영되게 한다.
+// 피해량은 playerAtkDamage()를 기준으로 배율을 걸어, 장비·유물·진행 보정이 스킬에도 반영되게 한다.
+// 배율 기준: 쿨다운 4초 동안 평타만 쳐도 콤보 5회(약 23배)가 나오므로,
+// 스킬 1회 총합이 콤보 2~2.5회분(약 10~12배)은 돼야 쓸 이유가 생긴다.
+// 다단히트 스킬은 (배율 × 히트수)가 그 총합이 되도록 배율을 나눠 잡을 것.
 
 // 부채꼴/원형 범위 안의 적에게 피해를 주는 공통 헬퍼.
 // arcDeg를 생략하면 360도(주변 전체).
@@ -39,7 +42,7 @@ const CLASS_SKILLS = {
     0: {
         name: "신성 충격파",
         run() {
-            const dmg = Math.round(playerAtkDamage() * 1.8);
+            const dmg = Math.round(playerAtkDamage() * 9.5);
             skillHitArea(Player.x, Player.y, 130, 360, 0, dmg, { stun: 20 });
             skillRing(Player.x, Player.y, 130, "#ffd24a", 26);
             Player.invT = Math.max(Player.invT, 60);   // 1초 무적
@@ -57,7 +60,7 @@ const CLASS_SKILLS = {
             const walls = collisionWalls();
             // 배율 0.55는 너무 낮았다 — 4초 쿨 스킬 총합(29)이 평타 4타 콤보(49)보다 약해
             // 쓸 이유가 없었다. 1.0배로 올려 관통 1회 + 도착 5연타 = 평타 6회분(약 63)이 되게 한다.
-            const dmg = Math.round(playerAtkDamage() * 1.0);
+            const dmg = Math.round(playerAtkDamage() * 1.8);
 
             // 순간이동 — 벽은 통과하지 않도록 조금씩 전진하며 충돌 검사.
             // 지나친 적도 베어야 한다. 안 그러면 멀리 있는 적을 노리고 돌진했을 때
@@ -105,7 +108,7 @@ const CLASS_SKILLS = {
         run() {
             const [dx, dy] = DIR_VEC[Player.facing];
             const base = Math.atan2(dy, dx);
-            const dmg = Math.round(playerAtkDamage() * 1.1);
+            const dmg = Math.round(playerAtkDamage() * 9.0);
             for (let i = -2; i <= 2; i++) {
                 const a = base + i * 0.16;
                 const b = spawnPBullet(Player.x, Player.y - 14, Math.cos(a) * 7.5, Math.sin(a) * 7.5,
@@ -126,7 +129,7 @@ const CLASS_SKILLS = {
             const cost = Math.max(1, Math.round(Player.maxHp * 0.08));
             Player.hp = Math.max(1, Player.hp - cost);   // 자해로 죽지는 않게 최소 1 보장
             addText(Player.x, Player.y - 34, `-${cost} 광기`, "#ff5533", 40, 13);
-            const dmg = Math.round(playerAtkDamage() * 2.4);
+            const dmg = Math.round(playerAtkDamage() * 11.0);
             skillHitArea(Player.x, Player.y, 150, 360, 0, dmg, { stun: 26 });
             skillRing(Player.x, Player.y, 150, "#ff5533", 30);
             // 강한 넉백
@@ -147,7 +150,7 @@ const CLASS_SKILLS = {
         run() {
             const [dx, dy] = DIR_VEC[Player.facing];
             const base = Math.atan2(dy, dx);
-            const dmg = Math.round(playerAtkDamage() * 0.8);
+            const dmg = Math.round(playerAtkDamage() * 0.95);
             // 3프레임 간격으로 4번, 매번 3발 — 연사 느낌
             Game.skillPending.push({ t: 0, every: 3, left: 4, fn: () => {
                 for (let i = -1; i <= 1; i++) {

@@ -119,10 +119,20 @@ function tryPlayerAttack() {
 
 // 평타 1타 기본 피해 — 직업 기본값 + 아이템/무기 가산 + 상황 배율.
 // 근접·원거리·스킬이 전부 여기를 거쳐야 밸런스가 한 곳에서 관리된다.
+// 진행도에 따라 자동으로 붙는 공격력 보정.
+// 예전엔 잡몹이 뿌리는 atk_drop(+2씩 탐험당 약 24개 = +47)이 이 역할을 대신했는데,
+// 드롭을 줄이면서 후반 화력이 통째로 사라졌다(몹은 stageScale로 계속 단단해지는데 딜만 제자리).
+// 드롭 운에 맡기지 않고 진행 자체로 오르게 해서 성장 곡선을 예측 가능하게 만든다.
+function stageAtkBonus() {
+    const total = STAGE_COUNT * ROUNDS_PER_STAGE;
+    const prog = (globalRound(Game.stageN, Game.roundN) - 1) / Math.max(1, total - 1); // 0~1
+    return Math.round(prog * 38);
+}
+
 function playerAtkDamage(prof) {
     prof = prof || classProfile(Game.pClass);
     let dmg = prof.dmgMin + Math.floor(Math.random() * (prof.dmgMax - prof.dmgMin + 1))
-            + (Game.pAtkBonus || 0) + equipAtk();
+            + stageAtkBonus() + (Game.pAtkBonus || 0) + equipAtk();
     // 버서커 고유 특성 / 유물 "광포한 유전자" — 잃은 체력에 비례해 피해 증가
     const rage = (prof.rageDmg ? 0.5 : 0) + (Game.pLowHpDmg ? 0.6 : 0);
     if (rage > 0) dmg = Math.round(dmg * (1 + (1 - Player.hp / Player.maxHp) * rage));

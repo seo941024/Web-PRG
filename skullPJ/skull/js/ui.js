@@ -663,17 +663,124 @@ function renderMinimap() {
 }
 
 // ── 인벤토리 [I] ───────────────────────────────────────────
-// 주운 장비는 가방에 쌓이고 여기서 직접 착용/해제한다.
-// 커서는 두 영역을 오간다: 장착칸(무기·방어구 2칸) ↔ 가방(BAG_SIZE칸, 4열 격자).
+// 마인크래프트식 격자 — 넓은 텍스트 카드 대신 정사각 칸에 아이콘만 놓고,
+// 자세한 능력치는 커서/마우스가 올라간 칸의 툴팁으로 보여준다.
+// 키보드와 마우스 둘 다 지원한다(격자는 마우스가 훨씬 직관적이라 같이 받음).
 const INV_COLS = 4;
+const INV_CELL = 54;      // 칸 한 변
+const INV_GAP = 6;
+
+// 장비 종류별 아이콘 기호 — 전용 도트가 생기면 이 부분만 이미지로 교체하면 된다
+function _equipGlyph(eq) { return eq.kind === "weapon" ? "⚔" : "◈"; }
+
+// 칸 하나 — 배경/테두리/아이콘. 아이템은 칸 안에 아이콘만 놓는다.
+function _invCell(x, y, eq, sel, hover) {
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(Math.round(x) + 2, Math.round(y) + 2, INV_CELL, INV_CELL);
+    ctx.fillStyle = hover ? "#3a3350" : (sel ? "#2b2540" : "#171426");
+    ctx.fillRect(Math.round(x), Math.round(y), INV_CELL, INV_CELL);
+    // 안쪽 음영 — 칸이 파여 보이게(슬롯 느낌)
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(Math.round(x), Math.round(y), INV_CELL, 2);
+    ctx.fillRect(Math.round(x), Math.round(y), 2, INV_CELL);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    ctx.fillRect(Math.round(x), Math.round(y) + INV_CELL - 2, INV_CELL, 2);
+    ctx.fillRect(Math.round(x) + INV_CELL - 2, Math.round(y), 2, INV_CELL);
+    _pxFrame(x, y, INV_CELL, INV_CELL, (sel || hover) ? "#c9a44e" : UIC.lineDim);
+
+    if (!eq) return;
+    const col = uiMute(equipColor(eq), 0.2);
+    const cx = x + INV_CELL / 2, cy = y + INV_CELL / 2;
+    // 아이콘 — 티어 색 사각형 + 기호
+    ctx.fillStyle = "#05040a";
+    ctx.fillRect(Math.round(cx - 17), Math.round(cy - 17), 34, 34);
+    ctx.fillStyle = col;
+    ctx.fillRect(Math.round(cx - 15), Math.round(cy - 15), 30, 30);
+    ctx.fillStyle = "rgba(255,255,255,0.20)";
+    ctx.fillRect(Math.round(cx - 15), Math.round(cy - 15), 30, 3);
+    _uiText(_equipGlyph(eq), cx, cy + 6, 17, "rgba(0,0,0,0.75)", "center");
+    // 티어 숫자 — 등급이 한눈에 비교되게 칸 모서리에 표기
+    _uiText(String(eq.tier), x + INV_CELL - 7, y + INV_CELL - 5, 12, "#e8dfc0", "right");
+}
+
+// 툴팁 — 커서 옆에 어두운 상자로 이름·옵션을 띄운다
+function _invTooltip(eq, ax, ay) {
+    if (!eq) return;
+    const lines = eq.kind === "weapon"
+        ? [eq.atk ? "공격력 +" + eq.atk : "",
+           eq.atkSpd ? "공격속도 +" + Math.round(eq.atkSpd * 100) + "%" : "",
+           eq.crit ? "치명타 +" + Math.round(eq.crit * 100) + "%" : ""]
+        : [eq.def ? "방어력 +" + eq.def : "",
+           eq.maxHp ? "최대 체력 +" + eq.maxHp : "",
+           eq.moveSpd ? "이동속도 +" + Math.round(eq.moveSpd * 100) + "%" : ""];
+    const rows = lines.filter(Boolean);
+    const name = equipDisplayName(eq);
+    ctx.font = "bold 14px " + UI_FONT;
+    let w = ctx.measureText(name).width;
+    ctx.font = "bold 12px " + UI_FONT;
+    rows.forEach(t => { w = Math.max(w, ctx.measureText(t).width); });
+    w += 24;
+    const h = 30 + rows.length * 16 + 8;
+    // 화면 밖으로 나가지 않게 위치 보정
+    const x = Math.min(ax + 14, UW - w - 8);
+    const y = Math.min(ay + 10, UH - h - 8);
+    ctx.fillStyle = "rgba(8,6,14,0.96)";
+    ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    _pxFrame(x, y, w, h, uiMute(equipColor(eq), 0.3));
+    _uiText(name, x + 12, y + 22, 14, uiMute(equipColor(eq), 0.15));
+    rows.forEach((t, i) => _uiText(t, x + 12, y + 42 + i * 16, 12, UIC.label));
+}
+
+// 격자 좌표 — 렌더와 입력이 같은 값을 써야 어긋나지 않으므로 한 곳에서 만든다
+function _invLayout() {
+    const gridW = INV_COLS * INV_CELL + (INV_COLS - 1) * INV_GAP;
+    const rows = Math.ceil(BAG_SIZE / INV_COLS);
+    const panelW = gridW + 220;
+    const panelH = 190 + rows * (INV_CELL + INV_GAP);
+    const px = Math.round((UW - panelW) / 2), py = Math.round((UH - panelH) / 2);
+    return {
+        px, py, panelW, panelH, gridW, rows,
+        eqX: px + 30, eqY: py + 68,
+        bagX: px + 30, bagY: py + 68 + INV_CELL + 52,
+    };
+}
+function _bagCellPos(L, i) {
+    return {
+        x: L.bagX + (i % INV_COLS) * (INV_CELL + INV_GAP),
+        y: L.bagY + Math.floor(i / INV_COLS) * (INV_CELL + INV_GAP),
+    };
+}
+function _eqCellPos(L, i) { return { x: L.eqX + i * (INV_CELL + INV_GAP), y: L.eqY }; }
 
 function updateInventory() {
-    const n = Game.bag.length;
+    const L = _invLayout();
 
+    // ── 마우스 ── 칸 위에 올리면 커서가 따라가고, 클릭하면 착용/해제, 우클릭은 버리기
+    for (let i = 0; i < 2; i++) {
+        const c = _eqCellPos(L, i);
+        if (mouseIn(c.x, c.y, INV_CELL, INV_CELL)) {
+            Game.invOnEquip = true; Game.invIdx = i;
+            if (Mouse.clicked) {
+                const kind = i === 0 ? "weapon" : "armor";
+                if (Game.equip[kind] && !unequipToBag(kind)) {
+                    Game.shopMsg = { text: "가방이 가득 찼습니다", col: "#ff8866", t: 90 };
+                }
+            }
+        }
+    }
+    for (let i = 0; i < BAG_SIZE; i++) {
+        const c = _bagCellPos(L, i);
+        if (mouseIn(c.x, c.y, INV_CELL, INV_CELL)) {
+            Game.invOnEquip = false; Game.invIdx = i;
+            if (Mouse.clicked && Game.bag[i]) equipFromBag(i);
+            else if (Mouse.rightClicked && Game.bag[i]) dropFromBag(i);
+        }
+    }
+
+    // ── 키보드 ──
     if (pr("KeyI", "Escape", "KeyX")) { Game.showInv = false; return; }
 
     if (Game.invOnEquip) {
-        // 장착칸: 무기(0) ↔ 방어구(1)
         if (pr("ArrowLeft", "KeyA"))  Game.invIdx = 0;
         if (pr("ArrowRight", "KeyD")) Game.invIdx = 1;
         if (pr("ArrowDown", "KeyS"))  { Game.invOnEquip = false; Game.invIdx = 0; }
@@ -684,82 +791,62 @@ function updateInventory() {
             }
         }
     } else {
-        // 가방 격자
         if (pr("ArrowLeft", "KeyA"))  Game.invIdx = Math.max(0, Game.invIdx - 1);
-        if (pr("ArrowRight", "KeyD")) Game.invIdx = Math.min(Math.max(0, n - 1), Game.invIdx + 1);
+        if (pr("ArrowRight", "KeyD")) Game.invIdx = Math.min(BAG_SIZE - 1, Game.invIdx + 1);
         if (pr("ArrowUp", "KeyW")) {
             if (Game.invIdx < INV_COLS) { Game.invOnEquip = true; Game.invIdx = 0; }
             else Game.invIdx -= INV_COLS;
         }
         if (pr("ArrowDown", "KeyS")) {
-            if (Game.invIdx + INV_COLS < n) Game.invIdx += INV_COLS;
+            if (Game.invIdx + INV_COLS < BAG_SIZE) Game.invIdx += INV_COLS;
         }
-        if (pr("Space", "Enter", "KeyC")) {
-            if (Game.bag[Game.invIdx]) equipFromBag(Game.invIdx);
-            if (Game.invIdx >= Game.bag.length) Game.invIdx = Math.max(0, Game.bag.length - 1);
-        }
-        // 버리기 — 가방이 가득 찼을 때 자리를 비우는 유일한 수단
-        if (pr("KeyQ") && Game.bag[Game.invIdx]) {
-            dropFromBag(Game.invIdx);
-            if (Game.invIdx >= Game.bag.length) Game.invIdx = Math.max(0, Game.bag.length - 1);
-        }
+        if (pr("Space", "Enter", "KeyC") && Game.bag[Game.invIdx]) equipFromBag(Game.invIdx);
+        if (pr("KeyQ") && Game.bag[Game.invIdx]) dropFromBag(Game.invIdx);
     }
     if (Game.shopMsg && Game.shopMsg.t > 0) Game.shopMsg.t--;
 }
 
-// 장비 한 칸 그리기 — 선택 여부에 따라 테두리를 강조
-function _invSlot(x, y, w, h, eq, sel, emptyLabel) {
-    const col = eq ? uiMute(equipColor(eq), 0.25) : UIC.lineDim;
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(Math.round(x) + 3, Math.round(y) + 3, Math.round(w), Math.round(h));
-    ctx.fillStyle = sel ? "#231d33" : "#15121f";
-    ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
-    _pxFrame(x, y, w, h, sel ? "#c9a44e" : col);
-    if (!eq) {
-        _uiText(emptyLabel || "비어 있음", x + w / 2, y + h / 2 + 5, 12, UIC.faint, "center");
-        return;
-    }
-    _uiText(_fit(equipDisplayName(eq), w - 16, 13), x + w / 2, y + 22, 13, col, "center");
-    // 옵션 — 무엇이 오르는지 칸 안에서 바로 보이게
-    const lines = eq.kind === "weapon"
-        ? [eq.atk ? `공 +${eq.atk}` : "", eq.atkSpd ? `속 +${Math.round(eq.atkSpd * 100)}%` : "", eq.crit ? `치명 +${Math.round(eq.crit * 100)}%` : ""]
-        : [eq.def ? `방 +${eq.def}` : "", eq.maxHp ? `체력 +${eq.maxHp}` : "", eq.moveSpd ? `이속 +${Math.round(eq.moveSpd * 100)}%` : ""];
-    lines.filter(Boolean).forEach((t, i) => {
-        _uiText(t, x + w / 2, y + 40 + i * 14, 11, UIC.label, "center");
-    });
-}
-
 function renderInventory() {
     uiBegin();
-    ctx.fillStyle = "rgba(4,3,8,0.88)";
+    const L = _invLayout();
+    ctx.fillStyle = "rgba(4,3,8,0.82)";
     ctx.fillRect(0, 0, UW, UH);
-    _uiText("소지품", UW / 2, 56, 30, UIC.accent, "center");
-    _uiText("← → ↑ ↓  이동      SPACE  착용/해제      Q  버리기      I  닫기",
-        UW / 2, 80, 13, UIC.label, "center");
+    _uiPanel(L.px, L.py, L.panelW, L.panelH, UIC.line);
 
-    // ── 장착 중 ──
-    const eqW = 200, eqH = 86, gap = 20;
-    const eqX = (UW - (eqW * 2 + gap)) / 2, eqY = 104;
-    _uiText("장착 중", eqX, eqY - 8, 15, UIC.text);
-    [["weapon", "무기 없음"], ["armor", "방어구 없음"]].forEach(([kind, empty], i) => {
+    _uiText("소지품", L.px + L.panelW / 2, L.py + 36, 24, UIC.accent, "center");
+
+    let hoverEq = null, hoverPos = null;
+
+    // 장착 중
+    _uiText("장착 중", L.eqX, L.eqY - 10, 13, UIC.text);
+    ["weapon", "armor"].forEach((kind, i) => {
+        const c = _eqCellPos(L, i);
         const sel = Game.invOnEquip && Game.invIdx === i;
-        _invSlot(eqX + i * (eqW + gap), eqY, eqW, eqH, Game.equip[kind], sel, empty);
+        const hov = mouseIn(c.x, c.y, INV_CELL, INV_CELL);
+        _invCell(c.x, c.y, Game.equip[kind], sel, hov);
+        if ((hov || sel) && Game.equip[kind]) { hoverEq = Game.equip[kind]; hoverPos = c; }
     });
+    // 착용 합산 효과 — 지금 얼마나 강한지 바로 보이게
+    const sumX = L.eqX + 2 * (INV_CELL + INV_GAP) + 18;
+    _uiText("공격력 +" + equipAtk(), sumX, L.eqY + 20, 13, UIC.label);
+    _uiText("방어력 +" + equipDef(), sumX, L.eqY + 38, 13, UIC.label);
+    _uiText("최대 체력 +" + (Game.equip.armor ? Game.equip.armor.maxHp : 0), sumX, L.eqY + 56, 13, UIC.label);
 
-    // ── 가방 ──
-    const bagY = eqY + eqH + 34;
-    _uiText(`가방  ${Game.bag.length} / ${BAG_SIZE}`, eqX, bagY - 8, 15, UIC.text);
-    const cw = 200, ch = 86, cgap = 12;
-    const gridW = INV_COLS * cw + (INV_COLS - 1) * cgap;
-    const gx = (UW - gridW) / 2;
+    // 가방
+    _uiText("가방  " + Game.bag.length + " / " + BAG_SIZE, L.bagX, L.bagY - 10, 13, UIC.text);
     for (let i = 0; i < BAG_SIZE; i++) {
-        const cx = gx + (i % INV_COLS) * (cw + cgap);
-        const cy = bagY + Math.floor(i / INV_COLS) * (ch + cgap);
+        const c = _bagCellPos(L, i);
         const sel = !Game.invOnEquip && Game.invIdx === i;
-        _invSlot(cx, cy, cw, ch, Game.bag[i], sel, "—");
+        const hov = mouseIn(c.x, c.y, INV_CELL, INV_CELL);
+        _invCell(c.x, c.y, Game.bag[i], sel, hov);
+        if ((hov || sel) && Game.bag[i]) { hoverEq = Game.bag[i]; hoverPos = c; }
     }
 
+    _uiText("클릭/SPACE 착용·해제      우클릭/Q 버리기      I 닫기",
+        L.px + L.panelW / 2, L.py + L.panelH - 16, 12, UIC.label, "center");
     if (Game.shopMsg && Game.shopMsg.t > 0) {
-        _uiText(Game.shopMsg.text, UW / 2, UH - 20, 15, Game.shopMsg.col, "center");
+        _uiText(Game.shopMsg.text, L.px + L.panelW / 2, L.py + L.panelH - 36, 13, Game.shopMsg.col, "center");
     }
+    // 툴팁은 마지막에 — 다른 칸에 가려지면 안 된다
+    if (hoverEq) _invTooltip(hoverEq, hoverPos.x + INV_CELL, hoverPos.y);
 }
