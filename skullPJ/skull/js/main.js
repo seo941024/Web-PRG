@@ -266,6 +266,9 @@ function step() {
     }
 
     switch (Game.gs) {
+        case "debugStage":
+            updateDebugStage();
+            break;
         case "menu":
             updateMenu();
             break;
@@ -315,6 +318,7 @@ function render() {
         case "menu":        renderMenu(); break;
         case "classSelect": renderClassSelect(); break;
         case "shop":        renderShop(); break;
+        case "debugStage":  renderDebugStage(); break;
         case "cutscene": renderCutscene(); break;
         case "relic":
             // 유물 선택은 전투 화면 위에 겹쳐 보여주면 맥락이 이어짐

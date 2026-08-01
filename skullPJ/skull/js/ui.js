@@ -110,6 +110,7 @@ function updateMenu() {
     }
     if (pr("KeyS")) { if (typeof playSfx === 'function') playSfx('menu_select'); openShop(); }
     if (pr("KeyM")) { Game.isMuted = !Game.isMuted; if (Game.isMuted && typeof stopBGM === 'function') stopBGM(); else if (typeof playBGM === 'function') playBGM('lobby'); }
+    if (pr("F1")) { if (typeof playSfx === 'function') playSfx('menu_select'); openDebugStage(); }
 }
 
 // ── 직업 선택 ──────────────────────────────────────────────
@@ -252,7 +253,7 @@ function renderMenu() {
     if (Math.floor(Game.frameCount / 26) % 2 === 0) {
         _uiText("▶  SPACE  게임 시작  ◀", UW / 2, UH * 0.60, 20, "#ffcc44", "center", true, 10);
     }
-    _uiText(`[S] 영구 강화        [H] 조작법        [M] 음소거 ${Game.isMuted ? "ON" : "OFF"}`,
+    _uiText(`[S] 영구 강화    [H] 조작법    [M] 음소거 ${Game.isMuted ? "ON" : "OFF"}    [F1] 관리자`,
         UW / 2, UH * 0.60 + 34, 13, "#8e83ad", "center");
     _uiText(`보유 다크 쿼츠: ${Game.darkQuartz}`, UW / 2, UH * 0.60 + 58, 13, "#dd88ff", "center");
 }
@@ -677,7 +678,7 @@ function _equipGlyph(eq) { return eq.kind === "weapon" ? "⚔" : "◈"; }
 function _invCell(x, y, eq, sel, hover) {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(Math.round(x) + 2, Math.round(y) + 2, INV_CELL, INV_CELL);
-    ctx.fillStyle = hover ? "#3b352c" : (sel ? "#2b2620" : UIC.slot);
+    ctx.fillStyle = hover ? "#2a2825" : (sel ? "#1e1c1a" : UIC.slot);
     ctx.fillRect(Math.round(x), Math.round(y), INV_CELL, INV_CELL);
     // 안쪽 음영 — 칸이 파여 보이게(슬롯 느낌)
     ctx.fillStyle = "rgba(0,0,0,0.45)";
@@ -849,4 +850,94 @@ function renderInventory() {
     }
     // 툴팁은 마지막에 — 다른 칸에 가려지면 안 된다
     if (hoverEq) _invTooltip(hoverEq, hoverPos.x + INV_CELL, hoverPos.y);
+}
+
+// ── 관리자(디버그) 스테이지 선택 ───────────────────────────
+// 보스나 후반 스테이지를 확인할 때 매번 처음부터 진행하지 않아도 되게 하는 개발용 화면.
+// 메뉴에서 [F1]로 연다. 정식 진행과 달리 유물·장비 없이 바로 해당 방으로 들어가므로
+// 밸런스 확인용으로만 쓸 것(선택한 스테이지 기준 진행 보정은 그대로 적용된다).
+function openDebugStage() {
+    Game.gs = "debugStage";
+    Game.dbgStage = Game.dbgStage || 1;
+    Game.dbgRound = Game.dbgRound || 1;
+}
+
+function updateDebugStage() {
+    if (pr("ArrowLeft", "KeyA"))  Game.dbgStage = Math.max(1, Game.dbgStage - 1);
+    if (pr("ArrowRight", "KeyD")) Game.dbgStage = Math.min(STAGE_COUNT, Game.dbgStage + 1);
+    if (pr("ArrowUp", "KeyW"))    Game.dbgRound = Math.max(1, Game.dbgRound - 1);
+    if (pr("ArrowDown", "KeyS"))  Game.dbgRound = Math.min(ROUNDS_PER_STAGE, Game.dbgRound + 1);
+
+    // 직업도 여기서 바꿔 확인할 수 있게 (스프라이트·스킬 확인용)
+    if (pr("KeyZ")) {
+        const i = (CLASS_IDS.indexOf(Game.pClass) + 1) % CLASS_IDS.length;
+        Game.pClass = CLASS_IDS[i];
+        loadCharSprites(Game.pClass);
+        preloadAnims(Game.pClass, ["idle", "walk", "sprint", "attack"]);
+    }
+
+    if (pr("Space", "Enter", "KeyC")) {
+        resetRun();                       // 런 상태를 깨끗이 하고
+        Game.stageN = Game.dbgStage;      // 원하는 방으로 바로 진입
+        Game.roundN = Game.dbgRound;
+        enterRound(Game.stageN, Game.roundN);
+        if (typeof playSfx === 'function') playSfx('unlock');
+    }
+    if (pr("Escape", "KeyX", "F1")) Game.gs = "menu";
+}
+
+function renderDebugStage() {
+    uiBegin();
+    ctx.fillStyle = UIC.panel[1];
+    ctx.fillRect(0, 0, UW, UH);
+
+    _uiText("관리자 모드 — 스테이지 선택", UW / 2, 70, 26, UIC.accent, "center");
+    _uiText("← →  스테이지      ↑ ↓  라운드      Z  직업 변경      SPACE  진입      ESC  나가기",
+        UW / 2, 96, 13, UIC.label, "center");
+
+    const th = STAGE_THEMES[Game.dbgStage - 1] || STAGE_THEMES[0];
+    const isBoss = Game.dbgRound === ROUNDS_PER_STAGE;
+
+    const pw = 560, ph = 210;
+    const px = (UW - pw) / 2, py = 130;
+    _uiPanel(px, py, pw, ph, UIC.line);
+
+    _uiText(`STAGE ${Game.dbgStage} - ${Game.dbgRound}`, px + 28, py + 42, 30, UIC.text);
+    _uiText(th.name, px + 28, py + 72, 18, uiMute(th.palette.accent, 0.35));
+    _uiText(isBoss ? `보스방 — ${th.boss.name} (HP ${th.boss.hp})`
+                   : `일반 방 — 몹 약 ${roundMobCount(Game.dbgStage, Game.dbgRound)}마리`,
+        px + 28, py + 100, 15, isBoss ? "#d4a94e" : UIC.label);
+
+    const prof = classProfile(Game.pClass);
+    _uiText(`직업: ${prof.name}`, px + 28, py + 132, 15, UIC.text);
+    // 선택한 방 기준으로 실제 적용될 값 — 여기서 밸런스를 바로 가늠할 수 있게
+    const savedS = Game.stageN, savedR = Game.roundN;
+    Game.stageN = Game.dbgStage; Game.roundN = Game.dbgRound;
+    _uiText(`진행 보정 공격력 +${stageAtkBonus()}      몹 배율 x${stageScale(Game.dbgStage, Game.dbgRound).toFixed(2)}      장비 티어 ${stageTier(Game.dbgStage)}`,
+        px + 28, py + 158, 13, UIC.label);
+    Game.stageN = savedS; Game.roundN = savedR;
+
+    _uiText("※ 개발용 — 유물·장비 없이 바로 진입합니다", px + 28, py + 186, 12, UIC.faint);
+
+    // 스테이지 목록 — 현재 선택 위치가 보이게 가로 막대로
+    const bw = 44, bh = 26, gap = 6;
+    const totalW = STAGE_COUNT * bw + (STAGE_COUNT - 1) * gap;
+    const bx = (UW - totalW) / 2, by = py + ph + 26;
+    for (let i = 1; i <= STAGE_COUNT; i++) {
+        const x = bx + (i - 1) * (bw + gap);
+        const sel = i === Game.dbgStage;
+        ctx.fillStyle = sel ? "#2a2825" : UIC.slot;
+        ctx.fillRect(Math.round(x), Math.round(by), bw, bh);
+        _pxFrame(x, by, bw, bh, sel ? UIC.accent : UIC.lineDim);
+        _uiText(String(i), x + bw / 2, by + 18, 14, sel ? UIC.text : UIC.faint, "center");
+    }
+    for (let r = 1; r <= ROUNDS_PER_STAGE; r++) {
+        const x = bx + (r - 1) * (bw + gap);
+        const y = by + bh + 10;
+        const sel = r === Game.dbgRound;
+        ctx.fillStyle = sel ? "#2a2825" : UIC.slot;
+        ctx.fillRect(Math.round(x), Math.round(y), bw, bh);
+        _pxFrame(x, y, bw, bh, sel ? UIC.accent : UIC.lineDim);
+        _uiText("R" + r, x + bw / 2, y + 18, 13, sel ? UIC.text : UIC.faint, "center");
+    }
 }
