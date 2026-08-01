@@ -122,6 +122,35 @@ const CHASE_WALK = 46;   // 걷는 구간 0.77초
 const CHASE_REST = 32;   // 쉬는 구간 0.53초
 const CHASE_CYCLE = CHASE_WALK + CHASE_REST;
 // 자폭병은 달려드는 게 정체성이라 덜 쉬게 한다(쉬는 구간 절반)
+// 플레이어를 알아채는 거리. 이 밖에서는 배회만 하고 쫓지 않는다.
+const DETECT_R = 320;
+
+// ── 배회 ───────────────────────────────────────────────────
+// 인지 전에는 제자리에 굳어 있지 말고 스스로 돌아다니게 한다.
+// 추격보다 느리게 어슬렁거리고, 추격과 같은 걷다/쉬다 리듬을 그대로 탄다.
+const WANDER_SPEED_MUL = 0.45;
+const WANDER_MIN_T = 40, WANDER_MAX_T = 110;   // 방향을 유지하는 시간(프레임)
+const ROOM_CX = 550, ROOM_CY = 550;            // 방 중앙 — 가장자리에서 벽에 비비는 걸 막는 기준
+
+function wanderTick(e, spd, resting) {
+    e.wanderT = (e.wanderT || 0) - 1;
+    if (e.wanderT <= 0 || e.wanderAng === undefined) {
+        // 가장자리에 있을수록 방 중앙 쪽으로 좁게 방향을 잡는다.
+        // 안 그러면 벽에 붙어 계속 밀기만 하는 몹이 생긴다.
+        const toC = Math.atan2(ROOM_CY - e.y, ROOM_CX - e.x);
+        const edgeness = Math.min(1, Math.hypot(ROOM_CX - e.x, ROOM_CY - e.y) / 420);
+        const spread = Math.PI * (1 - edgeness) + 0.6;
+        e.wanderAng = toC + (Math.random() - 0.5) * 2 * spread;
+        e.wanderT = WANDER_MIN_T + Math.random() * (WANDER_MAX_T - WANDER_MIN_T);
+    }
+    if (resting) { e.vx *= 0.8; e.vy *= 0.8; return; }
+    e.vx = Math.cos(e.wanderAng) * spd * WANDER_SPEED_MUL;
+    e.vy = Math.sin(e.wanderAng) * spd * WANDER_SPEED_MUL;
+    // 배회 중엔 가는 쪽을 바라본다 (플레이어를 못 봤으므로 계속 쳐다보면 어색)
+    const d = dirFromAngle(e.vx, e.vy);
+    if (d) e.facing = d;
+}
+
 function chaseResting(e) {
     const rest = e.mtype === "bomber" ? CHASE_REST * 0.5 : CHASE_REST;
     return (e.moveCycle % CHASE_CYCLE) >= CHASE_CYCLE - rest;
@@ -169,8 +198,12 @@ function updateEnemies(walls) {
 
         const dx = p.x - e.x, dy = p.y - e.y;
         const dist = Math.hypot(dx, dy) || 1;
-        const dname = dirFromAngle(dx, dy);
-        if (dname && e.state !== "attack") e.facing = dname;
+        const aware = dist < DETECT_R;   // 인지 여부 — 배회/추격을 가르는 기준
+        // 인지했을 때만 플레이어를 쳐다본다. 못 봤으면 wanderTick이 진행 방향으로 돌려준다.
+        if (aware && e.state !== "attack") {
+            const dname = dirFromAngle(dx, dy);
+            if (dname) e.facing = dname;
+        }
 
         // 피격 넉백 중엔 AI 판단 없이 관성으로만 밀림
         if ((e.kbT || 0) > 0) {
@@ -188,7 +221,10 @@ function updateEnemies(walls) {
             // 걷다 쉬다 하는 리듬 — 쉬는 동안엔 접근하지 않는다(공격 판정은 그대로)
             e.moveCycle = (e.moveCycle || 0) + 1;
             const resting = chaseResting(e);
-            if (isRangedType(e.mtype)) {
+            if (!aware) {
+                // 아직 못 봤다 — 혼자 어슬렁거린다
+                wanderTick(e, spd, resting);
+            } else if (isRangedType(e.mtype)) {
                 // 사거리 안에 들어오면 멈춰 조준, 너무 가까우면 뒤로 물러남
                 // (너무 가까울 때 물러나는 건 생존 반응이라 쉬는 중에도 그대로 둔다)
                 if (dist < arch.keepDist * 0.75) {
@@ -207,11 +243,11 @@ function updateEnemies(walls) {
             } else {
                 if (dist < arch.atkRange) {
                     enterWindup(e, arch, dx, dy);
-                } else if (dist < 320 && !resting) {
+                } else if (!resting) {
                     e.vx = (dx / dist) * spd;
                     e.vy = (dy / dist) * spd;
                 } else {
-                    e.vx *= 0.8; e.vy *= 0.8; // 탐지 범위 밖이거나 쉬는 중 — 서서히 멈춤
+                    e.vx *= 0.8; e.vy *= 0.8; // 쉬는 구간 — 서서히 멈춤
                 }
             }
         } else if (e.state === "windup") {
@@ -272,7 +308,15 @@ function updateEnemies(walls) {
             if (e.atkCD <= 0) e.state = "chase";
         }
 
+        const bx = e.x, by = e.y;
         resolveWalls(e, walls);
+        // 배회 중 벽에 막혔으면(움직이려 했는데 위치가 그대로) 즉시 다른 방향을 고른다.
+        // 안 그러면 벽에 붙어 계속 밀기만 하는 몹이 생긴다.
+        if (e.state === "chase" && e.wanderT > 0 && dist >= DETECT_R) {
+            const moved = Math.hypot(e.x - bx, e.y - by);
+            const wanted = Math.hypot(e.vx, e.vy);
+            if (wanted > 0.1 && moved < wanted * 0.3) e.wanderT = 0;
+        }
     });
 }
 

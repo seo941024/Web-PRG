@@ -23,6 +23,27 @@ function resolveWalls(e, walls) {
         }
         return false;
     };
+
+    // ── 벽 안에 갇힌 경우 탈출 ──
+    // 이 함수는 "벽으로 들어가는 이동"만 막을 뿐, 이미 겹쳐 있으면 어느 방향으로도 나갈 수 없어
+    // 영구히 낀다(모든 후보 위치가 여전히 겹치므로). 넉백처럼 좌표를 직접 옮기는 처리가
+    // 한 번이라도 벽 안에 밀어넣으면 그대로 갇히므로, 겹침이 감지되면 가장 가까운 벽 밖으로 밀어낸다.
+    if (test(e.x, e.y)) {
+        const bx = e.x - hb.w / 2, by = e.y - hb.h / 2;
+        for (const w of walls) {
+            if (!(bx < w.x + w.w && bx + hb.w > w.x && by < w.y + w.h && by + hb.h > w.y)) continue;
+            // 네 방향으로 빠져나가는 데 필요한 거리 중 가장 짧은 쪽으로 밀어낸다
+            const left   = (w.x - hb.w / 2) - e.x;          // 음수
+            const right  = (w.x + w.w + hb.w / 2) - e.x;    // 양수
+            const up     = (w.y - hb.h / 2) - e.y;          // 음수
+            const down   = (w.y + w.h + hb.h / 2) - e.y;    // 양수
+            const best = [left, right, up, down].reduce((a, b) => Math.abs(a) < Math.abs(b) ? a : b);
+            if (best === left || best === right) e.x += best; else e.y += best;
+            e.vx = 0; e.vy = 0;
+        }
+        return;
+    }
+
     if (!test(e.x + e.vx, e.y)) e.x += e.vx; else e.vx = 0;
     if (!test(e.x, e.y + e.vy)) e.y += e.vy; else e.vy = 0;
 }

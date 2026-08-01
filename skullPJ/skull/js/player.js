@@ -195,7 +195,8 @@ function updatePlayer(walls) {
         if (p.comboWindowT <= 0) p.combo = 0; // 시간 안에 재입력 없음 → 콤보 리셋, 다음엔 idle/walk로 자연 전환
     }
     if (p.comboRestT > 0) p.comboRestT--;
-    if (p.kbT > 0) { p.kbT--; p.x += p.vx; p.y += p.vy; p.vx *= 0.85; p.vy *= 0.85; }
+    // 넉백 — 좌표를 직접 더하면 벽을 뚫고 들어가 그대로 끼므로 반드시 충돌 처리를 거친다
+    if (p.kbT > 0) { p.kbT--; resolveWalls(p, walls); p.vx *= 0.85; p.vy *= 0.85; }
     if (p.skillCD > 0) p.skillCD--;
     if (p.dead) return;
     if (dn("KeyC") && p.kbT <= 0) tryPlayerAttack();
