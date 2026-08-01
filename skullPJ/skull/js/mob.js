@@ -146,7 +146,7 @@ function updateEnemies(walls) {
         const spd = slowed ? e.speed * (Game.chillT > 0 ? 0.55 : 0.7) : e.speed;
 
         if (e.state === "chase") {
-            if (e.mtype === "ranged") {
+            if (isRangedType(e.mtype)) {
                 // 사거리 안에 들어오면 멈춰 조준, 너무 가까우면 뒤로 물러남
                 if (dist < arch.keepDist * 0.75) {
                     e.vx = -(dx / dist) * spd * 1.3;
@@ -176,12 +176,18 @@ function updateEnemies(walls) {
             e.warnT--;
             if (e.warnT <= 0) {
                 e.state = "attack";
-                if (typeof playSfx === 'function') playSfx(e.mtype === "ranged" ? 'mob_laser' : 'enemy_atk');
-                if (e.mtype === "ranged") {
+                if (typeof playSfx === 'function') playSfx(isRangedType(e.mtype) ? 'mob_laser' : 'enemy_atk');
+                if (e.mtype === "thrower") {
+                    // 돌을 한 발씩 연달아 던진다 — 발사 간격(burstGap)마다 1발씩, 총 burst발.
+                    // 조준각은 매 발 새로 잡아서 플레이어가 계속 움직이게 만든다.
+                    e.burstLeft = arch.burst || 5;
+                    e.burstCD = 0;
+                    e.atkAnim = (arch.burst || 5) * (arch.burstGap || 9);
+                } else if (e.mtype === "archer" || e.mtype === "ranged") {
                     fireMobShot(e, arch);
                     e.atkAnim = 8;
                 } else if (e.mtype === "bomber") {
-                    // 자폭형은 예고가 끝나면 즉시 터지고 사라짐
+                    // 자폭형은 도화선(warn)이 다 타면 터지고 사라짐
                     e.hp = 0; e.dead = true;
                     e.atkAnim = 0;
                 } else {
@@ -190,7 +196,19 @@ function updateEnemies(walls) {
             }
         } else if (e.state === "attack") {
             e.atkAnim--;
-            if (e.mtype !== "ranged") {
+            if (e.mtype === "thrower") {
+                // 제자리에서 연발 — 이동하지 않고 간격마다 한 발씩
+                e.vx = 0; e.vy = 0;
+                if ((e.burstCD || 0) > 0) e.burstCD--;
+                if (e.burstCD <= 0 && (e.burstLeft || 0) > 0) {
+                    e.warnAng = Math.atan2(dy, dx);   // 매 발 재조준
+                    fireMobShot(e, arch);
+                    e.burstLeft--;
+                    e.burstCD = arch.burstGap || 9;
+                    if (typeof playSfx === 'function') playSfx('mob_laser');
+                }
+                if ((e.burstLeft || 0) <= 0) { e.state = "cooldown"; e.atkCD = arch.cd; }
+            } else if (!isRangedType(e.mtype)) {
                 const [ux, uy] = DIR_VEC[e.facing];
                 e.vx = ux * (arch.dash || 5);
                 e.vy = uy * (arch.dash || 5);
@@ -218,12 +236,27 @@ function enterWindup(e, arch, dx, dy) {
     e.vx = 0; e.vy = 0;
 }
 
-// 원거리 몹 발사 — 엘리트는 3발 부채꼴, 일반은 단발
+// 원거리 몹 발사
+//   arch.fan 이 있으면 그 수만큼 부채꼴로 동시 발사(궁병)
+//   없으면 단발 — 엘리트만 3발 부채꼴 (기존 ranged 동작 유지)
+//   투척병은 이 함수를 burst 간격마다 1회씩 호출해 "연발"을 만든다
 function fireMobShot(e, arch) {
     const spd = arch.shotSpeed;
-    const shots = e.isElite ? [-0.16, 0, 0.16] : [0];
+    let shots;
+    if (arch.fan) {
+        // fan발을 fanSpread 간격으로 좌우 대칭 배치 (5발이면 -2,-1,0,1,2)
+        const n = arch.fan, sp = arch.fanSpread || 0.18;
+        shots = [];
+        for (let i = 0; i < n; i++) shots.push((i - (n - 1) / 2) * sp);
+    } else {
+        shots = e.isElite ? [-0.16, 0, 0.16] : [0];
+    }
+    // 돌은 크고 느리게, 화살은 작고 빠르게 — 색으로도 구분해 무엇이 날아오는지 읽히게
+    const isStone = e.mtype === "thrower";
+    const r = isStone ? 6 : 4;
+    const col = isStone ? "#9a8f7a" : "#d8c9a0";
     shots.forEach(da => {
         const a = e.warnAng + da;
-        spawnEBullet(e.x, e.y - 8, Math.cos(a) * spd, Math.sin(a) * spd, 150, 5, e.atk);
+        spawnEBullet(e.x, e.y - 8, Math.cos(a) * spd, Math.sin(a) * spd, 150, r, e.atk, col);
     });
 }

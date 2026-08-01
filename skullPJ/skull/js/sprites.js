@@ -6,8 +6,24 @@
 // (망토·무기처럼 좌우 비대칭인 요소가 뒤집히지 않아 더 자연스러움).
 
 const SPRITE_BASE = "sprites/raw"; // 후처리 완료되면 "sprites/characters"로 교체
-// 발치 정렬 비율 — PIL로 실측(콘텐츠 하단 ratio ≈0.73~0.75). 이전 0.82는 감으로 잡은 값이라 캐릭터가 그림자 위로 떠 보였음.
-const SPRITE_FEET_RATIO = 0.75;
+// 발치 정렬 비율 — 스프라이트 (x,y)를 "발이 닿는 지점"으로 맞추는 값.
+// 이 값이 실제보다 크면 캐릭터가 그림자 위로 떠 보인다. 감으로 잡지 말고 반드시 실측할 것:
+//   python -c "from PIL import Image; im=Image.open('south.png').convert('RGBA'); print(im.getbbox()[3]/im.size[1])"
+const SPRITE_FEET_RATIO = 0.75;   // 기본값(도적 = 실측 0.750)
+
+// 클래스별 실측값 — PixelLab이 캔버스 크기(88/92/96/128px)를 매번 다르게 내주기 때문에
+// 여백 비율도 제각각이라 공용값을 쓰면 전부 떠 보인다. 새 스프라이트를 추가하면 여기에 등록할 것.
+const CLASS_FEET_RATIO = {
+    mob1_basic:   0.727,
+    mob1_thrower: 0.739,
+    mob1_archer:  0.727,
+    mob1_bomber:  0.729,
+    boss1:        0.719,
+};
+function classFeetRatio(classId) {
+    const v = CLASS_FEET_RATIO[classId];
+    return v === undefined ? SPRITE_FEET_RATIO : v;
+}
 
 const ALL_DIRS = ["south", "south-east", "east", "north-east", "north", "north-west", "west", "south-west"];
 // 원화가 없을 때 대신 좌우 반전해 쓸 짝
@@ -48,16 +64,18 @@ function loadCharSprites(classId) {
 // dir(8방향 이름)에 대해 실제로 그릴 이미지와 좌우반전 여부를 반환
 function resolveDirImage(classId, dir) {
     let entry = CharSprites[classId];
+    let srcClass = classId;
     // 전용 도트가 없는 직업이면 도적 원화로 대체 (없으면 로드까지 걸어둠)
     if (!entry || !ALL_DIRS.some(d => _imgOK(entry.images[d]))) {
         entry = CharSprites[SPRITE_FALLBACK_CLASS] || loadCharSprites(SPRITE_FALLBACK_CLASS);
+        srcClass = SPRITE_FALLBACK_CLASS;   // 발치 비율도 빌려온 원화 기준으로 맞춰야 함
     }
     if (!entry) return null;
     // 1순위 — 그 방향 원화 그대로
-    if (_imgOK(entry.images[dir])) return { img: entry.images[dir], flip: false };
+    if (_imgOK(entry.images[dir])) return { img: entry.images[dir], flip: false, srcClass };
     // 2순위 — 반대편을 좌우 반전
     const src = MIRROR_MAP[dir];
-    if (src && _imgOK(entry.images[src])) return { img: entry.images[src], flip: true };
+    if (src && _imgOK(entry.images[src])) return { img: entry.images[src], flip: true, srcClass };
     return null;
 }
 
@@ -71,9 +89,9 @@ function drawDirSprite(ctx, classId, dir, x, y, tint, scale) {
         ctx.fillRect(x - 10 * sc, y - 30 * sc, 20 * sc, 30 * sc);
         return;
     }
-    const { img, flip } = r;
+    const { img, flip, srcClass } = r;
     const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
-    const dx = x - dw / 2, dy = y - dh * SPRITE_FEET_RATIO;
+    const dx = x - dw / 2, dy = y - dh * classFeetRatio(srcClass);
     ctx.save();
     if (flip) {
         ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0);
@@ -100,16 +118,20 @@ function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor, scale) {
         if (tintColor) { ctx.fillStyle = tintColor + "cc"; ctx.beginPath(); ctx.arc(x, y - 14 * sc, 10 * sc, 0, Math.PI * 2); ctx.fill(); }
         return;
     }
-    const { img, flip } = r;
+    const { img, flip, srcClass } = r;
     // 배율은 발치(x, y)를 기준으로 커진다 — 커져도 바닥에 붙어 있어야 하므로
     const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
-    const dx = x - dw / 2, dy = y - dh * SPRITE_FEET_RATIO;
+    const dx = x - dw / 2, dy = y - dh * classFeetRatio(srcClass);
     ctx.drawImage(img, dx, dy, dw, dh);
     if (tintColor) {
         ctx.globalCompositeOperation = "source-atop";
-        ctx.globalAlpha = 0.45;
+        // rgba(...)로 농도를 직접 지정한 경우엔 그 알파를 그대로 존중한다
+        // (자폭병 도화선처럼 시간에 따라 붉기가 짙어지는 연출에 필요).
+        // 색만 넘어온 경우(#rrggbb)는 기존처럼 은은하게 0.45로 덮는다.
+        const hasOwnAlpha = typeof tintColor === "string" && tintColor.startsWith("rgba");
+        if (!hasOwnAlpha) ctx.globalAlpha = 0.45;
         ctx.fillStyle = tintColor;
         ctx.fillRect(dx, dy, dw, dh);
         ctx.globalAlpha = 1;

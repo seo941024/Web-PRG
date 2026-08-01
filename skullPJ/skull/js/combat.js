@@ -28,10 +28,11 @@ function resolveWalls(e, walls) {
 }
 
 // 적 투사체 생성 — 보스 패턴과 원거리 몹이 사용
-function spawnEBullet(x, y, vx, vy, life, r, dmg) {
+function spawnEBullet(x, y, vx, vy, life, r, dmg, col) {
     const b = getObj(Game.eBullets);
     b.x = x; b.y = y; b.vx = vx; b.vy = vy;
     b.life = life; b.r = r; b.dmg = dmg;
+    b.col = col || null;   // 없으면 렌더에서 기본색 사용 (돌/화살 구분용)
 }
 
 // 플레이어 투사체 생성 — 마법사·발키리 평타와 일부 스킬이 사용.

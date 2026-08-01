@@ -22,19 +22,35 @@ const MOB_ARCHETYPES = {
     charger: { hp: 34, atk: 11, speed: 2.10, hb: { w: 16, h: 12 }, atkRange: 34, warn: 34, dash: 9,  cd: 64, dashDur: 22 },
     ranged:  { hp: 26, atk: 7,  speed: 1.00, hb: { w: 16, h: 12 }, atkRange: 250, warn: 32, cd: 78, keepDist: 165, shotSpeed: 4.2 },
     tank:    { hp: 95, atk: 15, speed: 0.85, hb: { w: 22, h: 16 }, atkRange: 32, warn: 38, dash: 4,  cd: 70, superArmor: true },
-    bomber:  { hp: 22, atk: 6,  speed: 1.95, hb: { w: 16, h: 12 }, atkRange: 22, warn: 20, dash: 6,  cd: 40, explodeDmg: 18, explodeR: 62 },
+    // bomber: 붙어서 자폭. warn이 곧 "도화선" 시간 — 이 동안 몸이 점점 붉어지다 터진다(render_entities).
+    bomber:  { hp: 22, atk: 6,  speed: 1.95, hb: { w: 16, h: 12 }, atkRange: 26, warn: 60, dash: 6,  cd: 40, explodeDmg: 18, explodeR: 62 },
+
+    // ── 1스테이지 고블린 전용 원형 ────────────────────────────
+    // 기존 ranged를 고쳐 쓰면 2·3·6·8스테이지 원거리 몹 밸런스까지 같이 흔들려서 별도 원형으로 분리.
+    // thrower: 2초 예고 후 돌을 5연발로 "차례차례" 던짐(burst). 돌은 느려서(플레이어 걷기 속도) 피할 수 있다.
+    // burstGap 27프레임(0.45초) — 팔을 뒤로 젖혔다 던지는 동작 시간을 감안한 간격.
+    // 9프레임(0.15초)일 땐 사람이 낼 수 없는 속도로 연사돼서 비현실적이었다.
+    thrower: { hp: 28, atk: 6, speed: 1.05, hb: { w: 16, h: 12 }, atkRange: 230, warn: 120, cd: 100,
+               keepDist: 140, shotSpeed: 2.7, burst: 5, burstGap: 27 },
+    // archer: 3초 차지 후 화살 5발을 부채꼴로 동시에. 돌보다 빠르지만 예고가 길어 위치를 옮기면 피해짐.
+    archer:  { hp: 24, atk: 8, speed: 0.95, hb: { w: 16, h: 12 }, atkRange: 280, warn: 180, cd: 130,
+               keepDist: 190, shotSpeed: 4.5, fan: 5, fanSpread: 0.18 },
 };
+
+// 거리를 두고 싸우는 원형 — chase에서 접근 대신 거리 유지, attack에서 돌진 대신 발사
+function isRangedType(mtype) {
+    return mtype === "ranged" || mtype === "thrower" || mtype === "archer";
+}
 
 // 스테이지+원형 조합별 전용 도트 폴더 — "{stageN}_{archetype}" → sprites/raw/<값>/
 // 없는 조합은 그냥 undefined → 도적 원화를 tint로 대체하는 기존 폴백을 그대로 탄다(render_entities.js).
 // 한 원형(예: ranged)을 여러 몹이 공유해도 시각적으로는 다른 몬스터일 수 있어서
 // 원형 이름을 그대로 폴더명으로 쓰지 않고 별도 매핑을 둔다.
 const MOB_SPRITE_MAP = {
-    "1_melee":  "mob1_basic",   // 고블린 기본 보병(단검)
-    "1_ranged": "mob1_archer",  // 고블린 궁병 — "거리 유지하며 쏘는" 기존 ranged AI와 자세가 맞음
-    "1_bomber": "mob1_bomber",  // 고블린 자폭병 — 기존 bomber 원형(달려들어 자폭) 그대로 사용
-    // mob1_thrower(투척병)는 아직 원형이 없어 미연결 — ranged를 궁병이 이미 쓰고 있어서,
-    // 투척병을 쓰려면 새 원형을 만들거나 궁병과 자리를 바꿔야 함
+    "1_melee":   "mob1_basic",    // 고블린 기본 보병(단검)
+    "1_thrower": "mob1_thrower",  // 고블린 투척병(돌팔매)
+    "1_archer":  "mob1_archer",   // 고블린 궁병(활)
+    "1_bomber":  "mob1_bomber",   // 고블린 자폭병
 };
 
 // ── 10개 테마 ──────────────────────────────────────────────
@@ -52,7 +68,9 @@ const STAGE_THEMES = [
             accent: "#7dc242", fog: "rgba(60,90,40,0.05)",
         },
         mobTint: "#8fdd4a",
-        mobs: ["melee", "melee", "charger", "ranged", "bomber"],   // 궁병·자폭병 도트 확보되어 추가
+        // 전용 도트가 있는 고블린 4종만 사용 — charger는 도트가 없어 도적 원화 틴트로 나오는데
+        // 나머지가 전부 진짜 고블린이라 혼자 이질적이라 제외했다. 도트 생기면 다시 넣을 것.
+        mobs: ["melee", "melee", "thrower", "archer", "bomber"],
         eliteChance: 0.08,
         boss: { name: "고블린 킹", hp: 260, atk: 18, speed: 1.15, tint: "#a8e05a", hb: { w: 28, h: 22 } },
         layouts: [

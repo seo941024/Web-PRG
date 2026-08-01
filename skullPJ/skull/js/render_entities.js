@@ -82,7 +82,12 @@ function renderRoom(walls) {
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.beginPath(); ctx.ellipse(e.x, e.y, 10 * esc, 4 * esc, 0, 0, Math.PI * 2); ctx.fill();
 
-        if (e.state === "windup") {
+        // 예고 표시 — 전용 도트가 있는 잡몹은 **UI 예고를 띄우지 않는다**.
+        // 동작 자체(긴 선딜 모션)가 예고가 되는 게 정석이고, 링/직선까지 겹치면 도트가 안 읽힌다.
+        // 대신 선딜을 넉넉히 줘서(투척 2초·궁병 3초·자폭 1초) 눈으로 읽고 피할 시간을 확보한다.
+        // 보스는 패턴이 복잡해 예고를 유지한다. 도트 없는 몹도 유지(폴백 원화라 자세 구분이 안 됨).
+        const showTelegraph = e.isBoss || !e.spriteKey;
+        if (e.state === "windup" && showTelegraph) {
             const warnBase = e._warnBase || 24;
             const prog = 1 - e.warnT / warnBase;
             ctx.strokeStyle = e.isBoss ? "rgba(255,200,60,0.85)" : "rgba(255,60,60,0.7)";
@@ -139,8 +144,17 @@ function renderRoom(walls) {
                 e.x, e.y, hasOwnArt ? null : (e.tint || "#ff3333"), BOSS_SPRITE_SCALE);
         } else if (e.spriteKey && spriteClassOf(e.spriteKey) === e.spriteKey) {
             // 잡몹 전용 도트 — 정지 포즈만 있고(rotations) 애니는 없으므로 방향 스프라이트로 그림.
-            // 이미 자기 색이 맞는 원화라 틴트를 씌우지 않는다(씌우면 오히려 탁해짐).
-            drawDirSpriteTinted(ctx, e.spriteKey, e.facing, e.x, e.y, null, 1);
+            // 이미 자기 색이 맞는 원화라 평소엔 틴트를 씌우지 않는다(씌우면 오히려 탁해짐).
+            // 예외: 자폭병 도화선 구간엔 몸이 점점 붉어진다 — UI 링 대신 캐릭터 자체로 위험을 알림.
+            let fuseTint = null;
+            if (e.mtype === "bomber" && e.state === "windup") {
+                const prog = 1 - e.warnT / (e._warnBase || 60);   // 0 → 1
+                // 후반부일수록 붉게, 게다가 점멸시켜 임박했음을 강하게 알림
+                const blink = prog > 0.6 && Math.floor(Game.frameCount / 4) % 2 === 0;
+                const a = Math.min(0.85, prog * 0.8 + (blink ? 0.25 : 0));
+                fuseTint = `rgba(255,40,20,${a.toFixed(2)})`;
+            }
+            drawDirSpriteTinted(ctx, e.spriteKey, e.facing, e.x, e.y, fuseTint, 1);
         } else {
             // 전용 도트가 없는 몹 — 예전처럼 도적 원화를 테마색으로 틴트해 대신 그린다
             drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333", 1);
@@ -172,8 +186,8 @@ function renderRoom(walls) {
     // 적 투사체 (보스 패턴 등)
     Game.eBullets.forEach(b => {
         if (!b.active) return;
-        ctx.fillStyle = "#c4563a";
-        ctx.shadowBlur = 4; ctx.shadowColor = "#a8452a";
+        ctx.fillStyle = b.col || "#c4563a";
+        ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.6)";
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0;
     });
