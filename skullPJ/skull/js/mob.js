@@ -3,7 +3,7 @@
 // 원형별로 attack 단계에서 하는 일이 다르다 (stage.js의 MOB_ARCHETYPES 참고):
 //   melee/tank/charger → 예고 방향으로 돌진해 몸통 판정
 //   ranged            → 제자리에서 투사체 발사
-//   bomber            → 자폭 (죽어도 폭발)
+//   bomber            → 붙으면 1초 도화선(몸이 붉어짐) 후 자폭. 불붙기 전에 죽이면 안 터진다
 // 보스(isBoss)는 boss.js의 updateBossAI로 위임한다.
 
 // 스테이지 테마의 몹 목록에서 하나 골라 스탯을 스케일링해 스폰
@@ -23,6 +23,7 @@ function spawnEnemy(x, y, opts) {
     e.state = "chase"; e.warnT = 0; e._warnBase = 0; e.atkAnim = 0; e.atkCD = 0;
     e.hitInv = 0; e.dead = false; e.flash = 0; e.kbT = 0;
     e.ap = undefined; e.chaseT = 0; e._p2Flagged = false;
+    e._fuseLit = false;   // 오브젝트 풀 재사용 — 이전 자폭병의 점화 상태가 남지 않게 초기화
 
     if (opts.boss) {
         const theme = stageTheme(opts.stageN);
@@ -87,8 +88,10 @@ function onEnemyDeath(e) {
         if (typeof playSfx === 'function') playSfx('enemy_die');
         dropLoot(e);
     }
-    // 자폭형은 죽을 때도 터진다 — 근접으로 마무리할 때 위험 요소
-    if (e.mtype === "bomber") explodeBomber(e);
+    // 자폭형은 "이미 도화선에 불이 붙은 상태"(windup, 몸이 붉어짐)에서 죽었을 때만 터진다.
+    // 예전엔 언제 죽여도 터져서, 근접 직업은 회피할 방법 없이 무조건 피해를 받아 불합리했다.
+    // 지금은 붉어지기 전에 처리하면 안전 — 붉은 표시가 "지금 죽이면 터진다"는 신호로 작동한다.
+    if (e.mtype === "bomber" && e._fuseLit) explodeBomber(e);
 
     // 유물 "죽음의 개화": 처치 지점에서 폭발해 주변 적에게 연쇄 피해
     if (Game.pKillExplode > 0) {
@@ -180,9 +183,11 @@ function updateEnemies(walls) {
                 if (e.mtype === "thrower") {
                     // 돌을 한 발씩 연달아 던진다 — 발사 간격(burstGap)마다 1발씩, 총 burst발.
                     // 조준각은 매 발 새로 잡아서 플레이어가 계속 움직이게 만든다.
-                    e.burstLeft = arch.burst || 5;
+                    // 엘리트 보정은 "동시에 여러 발"이 아니라 "더 오래 던짐"으로 준다.
+                    const n = (arch.burst || 5) + (e.isElite ? 2 : 0);
+                    e.burstLeft = n;
                     e.burstCD = 0;
-                    e.atkAnim = (arch.burst || 5) * (arch.burstGap || 9);
+                    e.atkAnim = n * (arch.burstGap || 9);
                 } else if (e.mtype === "archer" || e.mtype === "ranged") {
                     fireMobShot(e, arch);
                     e.atkAnim = 8;
@@ -234,20 +239,26 @@ function enterWindup(e, arch, dx, dy) {
     e._warnBase = arch.warn;
     e.warnAng = Math.atan2(dy, dx);
     e.vx = 0; e.vy = 0;
+    // 자폭병은 이 시점부터 도화선에 불이 붙은 것으로 본다 (몸이 붉어지고, 죽어도 터진다)
+    if (e.mtype === "bomber") e._fuseLit = true;
 }
 
 // 원거리 몹 발사
-//   arch.fan 이 있으면 그 수만큼 부채꼴로 동시 발사(궁병)
-//   없으면 단발 — 엘리트만 3발 부채꼴 (기존 ranged 동작 유지)
-//   투척병은 이 함수를 burst 간격마다 1회씩 호출해 "연발"을 만든다
+//   arch.fan   → 그 수만큼 부채꼴로 동시 발사 (궁병). 엘리트는 +2발
+//   arch.burst → 항상 단발. 여러 발은 "시간차 연발"로 표현하므로 여기서 퍼뜨리면 안 된다 (투척병)
+//   둘 다 없음 → 단발, 엘리트만 3발 부채꼴 (기존 ranged 동작 유지)
 function fireMobShot(e, arch) {
     const spd = arch.shotSpeed;
     let shots;
     if (arch.fan) {
         // fan발을 fanSpread 간격으로 좌우 대칭 배치 (5발이면 -2,-1,0,1,2)
-        const n = arch.fan, sp = arch.fanSpread || 0.18;
+        const n = arch.fan + (e.isElite ? 2 : 0), sp = arch.fanSpread || 0.18;
         shots = [];
         for (let i = 0; i < n; i++) shots.push((i - (n - 1) / 2) * sp);
+    } else if (arch.burst) {
+        // 연발형은 무조건 한 발씩 — 엘리트라고 부채꼴로 바꾸면 "한 발씩 던진다"는 설계가 깨진다
+        // (엘리트 보정은 던지는 횟수를 늘리는 쪽으로 준다 — enterWindup 참고)
+        shots = [0];
     } else {
         shots = e.isElite ? [-0.16, 0, 0.16] : [0];
     }
