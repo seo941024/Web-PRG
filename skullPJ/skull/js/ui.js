@@ -42,9 +42,9 @@ function _uiPanel(x, y, w, h, accent) {
     ctx.fillRect(x + 4, y + 4, w, h);
 
     // ② 본체 — 매끄러운 그라디언트 대신 두 단계 평면 색
-    ctx.fillStyle = "#15121f";
+    ctx.fillStyle = UIC.panel[1];
     ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = "#1c1828";
+    ctx.fillStyle = UIC.panel[0];
     ctx.fillRect(x, y, w, Math.round(h * 0.42));
 
     // ③ 안쪽 하이라이트/그림자 1px — 각진 두께감
@@ -279,7 +279,7 @@ function renderRelicSelect() {
         const y = sy - (sel ? 12 : 0);
 
         // 카드 — 각진 픽셀 프레임. 희귀도 색은 테두리와 상단 띠로만 드러낸다.
-        const rc = uiMute(rar.color, 0.3);
+        const rc = rar.color;   // 희귀도 색은 살린다 — 바탕이 무채색이라 여기서 등급이 읽혀야 함
         ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.fillRect(Math.round(x) + 4, Math.round(y) + 4, Math.round(cw), Math.round(ch));
         ctx.fillStyle = sel ? "#1d1830" : "#141020";
@@ -293,7 +293,7 @@ function renderRelicSelect() {
         ctx.fillRect(Math.round(x), Math.round(y) + 44, Math.round(cw), 1);
         _pxFrame(x, y, cw, ch, sel ? rc : UIC.lineDim);
 
-        _uiText(rar.name, x + cw / 2, y + 28, 15, uiMute(rar.color, 0.25), "center");
+        _uiText(rar.name, x + cw / 2, y + 28, 15, rar.color, "center");
 
         _uiText(r.name, x + cw / 2, y + 86, 21, "#ffffff", "center", true, sel ? 8 : 0);
 
@@ -677,7 +677,7 @@ function _equipGlyph(eq) { return eq.kind === "weapon" ? "⚔" : "◈"; }
 function _invCell(x, y, eq, sel, hover) {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(Math.round(x) + 2, Math.round(y) + 2, INV_CELL, INV_CELL);
-    ctx.fillStyle = hover ? "#3a3350" : (sel ? "#2b2540" : "#171426");
+    ctx.fillStyle = hover ? "#3b352c" : (sel ? "#2b2620" : UIC.slot);
     ctx.fillRect(Math.round(x), Math.round(y), INV_CELL, INV_CELL);
     // 안쪽 음영 — 칸이 파여 보이게(슬롯 느낌)
     ctx.fillStyle = "rgba(0,0,0,0.45)";
@@ -689,7 +689,7 @@ function _invCell(x, y, eq, sel, hover) {
     _pxFrame(x, y, INV_CELL, INV_CELL, (sel || hover) ? "#c9a44e" : UIC.lineDim);
 
     if (!eq) return;
-    const col = uiMute(equipColor(eq), 0.2);
+    const col = equipColor(eq);   // 등급 색은 죽이지 않는다 — 바탕이 무채색이라 여기서 색이 살아야 함
     const cx = x + INV_CELL / 2, cy = y + INV_CELL / 2;
     // 아이콘 — 티어 색 사각형 + 기호
     ctx.fillStyle = "#05040a";
@@ -726,8 +726,8 @@ function _invTooltip(eq, ax, ay) {
     const y = Math.min(ay + 10, UH - h - 8);
     ctx.fillStyle = "rgba(8,6,14,0.96)";
     ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
-    _pxFrame(x, y, w, h, uiMute(equipColor(eq), 0.3));
-    _uiText(name, x + 12, y + 22, 14, uiMute(equipColor(eq), 0.15));
+    _pxFrame(x, y, w, h, equipColor(eq));
+    _uiText(name, x + 12, y + 22, 14, equipColor(eq));
     rows.forEach((t, i) => _uiText(t, x + 12, y + 42 + i * 16, 12, UIC.label));
 }
 

@@ -500,9 +500,9 @@ function renderRoom(walls) {
         };
         let iy = by + 12;
         infoRow("무기", Game.equip.weapon ? equipDisplayName(Game.equip.weapon) : "— 없음 —",
-            Game.equip.weapon ? uiMute(equipColor(Game.equip.weapon), 0.4) : UIC.faint, iy); iy += 19;
+            Game.equip.weapon ? equipColor(Game.equip.weapon) : UIC.faint, iy); iy += 19;
         infoRow("방어구", Game.equip.armor ? equipDisplayName(Game.equip.armor) : "— 없음 —",
-            Game.equip.armor ? uiMute(equipColor(Game.equip.armor), 0.4) : UIC.faint, iy); iy += 19;
+            Game.equip.armor ? equipColor(Game.equip.armor) : UIC.faint, iy); iy += 19;
         if (Game.relics.length > 0) infoRow("유물", `${Game.relics.length}개  [ESC]`, UIC.accent, iy);
     }
     ctx.restore();
