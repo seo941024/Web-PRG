@@ -130,14 +130,19 @@ function renderRoom(walls) {
 
         ctx.save();
         if (e.flash > 0) ctx.filter = "brightness(2) saturate(0)";
-        // 보스는 원화보다 크게 그려 위압감을 준다 (히트박스 e.hb는 그대로 — 시각 크기만 확대)
         if (e.isBoss && e.spriteKey) {
+            // 보스는 원화보다 크게 그려 위압감을 준다 (히트박스 e.hb는 그대로 — 시각 크기만 확대).
             // 전용 도트가 있으면 idle 숨쉬기 애니를 재생(없으면 정지 포즈로 자동 폴백),
             // 그리고 틴트 없이 원색 그대로. 남의 원화를 빌려 쓸 때만 tint를 입힌다.
             const hasOwnArt = spriteClassOf(e.spriteKey) === e.spriteKey;
             drawAnimSprite(ctx, e.spriteKey, e.animName || "idle", e.facing, e.animFrame || 0,
                 e.x, e.y, hasOwnArt ? null : (e.tint || "#ff3333"), BOSS_SPRITE_SCALE);
+        } else if (e.spriteKey && spriteClassOf(e.spriteKey) === e.spriteKey) {
+            // 잡몹 전용 도트 — 정지 포즈만 있고(rotations) 애니는 없으므로 방향 스프라이트로 그림.
+            // 이미 자기 색이 맞는 원화라 틴트를 씌우지 않는다(씌우면 오히려 탁해짐).
+            drawDirSpriteTinted(ctx, e.spriteKey, e.facing, e.x, e.y, null, 1);
         } else {
+            // 전용 도트가 없는 몹 — 예전처럼 도적 원화를 테마색으로 틴트해 대신 그린다
             drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333", 1);
         }
         ctx.restore();

@@ -47,6 +47,9 @@ function spawnEnemy(x, y, opts) {
     e.isBoss = false;
     e.isElite = !!opts.isElite;
     e.mtype = opts.type;
+    // 전용 도트가 있으면 그걸(스테이지+원형 조합 → MOB_SPRITE_MAP), 없으면 undefined로 두어
+    // render_entities.js가 기존처럼 도적 원화 tint 폴백을 타게 한다.
+    e.spriteKey = MOB_SPRITE_MAP[`${opts.stageN}_${opts.type}`];
     e.arch = arch;
     e.hb = opts.isElite ? { w: arch.hb.w + 4, h: arch.hb.h + 3 } : { ...arch.hb };
     e.hp = Math.round(arch.hp * scale * eliteMul);

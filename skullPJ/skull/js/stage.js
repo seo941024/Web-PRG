@@ -25,6 +25,16 @@ const MOB_ARCHETYPES = {
     bomber:  { hp: 22, atk: 6,  speed: 1.95, hb: { w: 16, h: 12 }, atkRange: 22, warn: 20, dash: 6,  cd: 40, explodeDmg: 18, explodeR: 62 },
 };
 
+// 스테이지+원형 조합별 전용 도트 폴더 — "{stageN}_{archetype}" → sprites/raw/<값>/
+// 없는 조합은 그냥 undefined → 도적 원화를 tint로 대체하는 기존 폴백을 그대로 탄다(render_entities.js).
+// 한 원형(예: ranged)을 여러 몹이 공유해도 시각적으로는 다른 몬스터일 수 있어서
+// 원형 이름을 그대로 폴더명으로 쓰지 않고 별도 매핑을 둔다.
+const MOB_SPRITE_MAP = {
+    "1_melee": "mob1_basic",   // 고블린 기본 보병(단검)
+    // "1_ranged": "mob1_thrower", // 고블린 투척병 — 아직 stage.js의 mobs 풀에 ranged가 없어 미연결.
+    //   투석/자세만 다른 몹(투척병·궁병)이 같은 ranged 원형을 쓸지, 원형을 나눌지 정해지면 주석 해제
+};
+
 // ── 10개 테마 ──────────────────────────────────────────────
 // palette: 방 렌더 색상 / mobs: 이 테마에 등장하는 몹 원형 목록(가중치 없이 균등 추첨)
 // layouts: [라운드1 장애물, 라운드2 장애물], bossArena: 라운드3(보스방) 장애물

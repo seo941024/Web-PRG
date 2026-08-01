@@ -82,6 +82,12 @@ function buildRoom(stageN, roundN) {
         Game.bannerT = 150;
         Game.bannerText = `${theme.name} — ${theme.boss.name}`;
     } else {
+        // 이 스테이지에서 전용 도트가 있는 원형(MOB_SPRITE_MAP)만 골라 미리 로드.
+        // 없는 조합은 loadCharSprites를 아예 안 부르므로 불필요한 404 요청이 늘지 않는다.
+        theme.mobs.forEach(type => {
+            const key = MOB_SPRITE_MAP[`${stageN}_${type}`];
+            if (key) loadCharSprites(key);
+        });
         const spots = pickSpawnSpots(roundMobCount(stageN, roundN), baseWalls);
         spots.forEach(([sx, sy]) => spawnThemedEnemy(sx, sy, stageN, roundN));
         Game.bannerT = 110;
