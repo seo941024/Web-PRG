@@ -229,6 +229,18 @@ function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint, sca
 }
 
 // 이동 벡터 → 8방향 이름
+// 연속 벡터(적 → 플레이어 같은 실수 좌표차) → 8방향.
+// ⚠️ 적 AI에서 dirFromVec(Math.sign(dx), Math.sign(dy))를 쓰면 안 된다.
+//    dx/dy가 정확히 0이 되는 일은 거의 없어서 sign이 항상 ±1 → 대각선 4방향만 나온다.
+//    (dirFromVec은 키 입력 전용 — 방향키는 실제로 0이 나오므로 그쪽은 문제없음)
+const DIR_BY_SECTOR = ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"];
+function dirFromAngle(dx, dy) {
+    if (dx === 0 && dy === 0) return null;
+    let i = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)); // 45도씩 8구간 (화면 좌표라 +y가 south)
+    if (i < 0) i += 8;
+    return DIR_BY_SECTOR[i % 8];
+}
+
 function dirFromVec(mx, my) {
     if (mx > 0 && my < 0) return "north-east";
     if (mx > 0 && my > 0) return "south-east";

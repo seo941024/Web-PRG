@@ -479,7 +479,7 @@ function updateBossAI(e, walls) {
     const p = Player;
     const dx = p.x - e.x, dy = p.y - e.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const dname = dirFromVec(Math.sign(dx) || 0, Math.sign(dy) || 0);
+    const dname = dirFromAngle(dx, dy);
     if (dname && e.state !== "attack") e.facing = dname;
 
     const isP2 = e.hp < e.maxHp * 0.5;

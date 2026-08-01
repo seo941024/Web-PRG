@@ -130,7 +130,7 @@ function updateEnemies(walls) {
 
         const dx = p.x - e.x, dy = p.y - e.y;
         const dist = Math.hypot(dx, dy) || 1;
-        const dname = dirFromVec(Math.sign(dx) || 0, Math.sign(dy) || 0);
+        const dname = dirFromAngle(dx, dy);
         if (dname && e.state !== "attack") e.facing = dname;
 
         // 피격 넉백 중엔 AI 판단 없이 관성으로만 밀림

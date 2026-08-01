@@ -10,10 +10,11 @@ const PLAYER_BASE_SPEED = 2.7;
 const STAMINA_MAX   = 100;
 const STAMINA_REGEN = 0.45;  // 프레임당 자연회복
 const STAMINA_DASH  = 35;    // 회피 1회 소모 (유물 pDashCostMul로 배율 적용)
-// 회피가 끝난 직후에도 잠깐 무적을 남긴다(0.3초).
+// 회피가 끝난 직후에도 잠깐 무적을 남긴다(0.6초).
 // 대시 모션이 끝나는 순간 바로 판정이 살아나면 "피했는데 맞는" 느낌이라 회피기로 안 읽힌다.
 // 이 시간 동안 캐릭터는 점멸하고(render_entities), 투사체는 몸을 통과한다(updateEBullets).
-const DASH_INV_AFTER = 18;
+// 0.6초 — 0.3초는 탄막 사이를 빠져나오기엔 짧아서 회피 후 바로 다시 맞았다.
+const DASH_INV_AFTER = 36;
 
 const Player = {
     x: 160, y: 200, vx: 0, vy: 0,
@@ -147,7 +148,7 @@ function hitPlayer(dmg, eObj) {
     }
 
     if (dmg > 0) p.hp -= dmg;
-    p.invT = 45; p.kbT = 12;
+    p.invT = 72; p.kbT = 12;   // 피격 무적 1.2초 — 연속 피격으로 순식간에 녹는 걸 방지
     const ex = p.x - (eObj ? eObj.x : p.x), ey = p.y - (eObj ? eObj.y : p.y);
     const d = Math.hypot(ex, ey) || 1;
     p.vx = (ex / d) * 4; p.vy = (ey / d) * 4;
