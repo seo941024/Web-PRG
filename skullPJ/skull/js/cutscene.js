@@ -173,11 +173,9 @@ function _cutsceneEnd(type, stageN) {
         Game.camShake = 0;
         if (typeof playBGM === 'function') playBGM('play');
     } else if (type === "bosskill") {
-        // 마지막 스테이지 보스면 곧바로 엔딩.
-        // 그 외에는 **방으로 돌아간다** — 보스가 떨어뜨린 무기·방어구·HP 오브를 주울 시간이 필요하고,
-        // 유물 선택은 동쪽 문을 지날 때(main.js nextStage) 넘어간다.
-        // (예전엔 대사가 끝나자마자 유물 → 다음 스테이지로 넘어가 전리품을 못 챙겼다)
-        if (stageN >= STAGE_COUNT) { startCutscene("ending"); return; }
+        // 마지막 보스도 똑같이 **방으로 돌아간다** — 마왕도 장비를 떨어뜨리는데
+        // 대사가 끝나자마자 엔딩으로 넘어가면 그걸 주울 수 없었다.
+        // 엔딩은 동쪽 문을 지날 때(main.js nextStage) 시작한다.
         Game.gs = "play";
         Game.camShake = 0;
         if (typeof playBGM === 'function') playBGM('play');
@@ -186,6 +184,9 @@ function _cutsceneEnd(type, stageN) {
         Game.gs = "win";
     }
 }
+
+// 엔딩 스킵에 필요한 ESC 유지 시간(프레임). 실수로 한 번 눌러 엔딩을 통째로 잃지 않게.
+const ENDING_SKIP_HOLD = 60;
 
 function updateCutscene() {
     const cs = Game.cutscene;
@@ -212,8 +213,17 @@ function updateCutscene() {
     const minDur = cur.text ? cur.text.length * typeSpeed + 70 : cur.dur;
     cs.effDur = Math.max(cur.dur, minDur);
 
-    // ESC — 컷신 전체 스킵
-    if (pr("Escape")) { _cutsceneEnd(cs.type, cs.stageN); return; }
+    // ESC — 컷신 전체 스킵.
+    // 단 엔딩은 한 번 보는 보상이라 한 번 눌러서 통째로 날아가면 안 된다.
+    // 엔딩만 "누르고 있기"를 요구하고, 진행 상황을 화면에 표시한다(renderCutscene).
+    if (cs.type === "ending") {
+        if (dn("Escape")) {
+            cs.skipHold = (cs.skipHold || 0) + 1;
+            if (cs.skipHold >= ENDING_SKIP_HOLD) { _cutsceneEnd(cs.type, cs.stageN); return; }
+        } else cs.skipHold = 0;
+    } else if (pr("Escape")) {
+        _cutsceneEnd(cs.type, cs.stageN); return;
+    }
 
     // SPACE — 타이핑 중이면 즉시 완성, 완성 상태면 다음 줄
     if (pr("Space", "Enter", "KeyC") && cs.t > 6) {
@@ -343,7 +353,20 @@ function renderCutscene() {
         ctx.font = "bold 13px SkullFont, NeoDunggeunmo, monospace";
         ctx.textAlign = "right";
         ctx.fillStyle = `rgba(140,200,255,${0.35 + glow * 0.5})`;
-        ctx.fillText("[ESC] 스킵", UW - 20, 28);
+        // 엔딩은 길게 눌러야 스킵되므로 그렇게 안내하고, 누르는 동안 채워지는 막대를 보여준다
+        if (cs.type === "ending") {
+            const hold = (cs.skipHold || 0) / ENDING_SKIP_HOLD;
+            ctx.fillText("[ESC] 길게 눌러 건너뛰기", UW - 20, 28);
+            if (hold > 0) {
+                const bw = 120, bx = UW - 20 - bw, by = 36;
+                ctx.fillStyle = "rgba(0,0,0,0.6)";
+                ctx.fillRect(bx, by, bw, 5);
+                ctx.fillStyle = "rgba(180,220,255,0.9)";
+                ctx.fillRect(bx, by, bw * Math.min(1, hold), 5);
+            }
+        } else {
+            ctx.fillText("[ESC] 스킵", UW - 20, 28);
+        }
         ctx.textAlign = "center";
         ctx.fillStyle = `rgba(160,160,160,${0.35 + glow * 0.35})`;
         ctx.fillText("[SPACE] 다음", UW / 2, UH - 22);
