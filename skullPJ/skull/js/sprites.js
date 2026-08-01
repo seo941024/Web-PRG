@@ -36,6 +36,29 @@ const CharSprites = {}; // { [classId]: { [dir]: HTMLImageElement, ready:bool } 
 // 이미지가 실제로 그릴 수 있는 상태인지
 function _imgOK(img) { return !!(img && img.complete && img.naturalWidth > 0); }
 
+// ── 스프라이트 틴트 ────────────────────────────────────────
+// ⚠️ 메인 캔버스에 바로 source-atop + fillRect를 하면 안 된다.
+//    source-atop은 "이미 그려진 모든 것"(= 바닥·벽 포함) 기준으로 합성돼서
+//    스프라이트가 아니라 사각형이 통째로 물든다. 실제로 자폭병이 빨간 네모로 보였던 원인.
+//    그래서 오프스크린 캔버스에 스프라이트만 올려놓고 거기서 틴트한 뒤 결과를 옮겨 그린다.
+const _tintCv = (typeof document !== "undefined" && document.createElement)
+    ? document.createElement("canvas") : null;
+const _tintCx = _tintCv ? _tintCv.getContext("2d") : null;
+
+function _drawSpriteTinted(ctx, img, dx, dy, dw, dh, tint) {
+    if (!tint || !_tintCx) { ctx.drawImage(img, dx, dy, dw, dh); return; }
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (_tintCv.width !== w || _tintCv.height !== h) { _tintCv.width = w; _tintCv.height = h; }
+    _tintCx.globalCompositeOperation = "source-over";
+    _tintCx.clearRect(0, 0, w, h);
+    _tintCx.drawImage(img, 0, 0);
+    _tintCx.globalCompositeOperation = "source-atop";  // 여기선 캔버스에 스프라이트뿐이라 안전
+    _tintCx.fillStyle = tint;
+    _tintCx.fillRect(0, 0, w, h);
+    _tintCx.globalCompositeOperation = "source-over";
+    ctx.drawImage(_tintCv, dx, dy, dw, dh);
+}
+
 // 아직 전용 도트가 없는 직업은 도적(1) 원화를 대신 쓴다.
 // (예전엔 파일이 없으면 회색 네모 placeholder가 떠서, 도적 외 직업은 캐릭터가 아예 안 보였다.
 //  직업 구분은 CLASS_PROFILE.tint 색으로 하고, 전용 도트가 나오면 이 폴백만 빠지면 됨)
@@ -96,16 +119,21 @@ function drawDirSprite(ctx, classId, dir, x, y, tint, scale) {
     if (flip) {
         ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0);
     }
-    ctx.drawImage(img, dx, dy, dw, dh);
-    if (tint) { // 남의 원화를 빌려 쓸 때 직업 색으로 구분
-        ctx.globalCompositeOperation = "source-atop";
-        ctx.globalAlpha = 0.45;
-        ctx.fillStyle = tint;
-        ctx.fillRect(dx, dy, dw, dh);
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = "source-over";
-    }
+    // 남의 원화를 빌려 쓸 때 직업 색으로 구분 — 스프라이트 픽셀만 물들인다
+    _drawSpriteTinted(ctx, img, dx, dy, dw, dh, tint ? _tintWithAlpha(tint, 0.45) : null);
     ctx.restore();
+}
+
+// #rrggbb면 기본 농도를 씌우고, rgba(...)면 지정된 농도를 그대로 존중한다
+// (자폭병 도화선처럼 시간에 따라 붉기가 짙어지는 연출에 필요)
+function _tintWithAlpha(tint, defAlpha) {
+    if (typeof tint !== "string") return tint;
+    if (tint.startsWith("rgba")) return tint;
+    if (tint[0] === "#" && tint.length >= 7) {
+        const r = parseInt(tint.slice(1, 3), 16), g = parseInt(tint.slice(3, 5), 16), b = parseInt(tint.slice(5, 7), 16);
+        return `rgba(${r},${g},${b},${defAlpha})`;
+    }
+    return tint;
 }
 
 // 같은 원화를 색만 다르게 틴트해서 그림 — 새 아트 없이 적 변형을 공짜로 뽑는 용도.
@@ -124,19 +152,8 @@ function drawDirSpriteTinted(ctx, classId, dir, x, y, tintColor, scale) {
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
     const dx = x - dw / 2, dy = y - dh * classFeetRatio(srcClass);
-    ctx.drawImage(img, dx, dy, dw, dh);
-    if (tintColor) {
-        ctx.globalCompositeOperation = "source-atop";
-        // rgba(...)로 농도를 직접 지정한 경우엔 그 알파를 그대로 존중한다
-        // (자폭병 도화선처럼 시간에 따라 붉기가 짙어지는 연출에 필요).
-        // 색만 넘어온 경우(#rrggbb)는 기존처럼 은은하게 0.45로 덮는다.
-        const hasOwnAlpha = typeof tintColor === "string" && tintColor.startsWith("rgba");
-        if (!hasOwnAlpha) ctx.globalAlpha = 0.45;
-        ctx.fillStyle = tintColor;
-        ctx.fillRect(dx, dy, dw, dh);
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = "source-over";
-    }
+    _drawSpriteTinted(ctx, img, dx, dy, dw, dh,
+        tintColor ? _tintWithAlpha(tintColor, 0.45) : null);
     ctx.restore();
 }
 
@@ -206,16 +223,8 @@ function drawAnimSprite(ctx, classId, animName, dir, frameIndex, x, y, tint, sca
     const dx = x - dw / 2, dy = y - dh * feetRatioFor(animName, srcClass);
     ctx.save();
     if (flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
-    ctx.drawImage(img, dx, dy, dw, dh);
     // 전용 도트가 없어 남의 원화를 빌려 쓰는 경우, 직업 색을 덧입혀 구분한다
-    if (tint) {
-        ctx.globalCompositeOperation = "source-atop";
-        ctx.globalAlpha = 0.45;
-        ctx.fillStyle = tint;
-        ctx.fillRect(dx, dy, dw, dh);
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = "source-over";
-    }
+    _drawSpriteTinted(ctx, img, dx, dy, dw, dh, tint ? _tintWithAlpha(tint, 0.45) : null);
     ctx.restore();
 }
 

@@ -106,7 +106,11 @@ function updateEBullets(walls) {
         for (const w of walls) {
             if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) { b.active = false; return; }
         }
-        if (!Player.dead) {
+        // 무적(회피 중·회피 직후·피격 무적) 상태면 충돌 판정 자체를 건너뛴다.
+        // 예전엔 hitPlayer가 무적이라 피해만 무시하고 탄은 b.active=false로 지워서,
+        // 회피 중에 몸으로 탄을 "막아버리는" 그림이 됐다. 회피는 통과하는 느낌이어야 한다.
+        const invuln = Player.invT > 0 || Player.dashT > 0;
+        if (!Player.dead && !invuln) {
             const dx = b.x - Player.x, dy = b.y - Player.y;
             const hitR = b.r + Math.max(Player.hb.w, Player.hb.h) / 2;
             if (dx * dx + dy * dy < hitR * hitR) {
