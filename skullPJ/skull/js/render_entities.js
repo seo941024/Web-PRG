@@ -109,6 +109,26 @@ function renderRoom(walls) {
                 ctx.stroke();
                 ctx.globalAlpha = 1;
             }
+            // 반경형 패턴(대회전 참격 등)은 안전지대와 타격범위를 원으로 보여준다.
+            // 이런 패턴은 "붙으면 산다"처럼 직관과 반대라, 안 보여주면 학습이 안 되고 짜증만 남는다.
+            if (e.warnR) {
+                const [inR, outR] = e.warnR;
+                ctx.save();
+                // 타격 범위 — 예고가 진행될수록 진해짐
+                ctx.globalAlpha = 0.10 + prog * 0.22;
+                ctx.fillStyle = "#ff5544";
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, outR, 0, Math.PI * 2);
+                ctx.arc(e.x, e.y, inR, 0, Math.PI * 2, true);   // 안쪽을 파내 도넛 모양으로
+                ctx.fill();
+                ctx.globalAlpha = 0.85;
+                ctx.strokeStyle = "#ff7766"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(e.x, e.y, outR, 0, Math.PI * 2); ctx.stroke();
+                // 안전지대 — 여기로 파고들면 안 맞는다
+                ctx.strokeStyle = "rgba(120,255,190,0.9)"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(e.x, e.y, inR, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            }
             // 보스는 패턴 이름을 머리 위에 띄워 무엇이 오는지 읽히게
             if (e.isBoss && e.warnName) {
                 ctx.fillStyle = "#ffd76a"; ctx.font = "bold 14px SkullFont, NeoDunggeunmo, monospace";

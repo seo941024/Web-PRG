@@ -45,28 +45,36 @@ const BOSS_PATTERNS = {
             },
         },
         {
-            name: "철퇴 돌진", warn: 34, dur: 24, rec: 56, kind: "dash",
-            exec: () => { Game.camShake = Math.max(Game.camShake || 0, 10); },
-        },
-        {
-            name: "회전 후려치기", warn: 30, dur: 12, rec: 64, kind: "cast",
-            exec: (e, isP2) => {
-                const amt = isP2 ? 16 : 11;
-                for (let i = 0; i < amt; i++) {
-                    const a = (i / amt) * Math.PI * 2;
-                    spawnEBullet(e.x, e.y - 8, Math.cos(a) * 3.1, Math.sin(a) * 3.1, 110, 5, Math.round(e.atk * 0.55));
-                }
-                Game.camShake = Math.max(Game.camShake || 0, 8);
+            // 몸통 박치기 — 무기 없이 덩치로 밀어붙인다. dash 종류라 실행 중 예고 각도로 돌진하며
+            // 몸통 판정이 계속 살아있다(updateBossAI). 스프린트 모션이 붙으면 그대로 어울리는 동작.
+            name: "몸통 박치기", warn: 34, dur: 28, rec: 60, kind: "dash",
+            exec: (e) => {
+                // 달리는 동안 흙먼지가 일게 해서 "밀고 들어온다"는 인상을 준다
+                e.sustain = { kind: "trail", t: 0, dur: 28 };
+                Game.camShake = Math.max(Game.camShake || 0, 12);
             },
         },
         {
-            name: "돌 던지기", warn: 28, dur: 10, rec: 44, kind: "cast",
+            // 대회전 참격 — 도끼를 크게 한 바퀴 돌린다. 날 끝(바깥 테두리)만 아프고
+            // 품 안으로 파고들면 안전하다. "물러나면 맞고 붙으면 산다"는 역발상을 가르치는 패턴이라
+            // 안전지대가 보여야 학습이 되므로 warnR로 예고 반경을 그려준다(render_entities).
+            name: "대회전 참격", warn: 46, dur: 18, rec: 84, kind: "cast",
+            warnR: [46, 150],
             exec: (e, isP2) => {
-                const count = isP2 ? 5 : 3;
-                for (let i = 0; i < count; i++) {
-                    const a = e.warnAng + (i - (count - 1) / 2) * 0.20;
-                    spawnEBullet(e.x, e.y - 8, Math.cos(a) * 5.2, Math.sin(a) * 5.2, 130, 6, Math.round(e.atk * 0.8));
+                const innerR = 46;                 // 도끼자루 안쪽 — 날이 닿지 않는 품
+                const outerR = isP2 ? 175 : 150;   // 날 끝
+                const d = Math.hypot(Player.x - e.x, Player.y - e.y);
+                if (d >= innerR && d <= outerR && typeof hitPlayer === 'function') {
+                    hitPlayer(Math.round(e.atk * 1.6), e);
                 }
+                // 날이 지나간 궤적 — 어디까지 닿았는지 눈에 남게
+                for (let i = 0; i < 46; i++) {
+                    const a = (i / 46) * Math.PI * 2;
+                    const rr = innerR + (outerR - innerR) * (0.6 + Math.random() * 0.4);
+                    addPart(e.x + Math.cos(a) * rr, e.y + Math.sin(a) * rr, "#e0d0a0", 24, 3);
+                }
+                Game.camShake = Math.max(Game.camShake || 0, 16);
+                if (typeof playSfx === 'function') playSfx('enemy_atk');
             },
         },
     ],
@@ -546,6 +554,7 @@ function updateBossAI(e, walls) {
             e.atkAnim = pat.dur;
             e.sustain = null;
             if (typeof playSfx === 'function') playSfx('boss_atk');
+            e.warnR = null;   // 예고 원은 발동 순간 지운다 — 안 지우면 다음 패턴까지 남는다
             pat.exec(e, isP2);
         }
     } else if (e.state === "attack") {
@@ -598,6 +607,7 @@ function startBossPattern(e, pat, isP2) {
     e._warnBase = e.warnT;
     e.warnKind = pat.kind;
     e.warnName = pat.name;
+    e.warnR = pat.warnR || null;   // [안전반경, 타격반경] — 있으면 예고 중 원으로 표시
     e.warnAng = Math.atan2(Player.y - e.y, Player.x - e.x);
     e.vx = 0; e.vy = 0;
 }
