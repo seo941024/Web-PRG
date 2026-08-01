@@ -23,7 +23,8 @@ function spawnEnemy(x, y, opts) {
     e.state = "chase"; e.warnT = 0; e._warnBase = 0; e.atkAnim = 0; e.atkCD = 0;
     e.hitInv = 0; e.dead = false; e.flash = 0; e.kbT = 0;
     e.ap = undefined; e.chaseT = 0; e._p2Flagged = false;
-    e._fuseLit = false;   // 오브젝트 풀 재사용 — 이전 자폭병의 점화 상태가 남지 않게 초기화
+    // 오브젝트 풀 재사용 — 이전 자폭병의 상태가 남지 않게 초기화
+    e._fuseLit = false; e._deathDone = false; e._deathFuse = 0; e._selfDetonate = false;
 
     if (opts.boss) {
         const theme = stageTheme(opts.stageN);
@@ -88,10 +89,8 @@ function onEnemyDeath(e) {
         if (typeof playSfx === 'function') playSfx('enemy_die');
         dropLoot(e);
     }
-    // 자폭형은 "이미 도화선에 불이 붙은 상태"(windup, 몸이 붉어짐)에서 죽었을 때만 터진다.
-    // 예전엔 언제 죽여도 터져서, 근접 직업은 회피할 방법 없이 무조건 피해를 받아 불합리했다.
-    // 지금은 붉어지기 전에 처리하면 안전 — 붉은 표시가 "지금 죽이면 터진다"는 신호로 작동한다.
-    if (e.mtype === "bomber" && e._fuseLit) explodeBomber(e);
+    // 자폭병 폭발은 여기서 하지 않는다 — updateEnemies의 사망 분기가
+    // "시체 1초 후 폭발"까지 포함해 시점을 전담한다.
 
     // 유물 "죽음의 개화": 처치 지점에서 폭발해 주변 적에게 연쇄 피해
     if (Game.pKillExplode > 0) {
@@ -110,6 +109,9 @@ function onEnemyDeath(e) {
     }
 }
 
+// 플레이어에게 죽은 자폭병이 터지기까지의 시간 — 시체가 붉어지는 동안 피할 수 있다
+const BOMBER_DEATH_FUSE = 60;
+
 // 자폭 — 반경 내 플레이어에게 피해 + 예고 없는 즉발이라 반경을 좁게 잡음
 function explodeBomber(e) {
     const arch = e.arch || MOB_ARCHETYPES.bomber;
@@ -125,7 +127,24 @@ function updateEnemies(walls) {
     const p = Player;
     Game.enemies.forEach(e => {
         if (!e.active) return;
-        if (e.dead) { onEnemyDeath(e); e.active = false; return; }
+        if (e.dead) {
+            if (e.mtype === "bomber") {
+                // 자폭병은 죽어도 즉시 사라지지 않는다. 시체가 붉어지며 1초 뒤 폭발.
+                // (자기 공격으로 터진 경우 _selfDetonate는 지연 없이 그 자리에서 폭발)
+                if (!e._deathDone) {
+                    e._deathDone = true;
+                    onEnemyDeath(e);                  // 점수·드롭은 죽은 시점에 바로
+                    e._deathFuse = e._selfDetonate ? 0 : BOMBER_DEATH_FUSE;
+                    e._fuseLit = true;                // 시체도 붉게 물들이기 위한 표시
+                }
+                e.vx = 0; e.vy = 0;
+                if (e._deathFuse > 0) { e._deathFuse--; return; }
+                explodeBomber(e);
+                e.active = false;
+                return;
+            }
+            onEnemyDeath(e); e.active = false; return;
+        }
         if (e.isBoss) { updateBossAI(e, walls); return; }
 
         if (e.flash > 0) e.flash--;
@@ -192,7 +211,8 @@ function updateEnemies(walls) {
                     fireMobShot(e, arch);
                     e.atkAnim = 8;
                 } else if (e.mtype === "bomber") {
-                    // 자폭형은 도화선(warn)이 다 타면 터지고 사라짐
+                    // 도화선(warn)이 다 타면 자기 공격으로 폭발 — 이건 지연 없이 즉시
+                    e._selfDetonate = true;
                     e.hp = 0; e.dead = true;
                     e.atkAnim = 0;
                 } else {

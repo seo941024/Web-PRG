@@ -77,7 +77,10 @@ function renderRoom(walls) {
 
     // 적 (그림자 + 틴트 스프라이트 + HP바 + 공격 예고)
     Game.enemies.forEach(e => {
-        if (!e.active || e.dead) return;
+        if (!e.active) return;
+        // 죽은 적은 보통 그리지 않지만, 자폭병 시체는 터지기 전 1초 동안 붉어지며 남아야 한다
+        const dyingBomber = e.dead && e.mtype === "bomber" && e._deathFuse > 0;
+        if (e.dead && !dyingBomber) return;
         const esc = e.isBoss ? BOSS_SPRITE_SCALE : 1;
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.beginPath(); ctx.ellipse(e.x, e.y, 10 * esc, 4 * esc, 0, 0, Math.PI * 2); ctx.fill();
@@ -147,8 +150,11 @@ function renderRoom(walls) {
             // 이미 자기 색이 맞는 원화라 평소엔 틴트를 씌우지 않는다(씌우면 오히려 탁해짐).
             // 예외: 자폭병 도화선 구간엔 몸이 점점 붉어진다 — UI 링 대신 캐릭터 자체로 위험을 알림.
             let fuseTint = null;
-            if (e.mtype === "bomber" && e.state === "windup") {
-                const prog = 1 - e.warnT / (e._warnBase || 60);   // 0 → 1
+            if (e.mtype === "bomber" && (e.state === "windup" || dyingBomber)) {
+                // 살아서 붙었을 때(windup)든, 맞아 죽은 시체든 동일하게 "터지기까지 남은 비율"로 붉어진다
+                const prog = dyingBomber
+                    ? 1 - e._deathFuse / BOMBER_DEATH_FUSE
+                    : 1 - e.warnT / (e._warnBase || 60);
                 // 후반부일수록 붉게, 게다가 점멸시켜 임박했음을 강하게 알림
                 const blink = prog > 0.6 && Math.floor(Game.frameCount / 4) % 2 === 0;
                 const a = Math.min(0.85, prog * 0.8 + (blink ? 0.25 : 0));
@@ -167,7 +173,9 @@ function renderRoom(walls) {
             ctx.beginPath(); ctx.ellipse(e.x, e.y, 13, 5, 0, 0, Math.PI * 2); ctx.stroke();
         }
 
-        // HP바 — 보스는 크고 금테, 일반 몹은 작고 붉은 그대로
+        // HP바 — 보스는 크고 금테, 일반 몹은 작고 붉은 그대로.
+        // 이미 죽은 자폭병 시체에는 표시하지 않는다 (0짜리 빈 바가 떠 어색함)
+        if (dyingBomber) return;
         const hpw = e.isBoss ? 60 : 24;
         const hpy = e.isBoss ? e.y - 52 * BOSS_SPRITE_SCALE : e.y - 40;
         ctx.fillStyle = "#000c"; ctx.fillRect(e.x - hpw/2 - 1, hpy - 1, hpw + 2, 6);
