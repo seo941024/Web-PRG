@@ -123,7 +123,12 @@ const CHASE_REST = 32;   // 쉬는 구간 0.53초
 const CHASE_CYCLE = CHASE_WALK + CHASE_REST;
 // 자폭병은 달려드는 게 정체성이라 덜 쉬게 한다(쉬는 구간 절반)
 // 플레이어를 알아채는 거리. 이 밖에서는 배회만 하고 쫓지 않는다.
-const DETECT_R = 320;
+// 화면에 보이는 월드 영역이 640x360이라 320px은 화면 가로의 절반 — 사실상 화면 끝에서부터
+// 달려오는 셈이라 너무 넓었다. 기본 190(화면의 30%)으로 낮추고, 원거리 몹만 원형별로 더 준다.
+const DETECT_R = 190;
+function detectRange(e, arch) {
+    return (arch && arch.detect) || DETECT_R;
+}
 
 // ── 배회 ───────────────────────────────────────────────────
 // 인지 전에는 제자리에 굳어 있지 말고 스스로 돌아다니게 한다.
@@ -198,7 +203,8 @@ function updateEnemies(walls) {
 
         const dx = p.x - e.x, dy = p.y - e.y;
         const dist = Math.hypot(dx, dy) || 1;
-        const aware = dist < DETECT_R;   // 인지 여부 — 배회/추격을 가르는 기준
+        const _arch = e.arch || MOB_ARCHETYPES.melee;
+        const aware = dist < detectRange(e, _arch);   // 인지 여부 — 배회/추격을 가르는 기준
         // 인지했을 때만 플레이어를 쳐다본다. 못 봤으면 wanderTick이 진행 방향으로 돌려준다.
         if (aware && e.state !== "attack") {
             const dname = dirFromAngle(dx, dy);
@@ -312,7 +318,7 @@ function updateEnemies(walls) {
         resolveWalls(e, walls);
         // 배회 중 벽에 막혔으면(움직이려 했는데 위치가 그대로) 즉시 다른 방향을 고른다.
         // 안 그러면 벽에 붙어 계속 밀기만 하는 몹이 생긴다.
-        if (e.state === "chase" && e.wanderT > 0 && dist >= DETECT_R) {
+        if (e.state === "chase" && e.wanderT > 0 && !aware) {
             const moved = Math.hypot(e.x - bx, e.y - by);
             const wanted = Math.hypot(e.vx, e.vy);
             if (wanted > 0.1 && moved < wanted * 0.3) e.wanderT = 0;
@@ -353,8 +359,11 @@ function fireMobShot(e, arch) {
     const isStone = e.mtype === "thrower";
     const r = isStone ? 6 : 4;
     const col = isStone ? "#9a8f7a" : "#d8c9a0";
+    // 수명은 사거리 기준으로 계산 — life를 150으로 고정해 두면 화살이 사거리의 2.4배(675px)까지
+    // 날아가 사실상 맵 끝까지 도달했다. 사거리보다 약간만 더 가고 사라지게 한다.
+    const life = Math.max(20, Math.round((arch.atkRange * 1.15) / spd));
     shots.forEach(da => {
         const a = e.warnAng + da;
-        spawnEBullet(e.x, e.y - 8, Math.cos(a) * spd, Math.sin(a) * spd, 150, r, e.atk, col);
+        spawnEBullet(e.x, e.y - 8, Math.cos(a) * spd, Math.sin(a) * spd, life, r, e.atk, col);
     });
 }

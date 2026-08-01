@@ -20,7 +20,7 @@ const WG_COUNT = 5;
 const MOB_ARCHETYPES = {
     melee:   { hp: 40, atk: 8,  speed: 1.50, hb: { w: 16, h: 12 }, atkRange: 26, warn: 24, dash: 5,  cd: 50, dashDur: 22 },
     charger: { hp: 34, atk: 11, speed: 2.10, hb: { w: 16, h: 12 }, atkRange: 34, warn: 34, dash: 9,  cd: 64, dashDur: 22 },
-    ranged:  { hp: 26, atk: 7,  speed: 1.00, hb: { w: 16, h: 12 }, atkRange: 250, warn: 32, cd: 78, keepDist: 165, shotSpeed: 4.2, recoil: 16 },
+    ranged:  { hp: 26, atk: 7,  speed: 1.00, hb: { w: 16, h: 12 }, atkRange: 250, warn: 32, cd: 78, keepDist: 165, shotSpeed: 4.2, recoil: 16, detect: 230 },
     tank:    { hp: 95, atk: 15, speed: 0.85, hb: { w: 22, h: 16 }, atkRange: 32, warn: 38, dash: 4,  cd: 70, superArmor: true, dashDur: 26 },
     // bomber: 붙어서 자폭. warn이 곧 "도화선" 시간 — 이 동안 몸이 점점 붉어지다 터진다(render_entities).
     bomber:  { hp: 22, atk: 6,  speed: 1.95, hb: { w: 16, h: 12 }, atkRange: 26, warn: 60, dash: 6,  cd: 40, explodeDmg: 18, explodeR: 62 },
@@ -31,10 +31,10 @@ const MOB_ARCHETYPES = {
     // burstGap 27프레임(0.45초) — 팔을 뒤로 젖혔다 던지는 동작 시간을 감안한 간격.
     // 9프레임(0.15초)일 땐 사람이 낼 수 없는 속도로 연사돼서 비현실적이었다.
     thrower: { hp: 28, atk: 6, speed: 1.05, hb: { w: 16, h: 12 }, atkRange: 230, warn: 120, cd: 100,
-               keepDist: 140, shotSpeed: 2.7, burst: 5, burstGap: 27 },
+               keepDist: 140, shotSpeed: 2.7, burst: 5, burstGap: 27, detect: 215 },
     // archer: 3초 차지 후 화살 5발을 부채꼴로 동시에. 돌보다 빠르지만 예고가 길어 위치를 옮기면 피해짐.
     archer:  { hp: 24, atk: 8, speed: 0.95, hb: { w: 16, h: 12 }, atkRange: 280, warn: 180, cd: 130,
-               keepDist: 190, shotSpeed: 4.5, fan: 5, fanSpread: 0.18, recoil: 30 },
+               keepDist: 190, shotSpeed: 4.5, fan: 5, fanSpread: 0.18, recoil: 30, detect: 240 },
 };
 
 // 거리를 두고 싸우는 원형 — chase에서 접근 대신 거리 유지, attack에서 돌진 대신 발사
