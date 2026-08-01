@@ -95,7 +95,9 @@ const Game = {
     // ── 런 스코프 스탯 (resetRun()이 전부 초기화) ──
     // 출처는 3가지: 영구강화(shop.js) + 드롭 아이템(combat.js) + 유물(relic.js)
     // 모두 같은 필드에 누적되고, 실제 전투 계산은 player.js가 여기에 장비 보너스를 더해 씀
-    pDropRate: 0.35,
+    // 잡몹이 뭔가를 떨어뜨릴 확률. 방마다 10~20마리라 0.35는 아이템이 끝없이 쏟아졌다.
+    // 기본 스펙(체력·공격력)을 올린 대신 이걸 낮춰서, 성장은 장비·유물·영구강화로 몰아준다.
+    pDropRate: 0.18,
     pEquipDropRate: 0.06, // 잡몹에서 무기·방어구가 나올 확률 (엘리트는 별도 상향)
     pAtkBonus: 0,       // 평타 데미지 고정 가산
     pDefBonus: 0,       // 피격 데미지 고정 감산
@@ -152,7 +154,7 @@ function resetRun() {
     Game.stageN = 1; Game.roundN = 1;
     Game.camShake = 0;
 
-    Game.pDropRate = 0.35;
+    Game.pDropRate = 0.18;
     Game.pEquipDropRate = 0.06;
     Game.pAtkBonus = 0; Game.pDefBonus = 0;
     Game.pAtkSpdBonus = 0; Game.pMoveSpdBonus = 0;
@@ -204,22 +206,22 @@ function resetRun() {
 // skill: Shift로 쓰는 직업 고유기. 구현은 skill.js의 CLASS_SKILLS.
 const CLASS_PROFILE = {
     0: { name: "성기사", tint: "#ffd24a", desc: "느리지만 단단한 근접. 넓은 범위를 쓸어친다.",
-         atkSpd: 0.95, range: 62, atkCD: 34, dmgMin: 16, dmgMax: 22, crit: 0.12,
+         atkSpd: 0.95, range: 62, atkCD: 34, dmgMin: 20, dmgMax: 27, crit: 0.12,
          hpMul: 1.45, spdMul: 0.88, arc: 80, skillCD: 300 },
     1: { name: "도적",   tint: null,      desc: "초고속 쌍단검. 치명타로 녹인다. 대신 약하다.",
-         atkSpd: 2.00, range: 50, atkCD: 20, dmgMin: 8,  dmgMax: 13, crit: 0.35,
+         atkSpd: 2.00, range: 50, atkCD: 20, dmgMin: 10, dmgMax: 16, crit: 0.35,
          hpMul: 0.85, spdMul: 1.15, arc: 60, skillCD: 240 },
     2: { name: "마법사", tint: "#5ab6ff", desc: "원거리 관통 마법탄. 몸이 약해 거리 유지가 생명.",
-         atkSpd: 1.10, range: 300, atkCD: 30, dmgMin: 11, dmgMax: 16, crit: 0.18,
+         atkSpd: 1.10, range: 300, atkCD: 30, dmgMin: 14, dmgMax: 20, crit: 0.18,
          hpMul: 0.75, spdMul: 1.00, arc: 30, ranged: true, shotSpeed: 8.5, skillCD: 300 },
     3: { name: "버서커", tint: "#ff5533", desc: "느리고 둔하지만 한 방이 무겁다. 체력이 깎일수록 강해진다.",
-         atkSpd: 0.80, range: 66, atkCD: 40, dmgMin: 24, dmgMax: 34, crit: 0.10,
+         atkSpd: 0.80, range: 66, atkCD: 40, dmgMin: 30, dmgMax: 42, crit: 0.10,
          hpMul: 1.30, spdMul: 0.86, arc: 90, rageDmg: true, skillCD: 330 },
     4: { name: "발키리", tint: "#c9d4e6", desc: "빠른 연사 원거리. 탄 하나하나는 약하다.",
-         atkSpd: 1.85, range: 280, atkCD: 18, dmgMin: 6,  dmgMax: 10, crit: 0.25,
+         atkSpd: 1.85, range: 280, atkCD: 18, dmgMin: 8,  dmgMax: 13, crit: 0.25,
          hpMul: 0.85, spdMul: 1.08, arc: 24, ranged: true, shotSpeed: 10, skillCD: 270 },
     5: { name: "혈귀",   tint: "#cc1f4a", desc: "피를 마시며 싸운다. 공격이 곧 회복.",
-         atkSpd: 1.35, range: 56, atkCD: 26, dmgMin: 13, dmgMax: 19, crit: 0.22,
+         atkSpd: 1.35, range: 56, atkCD: 26, dmgMin: 16, dmgMax: 24, crit: 0.22,
          hpMul: 1.05, spdMul: 1.05, arc: 70, innateLifesteal: 0.22, skillCD: 285 },
 };
 const CLASS_IDS = [0, 1, 2, 3, 4, 5];

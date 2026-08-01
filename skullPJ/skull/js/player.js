@@ -1,7 +1,9 @@
 // player.js — 플레이어 이동/대시 (탑다운). td/td.js 프로토타입을 정식 구조로 이식.
 
 // 직업 배율(hpMul/spdMul)이 이 기준값에 곱해진다. 방어구·영구강화·유물은 그 위에 더해짐.
-const PLAYER_BASE_MAX_HP = 100;
+// 기본 체력 — 드롭되는 버프 아이템을 줄인 만큼 기본기로 보전한다(예전 100).
+// 잡몹이 뿌리는 영구 버프에 기대지 않고도 스테이지를 버틸 수 있어야 한다.
+const PLAYER_BASE_MAX_HP = 125;
 const PLAYER_BASE_SPEED = 2.7;
 
 // 스태미나 — 원래 V1 systems.js에 있었지만, 그 파일에서 실제로 쓰던 건 이 3개 상수뿐이고

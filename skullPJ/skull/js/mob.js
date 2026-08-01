@@ -66,7 +66,8 @@ function spawnEnemy(x, y, opts) {
 }
 
 // 처치 보상 — skull_V1 mob.js의 점수/킬카운트/드롭/보스 다크 퀴츠 지급을 탑다운으로 이식
-function onEnemyDeath(e) {
+// skipDrop: 아이템 드롭만 미룬다(자폭병처럼 폭발 뒤에 떨어뜨려야 하는 경우)
+function onEnemyDeath(e, skipDrop) {
     Game.kills = (Game.kills || 0) + 1;
     if (e.isBoss) {
         Game.score += 500;
@@ -89,7 +90,7 @@ function onEnemyDeath(e) {
             addText(e.x, e.y - 34, `다크 쿼츠 +${dq}`, "#dd44ff", 60, 12);
         }
         if (typeof playSfx === 'function') playSfx('enemy_die');
-        dropLoot(e);
+        if (!skipDrop) dropLoot(e);
     }
     // 자폭병 폭발은 여기서 하지 않는다 — updateEnemies의 사망 분기가
     // "시체 1초 후 폭발"까지 포함해 시점을 전담한다.
@@ -185,13 +186,16 @@ function updateEnemies(walls) {
                 // (자기 공격으로 터진 경우 _selfDetonate는 지연 없이 그 자리에서 폭발)
                 if (!e._deathDone) {
                     e._deathDone = true;
-                    onEnemyDeath(e);                  // 점수·드롭은 죽은 시점에 바로
+                    // 점수·킬 카운트는 죽는 즉시. 다만 아이템은 아직 떨어뜨리지 않는다 —
+                    // 터지기 전에 바닥에 놓이면 폭발 이펙트에 파묻히고 순서도 어색하다.
+                    onEnemyDeath(e, true);            // skipDrop
                     e._deathFuse = e._selfDetonate ? 0 : BOMBER_DEATH_FUSE;
                     e._fuseLit = true;                // 시체도 붉게 물들이기 위한 표시
                 }
                 e.vx = 0; e.vy = 0;
                 if (e._deathFuse > 0) { e._deathFuse--; return; }
                 explodeBomber(e);
+                dropLoot(e);                          // 폭발이 끝난 뒤에 전리품이 남는다
                 e.active = false;
                 return;
             }

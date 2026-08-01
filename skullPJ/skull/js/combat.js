@@ -193,17 +193,19 @@ function dropLoot(e) {
     if (!(Math.random() < Game.pDropRate || e.isElite)) return;
     let type = "hp";
     const roll = Math.random();
+    // 영구 버프(공/방/속도)는 한 번 먹으면 그 탐험 내내 누적돼 금방 과해진다.
+    // 잡몹은 회복 위주로만 주고, 버프는 엘리트에서 나오게 몰아 "엘리트를 잡을 이유"를 만든다.
     if (e.isElite) {
-        if (roll < 0.2) type = "atk_drop";
-        else if (roll < 0.4) type = "def_drop";
-        else if (roll < 0.6) type = "atk_spd_drop";
-        else if (roll < 0.8) type = "move_spd_drop";
+        if (roll < 0.25) type = "atk_drop";
+        else if (roll < 0.45) type = "def_drop";
+        else if (roll < 0.65) type = "atk_spd_drop";
+        else if (roll < 0.85) type = "move_spd_drop";
         else type = "hp";
     } else {
-        if (roll < 0.4) type = "hp";
-        else if (roll < 0.55) type = "atk_drop";
-        else if (roll < 0.7) type = "def_drop";
-        else if (roll < 0.85) type = "atk_spd_drop";
+        if (roll < 0.80) type = "hp";          // 잡몹 드롭의 대부분은 회복
+        else if (roll < 0.85) type = "atk_drop";
+        else if (roll < 0.90) type = "def_drop";
+        else if (roll < 0.95) type = "atk_spd_drop";
         else type = "move_spd_drop";
     }
     addItem(e.x, e.y, 10, 10, 0, 600, type);
