@@ -262,19 +262,33 @@ function updateItems() {
         const pRect = { x: Player.x - Player.hb.w / 2, y: Player.y - Player.hb.h / 2, w: Player.hb.w, h: Player.hb.h };
         const iRect = { x: it.x - it.w / 2, y: it.y - it.h / 2, w: it.w, h: it.h };
         if (!Player.dead && overlap(pRect, iRect)) {
-            applyItemEffect(it);
-            it.active = false;
+            // applyItemEffect가 true를 돌려주면 "줍지 못했다"는 뜻 — 바닥에 그대로 둔다
+            const kept = applyItemEffect(it);
+            if (!kept) it.active = false;
         }
     });
 }
 
 function applyItemEffect(it) {
     const p = Player;
-    if (typeof playSfx === 'function') playSfx('item');
     if (it.type === "weapon_drop" || it.type === "armor_drop") {
-        if (it.equip) equipItem(it.equip);
+        // 즉시 장착하지 않고 가방으로 — 착용은 [I] 화면에서 직접 고른다
+        if (it.equip) {
+            if (!bagAdd(it.equip)) {
+                // 가방이 가득 차면 줍지 못하고 바닥에 그대로 둔다(모르고 사라지지 않게).
+                // 아이템 위에 서 있는 동안 매 프레임 호출되므로 안내는 쿨다운을 둔다.
+                if ((Game._bagFullT || 0) <= 0) {
+                    Game._bagFullT = 90;
+                    addText(p.x, p.y - 20, "가방이 가득 찼습니다 [I]", "#ff8866", 55, 13);
+                }
+                return true;   // 소모하지 않음 — 바닥에 그대로 남는다
+            }
+            addText(p.x, p.y - 20, equipDisplayName(it.equip) + " 획득", equipColor(it.equip), 55, 13);
+        }
+        if (typeof playSfx === 'function') playSfx('item');
         return;
     }
+    if (typeof playSfx === 'function') playSfx('item');
     if (it.type === "hp") {
         if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + 20); addText(p.x, p.y - 20, "+20 HP", "#33ff66", 40, 14); }
         else { Game.score += 20; addText(p.x, p.y - 20, "점수 +20", "#aaaaff", 40, 14); }
@@ -295,6 +309,7 @@ function applyItemEffect(it) {
 const HIT_COMBO_HOLD = 90;
 
 function updateFx() {
+    if (Game._bagFullT > 0) Game._bagFullT--;
     // 히트 콤보 유지 시간 — 다 되면 0으로 끊김
     if (Game.hitComboT > 0 && --Game.hitComboT <= 0) Game.hitCombo = 0;
 

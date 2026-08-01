@@ -251,6 +251,20 @@ function step() {
         return;
     }
 
+    // 인벤토리 [I] — 전투 중에만 연다. 여는 동안 게임은 멈춘다(조작법 오버레이와 같은 방식).
+    if (Game.gs === "play" && pr("KeyI")) {
+        Game.showInv = true;
+        Game.invIdx = 0; Game.invOnEquip = false;
+        if (typeof playSfx === 'function') playSfx('menu_select');
+        endFrameInput();
+        return;
+    }
+    if (Game.showInv) {
+        updateInventory();
+        endFrameInput();
+        return;
+    }
+
     switch (Game.gs) {
         case "menu":
             updateMenu();
@@ -324,6 +338,7 @@ function render() {
             break;
     }
     // 조작법은 항상 최상단에
+    if (Game.showInv) renderInventory();
     if (Game.showKeys) renderKeyGuide();
 }
 

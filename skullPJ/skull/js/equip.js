@@ -72,18 +72,70 @@ function equipColor(eq) {
     return EQUIP_TIER_COLORS[eq.tier] || "#ffffff";
 }
 
-// 장비 장착 — 기존 장비는 버려지고, 방어구는 최대체력이 바뀌므로 현재 체력도 같이 보정한다.
+// ── 가방(인벤토리) ─────────────────────────────────────────
+// 주운 장비는 곧바로 장착하지 않고 가방에 쌓인다. 착용/해제는 [I] 화면에서 직접 한다.
+// (예전엔 주우면 즉시 장착돼서, 더 좋은 장비를 모르고 덮어쓰는 일이 잦았다)
+const BAG_SIZE = 12;
+
+// 방어구는 최대체력을 바꾸므로, 착용 상태가 변할 때마다 여기서 한 번에 다시 계산한다.
+// 여러 곳에서 Player.maxHp를 직접 만지면 영구강화·유물 보정과 어긋나기 쉬워 한 곳으로 모음.
+function refreshMaxHp(prevArmorHp) {
+    const prof = classProfile(Game.pClass);
+    const base = Math.round(PLAYER_BASE_MAX_HP * (prof.hpMul || 1));
+    const permHp = (Game.permHpLvl || 0) * 10;
+    const armorHp = Game.equip.armor ? Game.equip.armor.maxHp : 0;
+    const before = Player.maxHp;
+    Player.maxHp = base + permHp + armorHp + (Game.pRelicMaxHp || 0);
+    // 최대체력이 늘면 늘어난 만큼 즉시 회복(교체가 손해로 느껴지지 않게), 줄면 상한에 맞춤
+    const delta = Player.maxHp - before;
+    if (delta > 0) Player.hp = Math.min(Player.maxHp, Player.hp + delta);
+    else Player.hp = Math.min(Player.hp, Player.maxHp);
+}
+
+// 가방에 넣기 — 가득 찼으면 false를 돌려주고, 호출부가 "가방이 가득 찼다"고 알린다
+function bagAdd(eq) {
+    if (!eq) return false;
+    if (Game.bag.length >= BAG_SIZE) return false;
+    Game.bag.push(eq);
+    return true;
+}
+
+// 가방의 i번째를 착용. 착용 중이던 같은 부위 장비는 가방의 그 자리로 들어간다(맞바꿈).
+function equipFromBag(i) {
+    const eq = Game.bag[i];
+    if (!eq) return;
+    const prev = Game.equip[eq.kind];
+    Game.equip[eq.kind] = eq;
+    if (prev) Game.bag[i] = prev; else Game.bag.splice(i, 1);
+    refreshMaxHp();
+    if (typeof playSfx === 'function') playSfx('item');
+}
+
+// 착용 해제 — 가방에 자리가 없으면 벗지 못한다(장비를 잃지 않게)
+function unequipToBag(kind) {
+    const eq = Game.equip[kind];
+    if (!eq) return false;
+    if (Game.bag.length >= BAG_SIZE) return false;
+    Game.bag.push(eq);
+    Game.equip[kind] = null;
+    refreshMaxHp();
+    if (typeof playSfx === 'function') playSfx('item');
+    return true;
+}
+
+// 가방에서 버리기
+function dropFromBag(i) {
+    if (!Game.bag[i]) return;
+    Game.bag.splice(i, 1);
+    if (typeof playSfx === 'function') playSfx('menu_select');
+}
+
+// 장비 장착 (직접 착용이 필요한 경우용) — 기존 장비는 가방으로, 자리 없으면 버려진다
 function equipItem(eq) {
     const prev = Game.equip[eq.kind];
     Game.equip[eq.kind] = eq;
-    if (eq.kind === "armor") {
-        const prevBonus = prev ? prev.maxHp : 0;
-        const delta = eq.maxHp - prevBonus;
-        Player.maxHp = PLAYER_BASE_MAX_HP + eq.maxHp;
-        // 최대체력이 늘면 그만큼 즉시 회복(장비 교체가 손해로 느껴지지 않게), 줄면 상한에 맞춰 깎음
-        if (delta > 0) Player.hp = Math.min(Player.maxHp, Player.hp + delta);
-        else Player.hp = Math.min(Player.hp, Player.maxHp);
-    }
+    if (prev) bagAdd(prev);
+    refreshMaxHp();
     addText(Player.x, Player.y - 34, equipDisplayName(eq) + " 장착!", equipColor(eq), 70, 13);
     for (let i = 0; i < 12; i++) addPart(Player.x, Player.y - 10, equipColor(eq), 22, 3);
 }

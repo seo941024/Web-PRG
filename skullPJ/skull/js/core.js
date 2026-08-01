@@ -123,8 +123,12 @@ const Game = {
     pLowHpDmg: false,   // 체력 낮을수록 피해 증가
     regenT: 0,
 
-    // 장비 슬롯 (equip.js) — 무기·방어구 각 1개, 주우면 즉시 교체
+    // 장비 슬롯 (equip.js) — 무기·방어구 각 1개. 주운 장비는 가방에 쌓이고 [I]에서 직접 착용한다
     equip: { weapon: null, armor: null },
+    bag: [],              // 가방 (최대 BAG_SIZE칸)
+    invIdx: 0,            // 인벤토리 커서
+    invOnEquip: false,    // 커서가 장착칸(무기/방어구)에 있는지
+    showInv: false,       // [I] 인벤토리 열림 — 열려 있는 동안 게임 정지
     // 유물 (relic.js) — 런 한정, 보스 격파 시 3택 1
     relics: [], relicChoices: [], relicIdx: 0,
     // 상점 (shop.js)
@@ -171,6 +175,7 @@ function resetRun() {
     Game.runSeed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0; // 새 탐험 = 새 배치
 
     Game.equip = { weapon: null, armor: null };
+    Game.bag = []; Game.invIdx = 0; Game.invOnEquip = false; Game.showInv = false;
     Game.relics = []; Game.relicChoices = []; Game.relicIdx = 0;
     Game.skillPending = []; Game.skillFx = []; Game.chillT = 0;
 
