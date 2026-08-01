@@ -264,7 +264,7 @@ function updateEnemies(walls) {
                 if (typeof playSfx === 'function') playSfx(isRangedType(e.mtype) ? 'mob_laser' : 'enemy_atk');
                 if (e.mtype === "thrower") {
                     // 돌을 한 발씩 연달아 던진다 — 발사 간격(burstGap)마다 1발씩, 총 burst발.
-                    // 조준각은 매 발 새로 잡아서 플레이어가 계속 움직이게 만든다.
+                    // 조준 방향은 enterWindup에서 정한 warnAng 그대로 유지한다(재조준 없음).
                     // 엘리트 보정은 "동시에 여러 발"이 아니라 "더 오래 던짐"으로 준다.
                     const n = (arch.burst || 5) + (e.isElite ? 2 : 0);
                     e.burstLeft = n;
@@ -291,7 +291,9 @@ function updateEnemies(walls) {
                 e.vx = 0; e.vy = 0;
                 if ((e.burstCD || 0) > 0) e.burstCD--;
                 if (e.burstCD <= 0 && (e.burstLeft || 0) > 0) {
-                    e.warnAng = Math.atan2(dy, dx);   // 매 발 재조준
+                    // 조준은 예고 시작 때 한 번만 잡고, 5발을 그 방향으로 계속 던진다.
+                    // 매 발 재조준하면 옆으로 걸어도 끝까지 따라와 첫 스테이지 잡몹치고 가혹하다.
+                    // 고정된 탄착점이라 "한 발짝 비키면 안전"이 성립한다.
                     fireMobShot(e, arch);
                     e.burstLeft--;
                     e.burstCD = arch.burstGap || 9;
