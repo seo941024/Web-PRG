@@ -163,7 +163,7 @@ const ANIM_FRAME_COUNT = 8; // 기본 프레임 수 (대부분의 애니)
 const ANIM_FRAME_COUNTS = { attack: 16, idle: 7 }; // 애니마다 프레임 수 다르면 여기 등록. attack: 0~15 전부 4타 콤보(3-4-4-5, 참조프레임 없음)
 // 클래스별 예외 — 같은 애니 이름이라도 캐릭터마다 프레임 수가 다를 수 있다
 // (예: 도적 idle=7, 고블린 킹(boss1) idle=8 — PixelLab에서 뽑을 때마다 다르게 나옴)
-const ANIM_FRAME_COUNTS_BY_CLASS = { boss1: { idle: 8 } };
+const ANIM_FRAME_COUNTS_BY_CLASS = { boss1: { idle: 8, walk: 8 } };
 function animFrameCount(animName, classId) {
     const byClass = ANIM_FRAME_COUNTS_BY_CLASS[classId];
     if (byClass && byClass[animName] !== undefined) return byClass[animName];
@@ -196,7 +196,8 @@ function preloadAnims(classId, animNames) {
 // 여백 비율도 달라서 공용 SPRITE_FEET_RATIO를 쓰면 발이 떠 보임. PIL로 실측해서 등록.
 const ANIM_FEET_RATIO = { attack: 0.713 };
 // 클래스별 예외 — boss1(고블린 킹)은 128px 캔버스라 도적(92px) 비율과 다름. PIL 실측값(≈0.72)
-const ANIM_FEET_RATIO_BY_CLASS = { boss1: { idle: 0.72 } };
+// boss1은 idle/walk 모두 128px 캔버스라 비율이 같다(PIL 실측 0.719)
+const ANIM_FEET_RATIO_BY_CLASS = { boss1: { idle: 0.72, walk: 0.72 } };
 function feetRatioFor(animName, classId) {
     const byClass = ANIM_FEET_RATIO_BY_CLASS[classId];
     if (byClass && byClass[animName] !== undefined) return byClass[animName];

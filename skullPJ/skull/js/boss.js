@@ -494,18 +494,27 @@ function bossRecovery(pat, isP2) {
 }
 
 // 보스 숨쉬기(idle) 애니 재생 속도 — 플레이어 attack처럼 fps 개념 없이 그냥 느긋하게 고정
-const BOSS_IDLE_FPS = 6;
+// 보스 애니 재생 속도 — 숨쉬기는 느긋하게, 걷기는 발이 미끄러져 보이지 않게 조금 빠르게
+const BOSS_ANIM_FPS = { idle: 6, walk: 9, sprint: 12, attack: 14 };
+
+// 현재 상태에 맞는 애니 이름을 고른다.
+// 아직 안 뽑은 애니는 loadAnim이 404 → drawAnimSprite가 정지 포즈로 자동 폴백하므로
+// 여기서 미리 존재 여부를 따질 필요는 없다.
+function bossAnimName(e) {
+    if (e.state === "attack") {
+        // 돌진형은 몸으로 밀고 들어가는 동작이라 sprint, 그 외는 공격 모션
+        const pat = (bossPatterns(Game.stageN) || [])[e.ap];
+        return (pat && pat.kind === "dash") ? "sprint" : "attack";
+    }
+    if (e.state === "windup") return "attack";   // 선딜 = 도끼를 들어올리는 구간
+    // chase/recover — 실제로 움직이고 있으면 걷기, 아니면 숨쉬기
+    const moving = Math.hypot(e.vx || 0, e.vy || 0) > 0.35;
+    return moving ? "walk" : "idle";
+}
 
 function updateBossAI(e, walls) {
     if ((e.hitInv || 0) > 0) e.hitInv--;
     if (e.flash > 0) e.flash--;
-
-    // idle 숨쉬기 애니 진행 — 다른 동작(공격 실행 등) 애니가 생기기 전까지는 항상 idle을 돌린다.
-    // 프레임 수를 모르면(아직 안 뽑은 보스) 그냥 넘어가고, drawAnimSprite가 정지 포즈로 폴백한다.
-    e.animName = "idle";
-    e.animT = (e.animT || 0) + 1;
-    const idleFc = animFrameCount("idle", e.spriteKey);
-    if (e.animT >= 60 / BOSS_IDLE_FPS) { e.animT = 0; e.animFrame = ((e.animFrame || 0) + 1) % idleFc; }
 
     // 넉백은 슈퍼아머로 막지만, 혹시 걸렸다면 관성 처리만 하고 패턴은 멈춤
     if ((e.kbT || 0) > 0) {
@@ -599,6 +608,16 @@ function updateBossAI(e, walls) {
     }
 
     resolveWalls(e, walls);
+
+    // ── 애니 갱신 ──
+    // 이동/상태가 모두 확정된 뒤에 처리한다(위에서 하면 이번 프레임 상태와 한 박자 어긋남).
+    // 애니가 바뀌면 프레임을 0부터 다시 재생해 동작이 중간부터 튀어나오지 않게 한다.
+    const nextAnim = bossAnimName(e);
+    if (e.animName !== nextAnim) { e.animName = nextAnim; e.animFrame = 0; e.animT = 0; }
+    const fps = BOSS_ANIM_FPS[e.animName] || 8;
+    const fc = animFrameCount(e.animName, e.spriteKey);
+    e.animT = (e.animT || 0) + 1;
+    if (e.animT >= 60 / fps) { e.animT = 0; e.animFrame = ((e.animFrame || 0) + 1) % fc; }
 }
 
 function startBossPattern(e, pat, isP2) {
