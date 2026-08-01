@@ -18,7 +18,10 @@ const WG_COUNT = 5;
 //   tank    : 느리고 단단함, 넉백 안 먹음(슈퍼아머)
 //   bomber  : 빠르게 붙어 자폭 (죽어도 폭발 — 근접 딜러에게 위험)
 const MOB_ARCHETYPES = {
-    melee:   { hp: 40, atk: 8,  speed: 1.50, hb: { w: 16, h: 12 }, atkRange: 26, warn: 24, dash: 5,  cd: 50, dashDur: 22 },
+    // melee: 멀찍이서 멈춰 예고한 뒤 한 번에 파고든다. 예전엔 atkRange 26이라 코앞까지 걸어와
+    //        때렸고, 여러 마리가 플레이어에게 달라붙어 스프라이트가 겹쳐 뭉쳤다.
+    //        95px에서 멈추고 8.5×20=170px를 돌진하므로 스쳐 지나가며 자연히 간격이 벌어진다.
+    melee:   { hp: 40, atk: 8,  speed: 1.50, hb: { w: 16, h: 12 }, atkRange: 95, warn: 30, dash: 8.5, cd: 62, dashDur: 20 },
     charger: { hp: 34, atk: 11, speed: 2.10, hb: { w: 16, h: 12 }, atkRange: 34, warn: 34, dash: 9,  cd: 64, dashDur: 22 },
     ranged:  { hp: 26, atk: 7,  speed: 1.00, hb: { w: 16, h: 12 }, atkRange: 250, warn: 32, cd: 78, keepDist: 165, shotSpeed: 4.2, recoil: 16, detect: 230 },
     tank:    { hp: 95, atk: 15, speed: 0.85, hb: { w: 22, h: 16 }, atkRange: 32, warn: 38, dash: 4,  cd: 70, superArmor: true, dashDur: 26 },

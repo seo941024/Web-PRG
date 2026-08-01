@@ -79,7 +79,15 @@ function renderRoom(walls) {
         ctx.globalAlpha = 1;
     }
 
-    // 적 (그림자 + 틴트 스프라이트 + HP바 + 공격 예고)
+    // ── 캐릭터 렌더는 3단계로 나눈다 ──
+    // 탑다운에서는 "화면 아래쪽(y가 큰) 대상이 앞에 있다". 예전엔 적을 전부 그린 뒤 플레이어를
+    // 그려서 플레이어가 항상 위로 왔고, 보스 뒤에 서 있어도 안 가려지는 문제가 있었다.
+    //   1) 그림자·바닥 예고 — 항상 스프라이트 아래
+    //   2) 스프라이트 — y(발 위치) 오름차순 정렬해서 그림  ← 가림 순서가 여기서 결정
+    //   3) HP바·라벨 — 항상 스프라이트 위
+    const drawList = [];   // { y, draw() } — y 오름차순으로 그릴 스프라이트
+    const overlays = [];   // HP바 등 항상 스프라이트 위에 와야 하는 것들
+
     Game.enemies.forEach(e => {
         if (!e.active) return;
         // 죽은 적은 보통 그리지 않지만, 자폭병 시체는 터지기 전 1초 동안 붉어지며 남아야 한다
@@ -102,7 +110,9 @@ function renderRoom(walls) {
             const ringR = e.isBoss ? 22 : 14;
             ctx.beginPath(); ctx.arc(e.x, e.y - (e.isBoss ? 18 : 14), ringR, 0, Math.PI * 2 * prog); ctx.stroke();
             // 돌진 계열은 어느 방향으로 올지 선으로 미리 알려줌 (회피 방향을 판단할 수 있게)
-            const isDash = e.warnKind === "dash" || e.mtype === "charger" || e.mtype === "bomber";
+            // melee도 이제 멀리서 파고드는 돌진형이라 방향 선을 보여준다
+            const isDash = e.warnKind === "dash" || e.mtype === "charger"
+                || e.mtype === "bomber" || e.mtype === "melee";
             if (e.warnAng !== undefined && isDash) {
                 const len = (e.isBoss ? 150 : 90) * prog;
                 ctx.globalAlpha = 0.45;
@@ -160,6 +170,8 @@ function renderRoom(walls) {
             ctx.restore();
         }
 
+        // 스프라이트는 바로 그리지 않고 목록에 넣는다 (아래 y정렬 단계에서 그림)
+        drawList.push({ y: e.y, draw: () => {
         ctx.save();
         // 피격 플래시(흰색). 자폭병 시체는 붉게 물들여야 하므로 플래시를 적용하지 않는다
         if (e.flash > 0 && !dyingBomber) ctx.filter = "brightness(2) saturate(0)";
@@ -193,12 +205,14 @@ function renderRoom(walls) {
             drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333", esc);
         }
         ctx.restore();
+        } });
 
         // (엘리트 표식이던 발밑 금색 링은 제거 — 덩치 확대 + 옅은 금빛으로 대체)
 
         // HP바 — 보스는 크고 금테, 일반 몹은 작고 붉은 그대로.
         // 이미 죽은 자폭병 시체에는 표시하지 않는다 (0짜리 빈 바가 떠 어색함)
         if (dyingBomber) return;
+        overlays.push(() => {
         const hpw = e.isBoss ? 60 : 24;
         const hpy = e.isBoss ? e.y - 52 * BOSS_SPRITE_SCALE : e.y - 40 * (e.isElite ? ELITE_SPRITE_SCALE : 1);
         ctx.fillStyle = "#000c"; ctx.fillRect(e.x - hpw/2 - 1, hpy - 1, hpw + 2, 6);
@@ -209,6 +223,7 @@ function renderRoom(walls) {
         else { ehpGrd.addColorStop(0, "#ff5050"); ehpGrd.addColorStop(1, "#cc1111"); }
         ctx.fillStyle = ehpGrd; ctx.fillRect(e.x - hpw/2, hpy, hpw * ehpRatio, 4);
         if (e.isBoss) { ctx.strokeStyle = "#ffcc33aa"; ctx.lineWidth = 1; ctx.strokeRect(e.x - hpw/2, hpy, hpw, 4); }
+        });
     });
 
     // (공격 판정 부채꼴 연출은 삭제 — 공격 모션이 있는데 반투명 부채꼴까지 겹치면
@@ -297,10 +312,19 @@ function renderRoom(walls) {
     // 전용 도트가 없는 직업은 sprites.js가 도적 원화로 대체하고, 여기서 넘긴 직업 색을 덧입혀 구분한다.
     // ⚠️ 예전엔 애니 스프라이트를 그린 뒤 정지 포즈(drawDirSpriteTinted)를 한 번 더 겹쳐 그려서
     //    두 자세가 겹쳐 보였다 — 반드시 한 번만 그릴 것.
+    // 적과 같은 정렬 목록에 넣어야 앞뒤 가림이 맞는다(그냥 그리면 항상 위로 온다).
     if (Player.invT <= 0 || Math.floor(Player.invT / 4) % 2 === 0) {
-        drawAnimSprite(ctx, Game.pClass, Player.animName, Player.facing,
-            Player.animFrame, Player.x, Player.y, classTint(Game.pClass));
+        drawList.push({ y: Player.y, draw: () => {
+            drawAnimSprite(ctx, Game.pClass, Player.animName, Player.facing,
+                Player.animFrame, Player.x, Player.y, classTint(Game.pClass));
+        } });
     }
+
+    // ── 정렬해서 그리기 ──
+    // 발 위치(y)가 작을수록 뒤 → 먼저 그린다. 같은 y면 순서가 흔들리지 않게 안정 정렬로 둔다.
+    drawList.sort((a, b) => a.y - b.y);
+    drawList.forEach(d => d.draw());
+    overlays.forEach(fn => fn());
 
     // 플레이어 투사체 (마법사·발키리 평타, 일부 스킬)
     Game.pBullets.forEach(b => {

@@ -55,7 +55,9 @@ const CLASS_SKILLS = {
             const [dx, dy] = DIR_VEC[Player.facing];
             const ang = Math.atan2(dy, dx);
             const walls = collisionWalls();
-            const dmg = Math.round(playerAtkDamage() * 0.55);
+            // 배율 0.55는 너무 낮았다 — 4초 쿨 스킬 총합(29)이 평타 4타 콤보(49)보다 약해
+            // 쓸 이유가 없었다. 1.0배로 올려 관통 1회 + 도착 5연타 = 평타 6회분(약 63)이 되게 한다.
+            const dmg = Math.round(playerAtkDamage() * 1.0);
 
             // 순간이동 — 벽은 통과하지 않도록 조금씩 전진하며 충돌 검사.
             // 지나친 적도 베어야 한다. 안 그러면 멀리 있는 적을 노리고 돌진했을 때
@@ -85,8 +87,9 @@ const CLASS_SKILLS = {
                 });
             }
 
-            // 도착 지점에서 4연타 (프레임을 나눠 때려 다단히트 느낌)
-            Game.skillPending.push({ t: 0, every: 4, left: 4, fn: () => {
+            // 도착 지점에서 5연타 (프레임을 나눠 때려 다단히트 느낌)
+            // 직업 선택 화면 설명이 "5연타"라 숫자를 맞춘다(예전엔 4타로 어긋나 있었음)
+            Game.skillPending.push({ t: 0, every: 4, left: 5, fn: () => {
                 skillHitArea(Player.x, Player.y, 68, 160, ang, dmg);
                 for (let i = 0; i < 4; i++) addPart(Player.x + dx * 20, Player.y - 12, "#cc44ff", 14, 3);
             }});
