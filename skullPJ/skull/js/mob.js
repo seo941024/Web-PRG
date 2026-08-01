@@ -25,6 +25,8 @@ function spawnEnemy(x, y, opts) {
     e.ap = undefined; e.chaseT = 0; e._p2Flagged = false;
     // 오브젝트 풀 재사용 — 이전 자폭병의 상태가 남지 않게 초기화
     e._fuseLit = false; e._deathDone = false; e._deathFuse = 0; e._selfDetonate = false;
+    // 추격 리듬 위상을 몹마다 다르게 — 같으면 방 전체가 한 몸처럼 멈췄다 움직여 부자연스럽다
+    e.moveCycle = Math.floor(Math.random() * 78);
 
     if (opts.boss) {
         const theme = stageTheme(opts.stageN);
@@ -112,6 +114,19 @@ function onEnemyDeath(e) {
 // 플레이어에게 죽은 자폭병이 터지기까지의 시간 — 시체가 붉어지는 동안 피할 수 있다
 const BOMBER_DEATH_FUSE = 60;
 
+// ── 추격 리듬 ──────────────────────────────────────────────
+// 인지하는 순간부터 끝까지 달라붙으면 압박이 단조롭고 도망칠 여지가 없어 피곤하다.
+// 걷다 → 잠깐 멈춤 → 다시 걷기를 반복해 "천천히 조여오는" 느낌을 만든다.
+// 멈춰 있는 동안에도 사거리 안이면 공격 판정은 그대로 들어가므로 무르지 않다.
+const CHASE_WALK = 46;   // 걷는 구간 0.77초
+const CHASE_REST = 32;   // 쉬는 구간 0.53초
+const CHASE_CYCLE = CHASE_WALK + CHASE_REST;
+// 자폭병은 달려드는 게 정체성이라 덜 쉬게 한다(쉬는 구간 절반)
+function chaseResting(e) {
+    const rest = e.mtype === "bomber" ? CHASE_REST * 0.5 : CHASE_REST;
+    return (e.moveCycle % CHASE_CYCLE) >= CHASE_CYCLE - rest;
+}
+
 // 자폭 — 반경 내 플레이어에게 피해 + 예고 없는 즉발이라 반경을 좁게 잡음
 function explodeBomber(e) {
     const arch = e.arch || MOB_ARCHETYPES.bomber;
@@ -170,16 +185,20 @@ function updateEnemies(walls) {
         const spd = slowed ? e.speed * (Game.chillT > 0 ? 0.55 : 0.7) : e.speed;
 
         if (e.state === "chase") {
+            // 걷다 쉬다 하는 리듬 — 쉬는 동안엔 접근하지 않는다(공격 판정은 그대로)
+            e.moveCycle = (e.moveCycle || 0) + 1;
+            const resting = chaseResting(e);
             if (isRangedType(e.mtype)) {
                 // 사거리 안에 들어오면 멈춰 조준, 너무 가까우면 뒤로 물러남
+                // (너무 가까울 때 물러나는 건 생존 반응이라 쉬는 중에도 그대로 둔다)
                 if (dist < arch.keepDist * 0.75) {
                     e.vx = -(dx / dist) * spd * 1.3;
                     e.vy = -(dy / dist) * spd * 1.3;
-                } else if (dist > arch.atkRange) {
+                } else if (dist > arch.atkRange && !resting) {
                     e.vx = (dx / dist) * spd;
                     e.vy = (dy / dist) * spd;
                 } else {
-                    e.vx = 0; e.vy = 0;
+                    e.vx *= 0.8; e.vy *= 0.8;
                 }
                 if (dist <= arch.atkRange) {
                     e.chaseT = (e.chaseT || 0) + 1;
@@ -188,11 +207,11 @@ function updateEnemies(walls) {
             } else {
                 if (dist < arch.atkRange) {
                     enterWindup(e, arch, dx, dy);
-                } else if (dist < 320) {
+                } else if (dist < 320 && !resting) {
                     e.vx = (dx / dist) * spd;
                     e.vy = (dy / dist) * spd;
                 } else {
-                    e.vx = 0; e.vy = 0; // 탐지 범위 밖이면 대기
+                    e.vx *= 0.8; e.vy *= 0.8; // 탐지 범위 밖이거나 쉬는 중 — 서서히 멈춤
                 }
             }
         } else if (e.state === "windup") {

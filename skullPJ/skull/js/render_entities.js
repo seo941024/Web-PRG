@@ -3,6 +3,10 @@
 // 보스 스프라이트 확대 배율 — 잡몹과 실루엣이 같으면 위압감이 없어서 크게 그린다.
 // 히트박스(e.hb)는 건드리지 않는다: 판정이 커지면 난이도가 통째로 흔들리므로 시각 크기만 확대.
 const BOSS_SPRITE_SCALE = 2;
+// 엘리트 확대 배율 — 발밑 금색 링 대신 "덩치"로 구분한다.
+// 1.5배인 이유: 월드가 ZOOM=2로 그려지므로 최종 3배(정수배)라 도트가 깨지지 않는다.
+// 2배로 하면 최종 4배가 되어 보스(128px×2=512px)와 덩치가 겹쳐 위압감이 희석된다.
+const ELITE_SPRITE_SCALE = 1.5;
 
 function renderRoom(walls) {
     ctx.clearRect(0, 0, CW, CH);
@@ -81,7 +85,7 @@ function renderRoom(walls) {
         // 죽은 적은 보통 그리지 않지만, 자폭병 시체는 터지기 전 1초 동안 붉어지며 남아야 한다
         const dyingBomber = e.dead && e.mtype === "bomber" && e._deathFuse > 0;
         if (e.dead && !dyingBomber) return;
-        const esc = e.isBoss ? BOSS_SPRITE_SCALE : 1;
+        const esc = e.isBoss ? BOSS_SPRITE_SCALE : (e.isElite ? ELITE_SPRITE_SCALE : 1);
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.beginPath(); ctx.ellipse(e.x, e.y, 10 * esc, 4 * esc, 0, 0, Math.PI * 2); ctx.fill();
 
@@ -181,24 +185,22 @@ function renderRoom(walls) {
                 const a = Math.min(0.85, prog * 0.8 + (blink ? 0.25 : 0));
                 fuseTint = `rgba(255,40,20,${a.toFixed(2)})`;
             }
-            drawDirSpriteTinted(ctx, e.spriteKey, e.facing, e.x, e.y, fuseTint, 1);
+            // 전용 도트가 있어도 엘리트는 옅은 금빛을 남긴다 — 덩치만으로는 순간 구분이 어렵다
+            const eliteTint = (!fuseTint && e.isElite) ? "rgba(255,205,80,0.28)" : null;
+            drawDirSpriteTinted(ctx, e.spriteKey, e.facing, e.x, e.y, fuseTint || eliteTint, esc);
         } else {
             // 전용 도트가 없는 몹 — 예전처럼 도적 원화를 테마색으로 틴트해 대신 그린다
-            drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333", 1);
+            drawDirSpriteTinted(ctx, Game.pClass, e.facing, e.x, e.y, e.tint || "#ff3333", esc);
         }
         ctx.restore();
 
-        // 엘리트 표식 — 발밑 금색 링
-        if (e.isElite && !e.isBoss) {
-            ctx.strokeStyle = "rgba(255,204,51,0.8)"; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.ellipse(e.x, e.y, 13, 5, 0, 0, Math.PI * 2); ctx.stroke();
-        }
+        // (엘리트 표식이던 발밑 금색 링은 제거 — 덩치 확대 + 옅은 금빛으로 대체)
 
         // HP바 — 보스는 크고 금테, 일반 몹은 작고 붉은 그대로.
         // 이미 죽은 자폭병 시체에는 표시하지 않는다 (0짜리 빈 바가 떠 어색함)
         if (dyingBomber) return;
         const hpw = e.isBoss ? 60 : 24;
-        const hpy = e.isBoss ? e.y - 52 * BOSS_SPRITE_SCALE : e.y - 40;
+        const hpy = e.isBoss ? e.y - 52 * BOSS_SPRITE_SCALE : e.y - 40 * (e.isElite ? ELITE_SPRITE_SCALE : 1);
         ctx.fillStyle = "#000c"; ctx.fillRect(e.x - hpw/2 - 1, hpy - 1, hpw + 2, 6);
         ctx.fillStyle = "#3a0808"; ctx.fillRect(e.x - hpw/2, hpy, hpw, 4);
         const ehpRatio = Math.max(0, e.hp / e.maxHp);
