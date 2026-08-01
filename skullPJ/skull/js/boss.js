@@ -15,6 +15,36 @@ const BOSS_PATTERNS = {
     // ── 1. 고블린 킹 — 단순하고 읽기 쉬운 근접 위주. 첫 보스답게 학습용 ──
     1: [
         {
+            // 대표 근접기 — 도끼를 크게 치켜들었다(긴 선딜) 발밑을 내려찍는다.
+            // 선딜이 길어 읽고 빠져나올 수 있고, 후딜도 길어 반격 창이 확실하게 열린다.
+            name: "도끼 내려찍기", warn: 52, dur: 16, rec: 78, kind: "cast",
+            exec: (e, isP2) => {
+                // 착탄 지점은 "보스가 바라보는 앞쪽" — 예고 각도를 그대로 쓰므로 표시와 어긋나지 않는다
+                const reach = 46;
+                const hx = e.x + Math.cos(e.warnAng) * reach;
+                const hy = e.y + Math.sin(e.warnAng) * reach;
+
+                // 직격 판정 — 내려찍은 자리에 있으면 큰 피해
+                const R = isP2 ? 96 : 82;
+                const ddx = Player.x - hx, ddy = Player.y - hy;
+                if (ddx * ddx + ddy * ddy < R * R && typeof hitPlayer === 'function') {
+                    hitPlayer(Math.round(e.atk * 1.4), e);
+                }
+                // 갈라진 땅 — 잠시 남아 그 자리를 계속 위험하게 만든다
+                spawnHazard(hx, hy, R * 0.8, 0, 26, Math.round(e.atk * 0.5), "#8a6a3a");
+
+                // 충격파 — 바깥으로 퍼지는 저속 탄. 붙어 있던 플레이어를 밀어내는 역할
+                const amt = isP2 ? 14 : 9;
+                for (let i = 0; i < amt; i++) {
+                    const a = (i / amt) * Math.PI * 2;
+                    spawnEBullet(hx, hy, Math.cos(a) * 2.4, Math.sin(a) * 2.4, 80, 6, Math.round(e.atk * 0.45));
+                }
+                for (let i = 0; i < 22; i++) addPart(hx, hy, Math.random() < 0.5 ? "#b08a4a" : "#e0d0a0", 26, 4);
+                Game.camShake = Math.max(Game.camShake || 0, 20);
+                if (typeof playSfx === 'function') playSfx('enemy_atk');
+            },
+        },
+        {
             name: "철퇴 돌진", warn: 34, dur: 24, rec: 56, kind: "dash",
             exec: () => { Game.camShake = Math.max(Game.camShake || 0, 10); },
         },
