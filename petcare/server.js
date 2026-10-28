@@ -125,6 +125,13 @@ function serveStatic(req, res, pathname) {
     return;
   }
 
+  /* 서버 전용 키 파일 제공 차단 */
+  if (path.basename(filePath).startsWith("keys.")) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404);
