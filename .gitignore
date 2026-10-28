@@ -5,3 +5,8 @@ GMS_WEEK_BOSS/
 .vscode/
 Thumbs.db
 ~$*
+# 펫케어 API 키·발표자료 (PC에만 보관)
+petcare/config.js
+petcare/keys.local.json
+*.docx
+*.pptx

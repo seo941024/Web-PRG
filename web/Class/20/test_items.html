@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <button id="saveBtn">물품 데이터 저장</button>
+    <button id="loadBtn">물품 데이터 불러오기</button>
+    <button id="findBtn">id가 2인 상품 찾기</button>
+    <button id="filterBtn">상품 목록을 localstorage에 저장하기</button>
+    <button id="mapBtn">저장된 상품 목록 다시 보기</button>
+
+    <pre id="result"></pre>
+
+    <script>
+      const items = [
+        { id: 1, name: "노트북", score: 1200000 },
+        { id: 2, name: "마우스", score: 30000 },
+        { id: 3, name: "키보드", score: 80000 },
+      ];
+
+      const saveBtn = document.querySelector("#saveBtn");
+      const loadBtn = document.querySelector("#loadBtn");
+      const findBtn = document.querySelector("#findBtn");
+      const filterBtn = document.querySelector("#filterBtn");
+      const mapBtn = document.querySelector("#mapBtn");
+      const result = document.querySelector("#result");
+
+      saveBtn.addEventListener("click", function () {
+        localStorage.setItem("items", JSON.stringify(items));
+        result.textContent = "물품 데이터가 저장되었습니다.";
+      });
+
+      loadBtn.addEventListener("click", function () {
+        const savedData = localStorage.getItem("items");
+        const itemsList = JSON.parse(savedData);
+        result.textContent = JSON.stringify(itemsList, null, 2);
+      });
+
+      findBtn.addEventListener("click", function () {
+        const savedData = localStorage.getItem("items");
+        const itemsList = JSON.parse(savedData);
+        const items = itemsList.find((item) => item.id === 2);
+        result.textContent = JSON.stringify(items, null, 2);
+      });
+
+      filterBtn.addEventListener("click", function () {
+        const savedData = localStorage.getItem("items");
+        const itemsList = JSON.parse(savedData);
+        const passeditems = itemsList.filter((item) => item.score >= 80);
+        result.textContent = JSON.stringify(passeditems, null, 2);
+      });
+
+      mapBtn.addEventListener("click", function () {
+        const savedData = localStorage.getItem("items");
+        const itemsList = JSON.parse(savedData);
+        const names = itemsList.map((item) => item.name);
+        result.textContent = JSON.stringify(names, null, 2);
+      });
+    </script>
+  </body>
+</html>
