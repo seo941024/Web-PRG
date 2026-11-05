@@ -1,13 +1,13 @@
-# Web-PRG · 웹 프로그래밍 실습
+# Web-PRG · 웹 프로그래밍
 
-HTML · CSS · JavaScript 수업 실습과 웹 프로젝트 모음.
+HTML · CSS · JavaScript 기본 예제와 웹 프로젝트 모음.
 
 | 폴더 | 내용 |
 |---|---|
 | `petcare/` | 펫케어: 초보 반려인을 위한 케어 서비스 웹. 입양 전 준비·시뮬레이션, 유기동물 입양 정보, 건강 관리, 금지 음식·응급 처치, 동네 멘토·성장 일기, 품종 퀴즈 |
 | `todolist/` | 파스텔 루틴 투두리스트 |
-| `web/Class/` | 수업 회차별 실습: chap04~chap13, chap17, chap19, 15·16·18·20회차 |
-| `web_practice/` | 첫 HTML 실습: 자기소개 페이지, 종합 실습 1~3, BLT 샌드위치 소개 페이지 |
+| `web/Class/` | 회차별 예제: chap04~chap13, chap17, chap19, 15·16·18·20회차 |
+| `web_practice/` | 첫 HTML 작성: 자기소개 페이지, 종합 예제 1~3, BLT 샌드위치 소개 페이지 |
 
 ---
 
@@ -192,7 +192,7 @@ node server.js        # http://localhost:3000
 
 ---
 
-## 3. 수업 실습
+## 3. 기본 예제
 
 ### `web/Class/`
 
@@ -214,12 +214,12 @@ node server.js        # http://localhost:3000
 | 18 | 배열, Date, window·location·screen 객체, 팝업 |
 | chap19 | DOM 탐색·생성·삭제, classList, 이벤트, 라이트박스·팝업 레이어 |
 | 20 | localStorage, 투두리스트 예제 |
-| Practice | Flexbox, 박스 채우기, 실습 페이지 |
+| Practice | Flexbox, 박스 채우기, 연습 페이지 |
 
 ### `web_practice/`
 
 | 파일 | 내용 |
 |---|---|
 | `01/` | 자기소개 페이지 |
-| `practice_1.html`, `practice_2.html` | 종합 실습 1·2 |
+| `practice_1.html`, `practice_2.html` | 종합 예제 1·2 |
 | `practice_3.html`, `서지섭/` | BLT 샌드위치 소개 페이지 |
