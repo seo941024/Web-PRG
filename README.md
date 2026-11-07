@@ -17,8 +17,8 @@ HTML · CSS · JavaScript 기본 예제와 웹 프로젝트 모음.
 |---|---|
 | `petcare/` | 펫케어: 초보 반려인을 위한 케어 서비스 웹. 입양 전 준비·시뮬레이션, 유기동물 입양 정보, 건강 관리, 금지 음식·응급 처치, 동네 멘토·성장 일기, 품종 퀴즈 |
 | `todolist/` | 파스텔 루틴 투두리스트 |
-| `web/Class/` | 회차별 예제: chap04~chap13, chap17, chap19, 15·16·18·20회차 |
-| `web_practice/` | 첫 HTML 작성: 자기소개 페이지, 종합 예제 1~3, BLT 샌드위치 소개 페이지 |
+| `web/Class/` | 회차별 HTML·CSS·JavaScript 예제, 폴더마다 README. 목록은 [3. 회차별 예제](#3-회차별-예제) |
+| `web_practice/` | HTML 문서 구조와 태그: 자기소개 페이지, 종합 예제, BLT 샌드위치 소개 페이지 |
 
 ---
 
@@ -167,7 +167,7 @@ node server.js        # http://localhost:3000
 
 ## 2. 투두리스트
 
-매일 반복하는 루틴 관리와 메모, 화면 꾸미기 기능을 갖춘 단일 페이지 앱. `index.html` 한 파일에 마크업과 스크립트, `style.css`에 테마·글꼴 스타일 포함. 자세한 기능 소개는 `todolist/README.md` 참고.
+매일 반복하는 루틴 관리와 메모, 화면 꾸미기 기능을 갖춘 단일 페이지 앱. `index.html` 한 파일에 마크업과 스크립트, `style.css`에 테마·글꼴 스타일 포함. 자세한 기능 소개는 [todolist/README.md](todolist/README.md) 참고.
 
 ![투두리스트](docs/images/todolist.png)
 
@@ -203,34 +203,39 @@ node server.js        # http://localhost:3000
 
 ---
 
-## 3. 기본 예제
+## 3. 회차별 예제
 
-### `web/Class/`
+폴더마다 README에 다룬 개념의 뜻, 파일별 내용, 핵심 코드 정리. 폴더 이름을 누르면 해당 README로 이동.
 
-| 회차 | 주제 |
-|---|---|
-| chap04 | HTML 기본 태그: 제목·문단, 목록, 표, 이미지, 링크, 오디오·비디오 |
-| chap05 | 폼: 입력 요소, 버튼, 날짜·시간, 선택 상자, 라디오·체크박스, 회원가입·로그인 폼 |
-| chap06 | CSS 적용 방식, 선택자, 우선순위와 상속 |
-| chap07 | 글꼴, 색상, 텍스트 스타일, 목록·표 스타일, 웹 폰트 |
-| chap08 | 박스 모델, 테두리·여백, display, float, position, 다단 레이아웃 |
-| chap09 | 배경 이미지, 선형·원형 그라디언트 |
-| chap10 | em·rem·vw 단위, 미디어 쿼리, object-fit |
-| chap11 | Flexbox |
-| chap12 | CSS Grid, 반응형 갤러리 |
-| chap13 | 속성·결합 선택자, 가상 클래스·가상 요소, calc·clamp·minmax, filter |
-| 15 | JavaScript 삽입 방식, alert·confirm·prompt, document.write, console |
-| 16 | 변수, 형 변환, 조건문, switch, 반복문 |
-| chap17 | 함수, 화살표 함수, 콜백, 이벤트 처리 |
-| 18 | 배열, Date, window·location·screen 객체, 팝업 |
-| chap19 | DOM 탐색·생성·삭제, classList, 이벤트, 라이트박스·팝업 레이어 |
-| 20 | localStorage, 투두리스트 예제 |
-| Practice | Flexbox, 박스 채우기, 연습 페이지 |
+### HTML
 
-### `web_practice/`
+| 폴더 | 주제 | 만든 화면 |
+|---|---|---|
+| [web_practice](web_practice) | HTML 문서 구조와 태그 | 레드향 소개, 교내 방송국 모집 안내와 지원 양식, 자기소개 페이지, BLT 샌드위치 소개 페이지 |
+| [chap04](web/Class/chap04) | 텍스트·목록·표·이미지·링크·멀티미디어 태그 | 레드향 상품 소개 페이지, 탐라국 입춘굿 포스터 |
+| [chap05](web/Class/chap05) | 웹 폼 | 레드향 주문서, 로그인, 회원가입, 봉사동아리 가입 신청서 |
 
-| 파일 | 내용 |
-|---|---|
-| `01/` | 자기소개 페이지 |
-| `practice_1.html`, `practice_2.html` | 종합 예제 1·2 |
-| `practice_3.html`, `서지섭/` | BLT 샌드위치 소개 페이지 |
+### CSS
+
+| 폴더 | 주제 | 만든 화면 |
+|---|---|---|
+| [chap06](web/Class/chap06) | CSS 적용 방식과 선택자 | 인라인·내부·외부 스타일 적용, 선택자 우선순위 비교 화면 |
+| [chap07](web/Class/chap07) | 텍스트·목록·표 스타일 | 글꼴·줄 높이·그림자를 적용한 레드향 소개, 웹 폰트·아이콘 폰트 주문 안내문 |
+| [chap08](web/Class/chap08) | 박스 모델과 배치 | display·float·position으로 만든 메뉴, 2단·3단 레이아웃, 여행 카드 |
+| [chap09](web/Class/chap09) | CSS 배경과 그러데이션 | 배경 이미지 반복·위치·크기 지정, 원형 그러데이션 비교, 고정 배경 제목 화면 |
+| [chap10](web/Class/chap10) | 반응형 웹 디자인 | 화면 크기 단위와 미디어 쿼리를 적용한 경복궁 소개, 탐라국 입춘굿 소개 페이지 |
+| [chap11](web/Class/chap11) | Flexbox 레이아웃 | 화면 가운데 배치, 팀 소개 카드, 검색 막대, 반응형 사진 목록 |
+| [chap12](web/Class/chap12) | CSS Grid 레이아웃 | 선 번호·영역 이름 배치, 사진 갤러리 |
+| [chap13](web/Class/chap13) | CSS 선택자 활용 | 자식·형제·속성·가상 클래스 선택자로 꾸민 메뉴·표·회원 가입 폼, 벚꽃축제 소개 페이지 |
+| [Practice](web/Class/Practice) | Flexbox·float 화면 구성 | 메뉴 막대와 본문·사이드바 분할, 프로필 카드, 같은 페이지의 float·Flexbox 두 방식 구성 |
+
+### JavaScript
+
+| 폴더 | 주제 | 만든 화면 |
+|---|---|---|
+| [15](web/Class/15) | JavaScript 작성 위치와 입출력 | 대화 상자·문서 출력, 클릭하면 색이 바뀌는 제목, 새로 고침마다 바뀌는 배경색 |
+| [16](web/Class/16) | 변수·자료형·조건문·반복문 | 배수 판별, 계절 판별, 구구단, 자리 배치도, 메뉴 선택 |
+| [chap17](web/Class/chap17) | 함수와 이벤트 | 클릭 이벤트로 배경색·글자색 변경, 음료 자판기 메뉴 |
+| [18](web/Class/18) | 배열과 내장 객체·브라우저 객체 | 경과 일수 계산, 당첨자 추첨, 실시간 시계, 팝업 창 크기·위치 지정 |
+| [chap19](web/Class/chap19) | DOM 조작과 이벤트 처리 | 공부 주제 목록 추가·삭제, 라이트박스, 레이어 팝업, 다크 모드 전환 |
+| [20](web/Class/20) | localStorage와 배열 메서드 | `find`·`filter`·`map` 조회 화면, 이름 저장, 테마 기억, 할 일 관리 |
