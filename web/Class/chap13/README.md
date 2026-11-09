@@ -4,6 +4,16 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [palaces.html](labs/palaces.html) · 강릉 경포 벚꽃축제 소개 페이지 | [register1.html](register1.html) · 속성 선택자로 꾸민 회원 가입 폼 |
+|---|---|
+| ![강릉 경포 벚꽃축제 소개 페이지](screenshots/palaces.jpg) | ![속성 선택자로 꾸민 회원 가입 폼](screenshots/register1.png) |
+
+| [sol-1.html](sol-1.html) · 홀수 행에 배경색을 준 목록 표 | [adj.html](adj.html) · 형제 선택자로 강조한 숙소 예약 안내 |
+|---|---|
+| ![홀수 행에 배경색을 준 목록 표](screenshots/sol-1.png) | ![형제 선택자로 강조한 숙소 예약 안내](screenshots/adj.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

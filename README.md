@@ -17,7 +17,7 @@ HTML · CSS · JavaScript 기본 예제와 웹 프로젝트 모음.
 |---|---|
 | `petcare/` | 펫케어: 초보 반려인을 위한 케어 서비스 웹. 입양 전 준비·시뮬레이션, 유기동물 입양 정보, 건강 관리, 금지 음식·응급 처치, 동네 멘토·성장 일기, 품종 퀴즈 |
 | `todolist/` | 파스텔 루틴 투두리스트 |
-| `web/Class/` | 회차별 HTML·CSS·JavaScript 예제, 폴더마다 README. 목록은 [3. 회차별 예제](#3-회차별-예제) |
+| `web/Class/` | 회차별 HTML·CSS·JavaScript 예제, 폴더마다 대표 화면 사진과 README. 목록은 [3. 회차별 예제](#3-회차별-예제) |
 | `web_practice/` | HTML 문서 구조와 태그: 자기소개 페이지, 종합 예제, BLT 샌드위치 소개 페이지 |
 
 ---
@@ -205,7 +205,15 @@ node server.js        # http://localhost:3000
 
 ## 3. 회차별 예제
 
-폴더마다 README에 다룬 개념의 뜻, 파일별 내용, 핵심 코드 정리. 폴더 이름을 누르면 해당 README로 이동.
+폴더마다 README에 대표 화면 사진, 다룬 개념의 뜻, 파일별 내용, 핵심 코드 정리. 폴더 이름을 누르면 해당 README로 이동.
+
+| [chap10 · 반응형 웹](web/Class/chap10) | [chap13 · 선택자 활용](web/Class/chap13) | [chap19 · DOM과 이벤트](web/Class/chap19) |
+|---|---|---|
+| ![경복궁 소개 반응형 페이지](web/Class/chap10/screenshots/palaces_responsive.jpg) | ![강릉 경포 벚꽃축제 소개 페이지](web/Class/chap13/screenshots/palaces.jpg) | ![수박게임](web/Class/chap19/screenshots/suika.png) |
+
+| [chap11 · Flexbox](web/Class/chap11) | [chap12 · Grid](web/Class/chap12) | [20 · localStorage](web/Class/20) |
+|---|---|---|
+| ![팀 소개 카드](web/Class/chap11/screenshots/our-team.png) | ![사진 갤러리](web/Class/chap12/screenshots/gallery.jpg) | ![할 일 관리](web/Class/20/screenshots/todoList.png) |
 
 ### HTML
 

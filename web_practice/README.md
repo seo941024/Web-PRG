@@ -2,6 +2,16 @@
 
 HTML 문서 틀과 글자·목록·표·이미지·동영상·링크 태그로 만든 소개 페이지 모음. 레드향 소개, 교내 방송국 모집 안내와 지원 양식, 자기소개 페이지, BLT 샌드위치 소개 페이지 구성.
 
+## 화면
+
+| [index.html](01/index.html) · 자기소개 페이지 | [practice_1.html](practice_1.html) · 교내 방송국 수습 국원 모집 안내 |
+|---|---|
+| ![자기소개 페이지](screenshots/index.png) | ![교내 방송국 수습 국원 모집 안내](screenshots/practice_1.png) |
+
+| [practice_2.html](practice_2.html) · 셀을 합친 수습 국원 지원 양식 |   |
+|---|---|
+| ![셀을 합친 수습 국원 지원 양식](screenshots/practice_2.png) |   |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

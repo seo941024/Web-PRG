@@ -4,6 +4,18 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+입력 창이 뜨는 예제는 예시 값을 넣어 실행한 화면.
+
+| [internal.html](internal.html) · 새로 고침마다 바뀌는 배경색 | [js-time.html](js-time.html) · 현재 시각 출력 |
+|---|---|
+| ![새로 고침마다 바뀌는 배경색](screenshots/internal.png) | ![현재 시각 출력](screenshots/js-time.png) |
+
+| [dwrite.html](dwrite.html) · 입력받은 이름으로 환영 문구 출력 | [script-1.html](script-1.html) · 클릭하면 빨간색으로 바뀌는 제목 |
+|---|---|
+| ![입력받은 이름으로 환영 문구 출력](screenshots/dwrite.png) | ![클릭하면 빨간색으로 바뀌는 제목](screenshots/script-1_click.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

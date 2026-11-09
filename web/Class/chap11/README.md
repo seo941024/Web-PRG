@@ -4,6 +4,20 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [center2.html](center2.html) · 화면 가운데 인사말 상자 | [our-team.html](our-team.html) · 팀 소개 카드 |
+|---|---|
+| ![화면 가운데 인사말 상자](screenshots/center2.jpg) | ![팀 소개 카드](screenshots/our-team.png) |
+
+| [flex-12.html](flex-12.html) · 4:1로 나눈 검색 막대 | [quiz-1.html](quiz-1.html) · 반응형 사진 목록 |
+|---|---|
+| ![4:1로 나눈 검색 막대](screenshots/flex-12.png) | ![반응형 사진 목록](screenshots/quiz-1.jpg) |
+
+| [flex-4.html](flex-4.html) · justify-content 값별 배치 비교 |   |
+|---|---|
+| ![justify-content 값별 배치 비교](screenshots/flex-4.png) |   |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

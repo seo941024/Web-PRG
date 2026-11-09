@@ -4,6 +4,20 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [border-8.html](border-8.html) · 꼭짓점별 반지름 비교 | [float-5.html](float-5.html) · float로 나란히 놓은 사진 세 장 |
+|---|---|
+| ![꼭짓점별 반지름 비교](screenshots/border-8.png) | ![float로 나란히 놓은 사진 세 장](screenshots/float-5.jpg) |
+
+| [quiz-2.html](quiz-2.html) · 여가 시간 여행 카드 | [z-index.html](z-index.html) · z-index로 겹친 카드 |
+|---|---|
+| ![여가 시간 여행 카드](screenshots/quiz-2.png) | ![z-index로 겹친 카드](screenshots/z-index.png) |
+
+| [lab.html](lab/lab.html) · 둥근 모서리 박스 세 개로 나눈 레드향 소개 | [position-fixed.html](position-fixed.html) · 화면 오른쪽 아래에 고정된 상자 |
+|---|---|
+| ![둥근 모서리 박스 세 개로 나눈 레드향 소개](screenshots/lab.jpg) | ![화면 오른쪽 아래에 고정된 상자](screenshots/position-fixed.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

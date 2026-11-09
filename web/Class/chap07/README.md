@@ -4,6 +4,16 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [lab.html](lab.html) · 주문·배송 안내문 | [lab2.html](lab2.html) · 그림자 상자 안 레드향 소개 |
+|---|---|
+| ![주문·배송 안내문](screenshots/lab.jpg) | ![그림자 상자 안 레드향 소개](screenshots/lab2.jpg) |
+
+| [table-2.html](table-2.html) · 테두리를 지정한 상품 구성 표 | [color.html](color.html) · 배경 사진 위 CSS 제목 |
+|---|---|
+| ![테두리를 지정한 상품 구성 표](screenshots/table-2.png) | ![배경 사진 위 CSS 제목](screenshots/color.jpg) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

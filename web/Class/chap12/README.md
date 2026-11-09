@@ -2,6 +2,16 @@
 
 행과 열을 함께 나누는 2차원 배치 방식인 CSS Grid 구성과 항목 배치, 사진 갤러리 구현.
 
+## 화면
+
+| [gallery.html](gallery.html) · 영역 이름으로 배치한 사진 갤러리 | [responsive.html](responsive.html) · 선 번호로 배치한 카드형 화면 |
+|---|---|
+| ![영역 이름으로 배치한 사진 갤러리](screenshots/gallery.jpg) | ![선 번호로 배치한 카드형 화면](screenshots/responsive.png) |
+
+| [grid-7.html](grid-7.html) · 영역 이름으로 나눈 화면 구획 | [grid-4.html](grid-4.html) · auto-fit과 auto-fill 비교 |
+|---|---|
+| ![영역 이름으로 나눈 화면 구획](screenshots/grid-7.png) | ![auto-fit과 auto-fill 비교](screenshots/grid-4.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

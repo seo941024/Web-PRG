@@ -4,6 +4,20 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [background.html](background.html) · 고정 배경 위 제목 화면 | [bg-4.html](bg-4.html) · 배경 크기 값 비교 |
+|---|---|
+| ![고정 배경 위 제목 화면](screenshots/background.jpg) | ![배경 크기 값 비교](screenshots/bg-4.jpg) |
+
+| [radial-2.html](radial-2.html) · 원형 그러데이션 크기 비교 | [quiz-2.html](quiz-2.html) · 대학언론사 수습기자 모집 안내 |
+|---|---|
+| ![원형 그러데이션 크기 비교](screenshots/radial-2.png) | ![대학언론사 수습기자 모집 안내](screenshots/quiz-2.png) |
+
+| [bg-clip.html](bg-clip.html) · 배경색 칠 범위 비교 |   |
+|---|---|
+| ![배경색 칠 범위 비교](screenshots/bg-clip.png) |   |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

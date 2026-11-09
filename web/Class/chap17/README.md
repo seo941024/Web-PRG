@@ -4,6 +4,22 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+입력 창이 뜨는 예제는 예시 값을 넣어 실행한 화면. 콘솔 출력과 알림 창 내용은 화면 아래 검은 상자로 함께 표시.
+
+| [todos.html](lab/todos.html) · 할 일 추가 버튼과 콘솔 출력 | [smartMachine.html](smartMachine.html) · 음료 자판기 메뉴 선택 |
+|---|---|
+| ![할 일 추가 버튼과 콘솔 출력](screenshots/todos.png) | ![음료 자판기 메뉴 선택](screenshots/smartMachine.png) |
+
+| [function-2.html](results/function-2.html) · 매개변수 기본값 적용 결과 | [calcSum.html](results/calcSum.html) · 1부터 입력한 수까지의 합 |
+|---|---|
+| ![매개변수 기본값 적용 결과](screenshots/function-2.png) | ![1부터 입력한 수까지의 합](screenshots/calcSum.png) |
+
+| [event-1.html](results/event-1.html) · 링크 클릭 시 알림 창 |   |
+|---|---|
+| ![링크 클릭 시 알림 창](screenshots/event-1.png) |   |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

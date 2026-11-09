@@ -4,6 +4,22 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+입력 창이 뜨는 예제는 예시 값을 넣어 실행한 화면. 콘솔 출력은 화면 아래 검은 상자로 함께 표시.
+
+| [with-table.html](with-table.html) · 표로 출력한 구구단 | [sol-2.html](sol-2.html) · 100까지 3의 배수와 개수 |
+|---|---|
+| ![표로 출력한 구구단](screenshots/with-table.png) | ![100까지 3의 배수와 개수](screenshots/sol-2.png) |
+
+| [seat-2.html](seat-2.html) · 입장객 24명, 한 줄 6석 자리 배치도 | [switch.html](switch.html) · 생일 달로 계절 판별 |
+|---|---|
+| ![입장객 24명, 한 줄 6석 자리 배치도](screenshots/seat-2.png) | ![생일 달로 계절 판별](screenshots/switch.png) |
+
+| [test2.html](test2.html) · 종료 번호까지 반복하는 메뉴 선택 |   |
+|---|---|
+| ![종료 번호까지 반복하는 메뉴 선택](screenshots/test2.png) |   |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

@@ -4,6 +4,22 @@ Array·Date·Math 내장 객체와 window·screen·location 브라우저 객체�
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+입력 창이 뜨는 예제는 예시 값을 넣어 실행한 화면.
+
+| [days.html](results/days.html) · 책 읽기 경과 일수 | [event.html](results/event.html) · 당첨자 추첨 |
+|---|---|
+| ![책 읽기 경과 일수](screenshots/days.png) | ![당첨자 추첨](screenshots/event_draw.png) |
+
+| [notice.html](notice.html) · 팝업 창에 띄울 공지사항 | [time-2.html](results/time-2.html) · 현재 날짜와 시각 |
+|---|---|
+| ![팝업 창에 띄울 공지사항](screenshots/notice.png) | ![현재 날짜와 시각](screenshots/time-2.png) |
+
+| [array-2.html](results/array-2.html) · 배열 메서드 결과 |   |
+|---|---|
+| ![배열 메서드 결과](screenshots/array-2.png) |   |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

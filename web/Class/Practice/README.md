@@ -2,6 +2,16 @@
 
 Flexbox로 메뉴 막대와 본문·사이드바 화면 분할, 멤버별 색 테마 프로필 카드, 같은 경복궁 소개 페이지를 float와 Flexbox 두 방식으로 구성.
 
+## 화면
+
+| [css_box채우기.html](css_box채우기.html) · 메뉴 막대와 본문·사이드바 분할 | [flexbox.html](flexbox.html) · Flexbox로 나눈 머리글·본문·바닥글 |
+|---|---|
+| ![메뉴 막대와 본문·사이드바 분할](screenshots/css_box채우기.png) | ![Flexbox로 나눈 머리글·본문·바닥글](screenshots/flexbox.png) |
+
+| [member1.html](lab2/member1.html) · 프로필 카드 | [palaces_v2.html](labs/palaces_v2.html) · Flexbox로 다시 배치한 경복궁 소개 |
+|---|---|
+| ![프로필 카드](screenshots/member1.png) | ![Flexbox로 다시 배치한 경복궁 소개](screenshots/palaces_v2.jpg) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

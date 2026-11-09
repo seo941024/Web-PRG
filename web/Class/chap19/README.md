@@ -4,6 +4,22 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+버튼·썸네일을 누르거나 과일을 떨어뜨린 뒤의 화면.
+
+| [create.html](results/create.html) · 공부 주제 목록 추가 | [index.html](index.html) · 커피 상품 상세 화면 |
+|---|---|
+| ![공부 주제 목록 추가](screenshots/create.png) | ![커피 상품 상세 화면](screenshots/index.png) |
+
+| [lightbox.html](results/lightbox.html) · 썸네일 클릭 후 라이트박스 | [popup-layer.html](popup-layer.html) · 레이어 팝업 |
+|---|---|
+| ![썸네일 클릭 후 라이트박스](screenshots/lightbox_open.jpg) | ![레이어 팝업](screenshots/popup-layer.png) |
+
+| [mode.html](results/mode.html) · 다크 모드 전환 후 | [suika.html](results/suika.html) · 과일을 몇 개 떨어뜨린 수박게임 |
+|---|---|
+| ![다크 모드 전환 후](screenshots/mode_dark.png) | ![과일을 몇 개 떨어뜨린 수박게임](screenshots/suika.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

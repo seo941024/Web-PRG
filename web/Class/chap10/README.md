@@ -4,6 +4,16 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [palaces_responsive.html](labs/palaces_responsive.html) · 경복궁 소개 페이지, 넓은 화면 | [palaces_responsive.html](labs/palaces_responsive.html) · 같은 페이지, 너비 390px 화면 |
+|---|---|
+| ![경복궁 소개 페이지, 넓은 화면](screenshots/palaces_responsive.jpg) | ![같은 페이지, 너비 390px 화면](screenshots/palaces_mobile.jpg) |
+
+| [usingTemplate.html](usingTemplate.html) · 탐라국 입춘굿 블로그형 소개 | [object-fit.html](object-fit.html) · object-fit 값별 비교 |
+|---|---|
+| ![탐라국 입춘굿 블로그형 소개](screenshots/usingTemplate.png) | ![object-fit 값별 비교](screenshots/object-fit.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

@@ -4,6 +4,16 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [basic-style.html](basic-style.html) · 아이디·타입·클래스 선택자 적용 | [cssPriority2.html](cssPriority2.html) · 선택자 우선순위별 글자색 비교 |
+|---|---|
+| ![아이디·타입·클래스 선택자 적용](screenshots/basic-style.png) | ![선택자 우선순위별 글자색 비교](screenshots/cssPriority2.png) |
+
+| [id.html](id.html) · 아이디 선택자로 꾸민 본문 상자 | [quiz-1.html](quiz-1.html) · 외부 스타일 시트를 연결한 웹 기술 목록 |
+|---|---|
+| ![아이디 선택자로 꾸민 본문 상자](screenshots/id.png) | ![외부 스타일 시트를 연결한 웹 기술 목록](screenshots/quiz-1.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

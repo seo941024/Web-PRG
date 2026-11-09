@@ -2,6 +2,18 @@
 
 브라우저 localStorage에 JSON 문자열로 데이터를 저장하고 불러와 `find`·`filter`·`map`으로 가공하는 학생·도서·물품 조회 화면, 이름 저장, 테마 기억, 할 일 관리 화면 구현.
 
+## 화면
+
+버튼을 눌러 저장·조회한 뒤의 화면.
+
+| [localStorageEx01.html](localStorageEx01.html) · 이름 저장 후 불러오기 | [localStorageEx02.html](localStorageEx02.html) · 다크 테마로 바꾼 뒤 |
+|---|---|
+| ![이름 저장 후 불러오기](screenshots/localStorageEx01.png) | ![다크 테마로 바꾼 뒤](screenshots/theme_dark.png) |
+
+| [todoList.html](todoList.html) · 할 일 3개 등록, 1개 완료 | [통합예제.html](통합예제.html) · 80점 이상 학생 보기 결과 |
+|---|---|
+| ![할 일 3개 등록, 1개 완료](screenshots/todoList.png) | ![80점 이상 학생 보기 결과](screenshots/통합예제.png) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |

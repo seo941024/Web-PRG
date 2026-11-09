@@ -4,6 +4,20 @@
 
 Do it! 교재 예제와 연습문제 기반.
 
+## 화면
+
+| [link-4.html](link-4.html) · 목차 링크를 단 레드향 소개 | [table-5.html](table-5.html) · 셀을 합친 상품 구성 표 |
+|---|---|
+| ![목차 링크를 단 레드향 소개](screenshots/link-4.jpg) | ![셀을 합친 상품 구성 표](screenshots/table-5.png) |
+
+| [figcaption-2.html](figcaption-2.html) · figure로 묶은 사계절 사진 | [poster-link.html](poster-link.html) · 탐라국 입춘굿 포스터 |
+|---|---|
+| ![figure로 묶은 사계절 사진](screenshots/figcaption-2.jpg) | ![탐라국 입춘굿 포스터](screenshots/poster-link.png) |
+
+| [sol-10.html](sol-10.html) · 수습 국원 모집 안내문 | [video-3.html](video-3.html) · 포스터 이미지를 지정한 동영상 |
+|---|---|
+| ![수습 국원 모집 안내문](screenshots/sol-10.png) | ![포스터 이미지를 지정한 동영상](screenshots/video-3.jpg) |
+
 ## 다룬 개념
 
 | 개념 | 뜻과 사용 방법 |
