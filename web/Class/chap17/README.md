@@ -16,9 +16,9 @@ Do it! 교재 예제와 연습문제 기반.
 |---|---|
 | ![매개변수 기본값 적용 결과](screenshots/function-2.png) | ![1부터 입력한 수까지의 합](screenshots/calcSum.png) |
 
-| [event-1.html](results/event-1.html) · 링크 클릭 시 알림 창 |   |
+| [event-1.html](results/event-1.html) · 링크 클릭 시 알림 창 | [event-1.html](event-1.html) · Purple 클릭 시 결과 상자 배경색 변경 |
 |---|---|
-| ![링크 클릭 시 알림 창](screenshots/event-1.png) |   |
+| ![링크 클릭 시 알림 창](screenshots/event-1.png) | ![결과 상자 배경색 변경](screenshots/event-1_starter.png) |
 
 ## 다룬 개념
 
