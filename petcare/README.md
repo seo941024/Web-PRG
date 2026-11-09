@@ -6,6 +6,26 @@
 
 화면별 구현 방식, localStorage 상태 관리, API 중계 흐름, 카카오 지도 연동, 위험 음식 검색, 품종 추천 퀴즈의 상세 설명: [저장소 첫 화면 1. 펫케어](../README.md#1-펫케어)
 
+## 화면
+
+로컬 서버로 실행한 섹션별 화면.
+
+| 입양 전 준비 | 유기동물 입양 |
+|---|---|
+| ![입양 전 준비](../docs/images/petcare-pre-adoption.png) | ![유기동물 입양](../docs/images/petcare-adopt.png) |
+
+| 건강 관리 | 금지 음식·응급 처치 |
+|---|---|
+| ![건강 관리](../docs/images/petcare-health.png) | ![금지 음식·응급 처치](../docs/images/petcare-danger.png) |
+
+| 커뮤니티 로그인 전 | 등록 인증 |
+|---|---|
+| ![커뮤니티](../docs/images/petcare-community.png) | ![등록 인증](../docs/images/petcare-auth.png) |
+
+| 품종 추천 퀴즈 `breed-quiz.html` |   |
+|---|---|
+| ![품종 추천 퀴즈](../docs/images/petcare-breed-quiz.png) |   |
+
 ## 기술 스택과 선택 이유
 
 | 역할 | 기술 | 선택 이유 | 대안과 비교 |
