@@ -14,4 +14,4 @@
 |---|---|---|
 | [서지섭.html](서지섭.html) | 대표 사진과 소개 문단, 빵·속재료·소스를 구분한 재료 표, 기본 재료 목록, 조리 순서 번호 목록, 아이올리 소스 레시피, 조리 동영상, 완성 사진과 설명, 출처 인용, 관련 사이트 링크, 맨 위로 이동 링크 | `rowspan="2"`, `border-collapse: collapse`, `<video controls>`, `<figure>`, `<a href="#recipe">`, `<a href="#container">` |
 
-``의 사진과 `Download.mp4`: 페이지에 쓴 BLT 샌드위치 사진과 조리 동영상.
+이 폴더의 사진: 페이지에 쓴 BLT 샌드위치 사진. 조리 동영상은 상위 폴더 `web_practice`의 `Download.mp4` 사용.
