@@ -47,7 +47,7 @@
 | [style.css](style.css) | 테마별 색, 배경 덮개 레이어, 하단 내비게이션 바, `@font-face` 글꼴 등록 |
 | [manifest.json](manifest.json) | 앱 이름, 아이콘, 독립 화면 실행 설정 |
 
-리소스: 테마별 배경 이미지 `bg1.png`~`bg6.PNG`, 글꼴 파일 `font1.ttf`~`font4.ttf`, 앱 아이콘 `icon.png`, 화면 캡처 `todolist.png`.
+리소스: 테마별 배경 이미지 `bg1.png`~`bg6.png`, 글꼴 파일 `font1.ttf`~`font4.ttf`, 앱 아이콘 `icon.png`, 화면 캡처 `todolist.png`.
 
 ## 저장 데이터
 

@@ -45,7 +45,7 @@
 | [script.js](script.js) | 로그인·인증 상태, 성향 퀴즈, 체크리스트, 예산 계산, 위험 음식 검색, 유기동물 목록, 카카오 지도, 갤러리 슬라이더 |
 | [server.js](server.js) | 정적 파일 제공, 공공데이터포털 유기동물 조회 API를 중계하는 `/api/adopt` |
 | [breed-quiz.html](breed-quiz.html) | 품종 추천 퀴즈와 품종 도감, 마크업·스타일·스크립트를 한 파일에 포함 |
-| [config.example.js](config.example.js) | 브라우저용 설정 예시, 공공데이터포털·카카오 JavaScript 키 자리 |
+| [config.example.js](config.example.js) | 브라우저용 설정 예시, 유기동물 API 사용 여부 `useAdoptApi`와 카카오 JavaScript 키 자리 |
 | [keys.example.json](keys.example.json) | 서버용 인증키 예시 |
 
 리소스: `images/` 화면 사진·아이콘, `RiaSans-Bold.ttf` 화면 기본 글꼴.
@@ -57,6 +57,7 @@ cd petcare
 node server.js        # http://localhost:3000
 ```
 
-- `config.example.js`를 `config.js`로, `keys.example.json`을 `keys.local.json`으로 복사한 뒤 키 입력. 서버 키는 환경 변수 `PETCARE_LIST_KEY`, `PETCARE_PHOTO_KEY`로도 지정 가능
+- `config.example.js`를 `config.js`로 복사한 뒤 `useAdoptApi: true`와 카카오 JavaScript 키 입력. 카카오 개발자 사이트의 내 애플리케이션 → 플랫폼 → Web에 사이트 도메인 `http://localhost:3000` 등록
+- `keys.example.json`을 `keys.local.json`으로 복사한 뒤 공공데이터포털 인증키 입력. 서버 키는 환경 변수 `PETCARE_LIST_KEY`, `PETCARE_PHOTO_KEY`로도 지정 가능
 - `config.js`, `keys.local.json`은 `.gitignore` 대상이라 저장소에는 예시 파일만 포함
 - 키 없이 실행하면 데모 데이터로 표시

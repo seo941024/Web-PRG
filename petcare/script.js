@@ -1,17 +1,18 @@
 /* ═══════════════════════════════════════════════════════════
    펫케어 — 메인 스크립트
    ───────────────────────────────────────────────────────────
-   API 키 설정 — 아래 두 칸에 발급받은 키를 넣으면 실데이터로 작동해요.
-   비워두면 키 없이 데모(샘플 데이터)로 표시됩니다.
+   API 설정 — config.js에 아래 두 값을 넣으면 실데이터로 작동해요.
+   기본값(false, 빈 값)이면 데모(샘플 데이터)로 표시됩니다.
 
-   • dataGoKrKey : 공공데이터포털(data.go.kr) "유기동물 조회 서비스"
-                   신청 → 일반 인증키(Decoding) 복사해서 붙여넣기
+   • useAdoptApi : true면 server.js 프록시(/api/adopt)로 유기동물 조회
+                   공공데이터포털(data.go.kr) "유기동물 조회 서비스" 인증키는
+                   keys.local.json 또는 환경 변수에만 입력, 서버에서만 사용
    • kakaoKey    : 카카오 개발자(developers.kakao.com) JavaScript 키
                    내 애플리케이션 → 플랫폼 → Web에 사이트 도메인 등록 필요
    ═══════════════════════════════════════════════════════════ */
-/* 키 값은 config.js에서 읽음, 저장소에는 config.example.js만 포함 */
+/* 설정 값은 config.js에서 읽음, 저장소에는 config.example.js만 포함 */
 const CONFIG = {
-  dataGoKrKey: "",
+  useAdoptApi: false,
   kakaoKey: "",
   ...(window.PETCARE_CONFIG || {}),
 };
@@ -516,7 +517,7 @@ async function loadAdopt() {
 
   let items = [],
     live = false;
-  if (CONFIG.dataGoKrKey) {
+  if (CONFIG.useAdoptApi) {
     try {
       items = await fetchAbandoned();
       live = items.length > 0;

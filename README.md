@@ -37,8 +37,9 @@ node server.js        # http://localhost:3000
 
 - 유기동물 정보는 공공데이터포털 유기동물 조회 API, 지도는 카카오 지도 API 사용
 - API 키 설정
-  - `config.example.js`를 `config.js`로 복사 후 공공데이터포털·카카오 JavaScript 키 입력
-  - `keys.example.json`을 `keys.local.json`으로 복사 후 공공데이터포털 인증키 입력
+  - `config.example.js`를 `config.js`로 복사 후 유기동물 API 사용 여부 `useAdoptApi: true`와 카카오 JavaScript 키 입력
+  - 카카오 개발자 사이트의 내 애플리케이션 → 플랫폼 → Web에 사이트 도메인 `http://localhost:3000` 등록
+  - `keys.example.json`을 `keys.local.json`으로 복사 후 공공데이터포털 인증키 입력. 인증키는 서버에서만 사용
   - 서버 쪽 키는 환경 변수 `PETCARE_LIST_KEY`, `PETCARE_PHOTO_KEY`로도 지정 가능
 - `config.js`, `keys.local.json`은 `.gitignore` 대상, 저장소에는 예시 파일만 포함
 - 키 없이 실행하면 데모 데이터로 표시
@@ -117,14 +118,14 @@ node server.js        # http://localhost:3000
 
 `loadAdopt()` 흐름.
 
-1. `config.js`의 `dataGoKrKey`가 비어 있으면 API 호출 생략
-2. 키가 있으면 `/api/adopt` 호출. 응답 오류나 예외는 콘솔 경고만 남김
+1. `config.js`의 `useAdoptApi`가 `true`가 아니면 API 호출 생략
+2. `true`면 `/api/adopt` 호출. 응답 오류나 예외는 콘솔 경고만 남김
 3. 받은 항목이 없으면 `demoAdopt()` 결과로 대체
 4. 실데이터를 받은 경우에만 공공데이터포털 실시간 정보 안내 문구 표시
 
 데모 데이터는 이름·나이·체중·지역·보호소를 코드에 고정한 8마리. 전체 필터는 강아지와 고양이를 번갈아 배치하고, 성별은 무작위 지정. 사진은 강아지 `placedog.net`, 고양이 `cataas.com` 무료 이미지를 카드 번호로 고정해 사용. 사진 로드 실패 시 사진 영역을 비움.
 
-`config.js`의 키는 프록시 호출 여부를 정하는 데만 쓰이고, 실제 API 호출에는 서버의 `keys.local.json` 또는 환경 변수 키 사용.
+`config.js`의 `useAdoptApi`는 프록시 호출 여부만 정하고, 실제 API 호출에는 서버의 `keys.local.json` 또는 환경 변수 키 사용.
 
 ### 카카오 지도 연동
 
