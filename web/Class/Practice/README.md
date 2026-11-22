@@ -46,6 +46,6 @@ Flexbox로 메뉴 막대와 본문·사이드바 화면 분할, 멤버별 색 �
 | 구분 | float, labs/palaces.html | Flexbox, labs/palaces_v2.html |
 |---|---|---|
 | 칸 나누기 | `float: left`와 `width: 70%`·`30%` | `display: flex`와 `flex: 7`·`flex: 3` |
-| 부모 높이 처리 | `.row:after`에 `clear: both` 필요 | 별도 처리 없음 |
+| 부모 높이 처리 | `.row:after`에 `clear: both` 필요 | 처리 없음 |
 | 오른쪽 끝 메뉴 | 인라인 `style="float:right"` | `margin-left: auto` |
 | 좁은 화면 | 미디어 쿼리 없음 | 800px 이하 `flex-direction: column` |
